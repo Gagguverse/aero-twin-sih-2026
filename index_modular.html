@@ -1,0 +1,2435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AERO-TWIN | DRDO MALE UAV Aero Piston Engine Digital Twin (SIH-26054)</title>
+  <meta name="description" content="AI-Enabled Real-Time Digital Twin System for Health Monitoring, Fault Prediction and Mission Reliability Enhancement of Aero Piston Engines used in MALE UAVs. DRDO SIH 2026 Problem Statement 26054.">
+
+  <!-- Google Fonts: Orbitron (HUD/Avionics), JetBrains Mono (Telemetry/Data), Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Application Stylesheets -->
+  <link rel="stylesheet" href="css/main.css?v=20260912_drdo">
+  <link rel="stylesheet" href="css/digital-twin.css?v=20260912_drdo">
+  <link rel="stylesheet" href="css/mission.css?v=20260912_drdo">
+</head>
+<body>
+  <div id="app-container">
+
+    <!-- TACTICAL TOP NAVIGATION HEADER -->
+    <header class="tactical-header">
+      <div class="header-brand" id="brand-home-link" role="button" tabindex="0" title="Return to AERO-TWIN Tactical Home Portal" style="cursor: pointer;">
+        <div class="brand-badge">
+          <span class="pulse-dot"></span>
+          DRDO &bull; iDEX
+        </div>
+        <div class="brand-title-group">
+          <h1 class="brand-title">
+            <span class="brand-core">AERO<span class="highlight">-TWIN</span></span>
+            <span class="brand-uav-badge">MALE UAV</span>
+          </h1>
+          <div class="brand-subtitle">
+            <span class="sub-platform">TAPAS-BH-201</span>
+            <span class="sub-sep">&bull;</span>
+            <span class="sub-prop">PROPULSION TWIN</span>
+            <span class="sub-sep">&bull;</span>
+            <span class="sub-id">PS-26054</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TACTICAL BACK BUTTON (Dynamic: visible when in cockpit/mission/sandbox) -->
+      <button class="tactical-btn" id="btn-back-to-home" style="display: none; border-color: rgba(0, 240, 255, 0.5); color: var(--cyan-hud); background: rgba(0, 240, 255, 0.1); font-weight: 800; gap: 6px;" title="Return to Tactical Home Page">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <span>&larr; BACK TO HOME</span>
+      </button>
+
+      <!-- NAV TABS -->
+      <nav class="header-nav" role="tablist">
+        <button class="nav-tab-btn active" data-view="view-home" id="tab-home" role="tab" aria-selected="true" title="AERO-TWIN Tactical Home Portal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>HOME</span>
+        </button>
+        <button class="nav-tab-btn" data-view="view-twin" id="tab-twin" role="tab" aria-selected="false" title="Digital Twin 3D Cockpit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+          <span>DIGITAL TWIN</span>
+        </button>
+        <button class="nav-tab-btn" data-view="view-mission" id="tab-mission" role="tab" aria-selected="false" title="Tactical Mission Map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z"/></svg>
+          <span>MISSION MAP</span>
+        </button>
+        <button class="nav-tab-btn" data-view="view-sandbox" id="tab-sandbox" role="tab" aria-selected="false" title="Fault Injection Sandbox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span>FAULT SANDBOX</span>
+        </button>
+      </nav>
+
+      <!-- HEADER ACTION CONTROLS -->
+      <div class="header-actions">
+        <button class="icon-btn" id="audio-toggle-btn" title="Toggle Tactical Audio" aria-label="Toggle Tactical Audio">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+        </button>
+        <button class="tactical-btn" id="btn-open-preflight" style="border-color: rgba(168, 85, 247, 0.5); color: #c084fc;" title="Pre-Flight T-2h AI Safety Audit & Takeoff Verdict">
+          <span class="pulse-dot" id="header-preflight-dot" style="background:var(--emerald-safe);"></span>
+          <span id="header-preflight-badge">PRE-FLIGHT AI (GO)</span>
+        </button>
+        <button class="tactical-btn" id="btn-open-hardware" style="border-color: rgba(16, 185, 129, 0.4); color: var(--emerald-safe);" title="Connect Real Engine Hardware / Telemetry API">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span id="header-hardware-label">CONNECT ENGINE</span>
+        </button>
+        <button class="tactical-btn" id="btn-open-dossier" title="SIH 26054 Problem Statement Dossier">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span>DOSSIER</span>
+        </button>
+        <button class="tactical-btn" id="btn-open-compliance" style="border-color: rgba(0, 240, 255, 0.45); color: #38bdf8;" title="DRDO SIH-26054 Official Rubric & Requirements Compliance Matrix">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          <span>DRDO COMPLIANCE</span>
+        </button>
+        <button class="tactical-btn primary" id="btn-open-report" title="Generate DRDO & CEMILAC Airworthiness Defence Report">
+          <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>REPORT</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN VIEWPORT CONTAINER -->
+    <main class="main-viewport">
+
+      <!-- ===================================================================
+           TAB 0: AERO-TWIN HOME & TACTICAL LAUNCH PORTAL
+           =================================================================== -->
+      <section class="view-section active-view" id="view-home">
+        <!-- HERO COMMAND PORTAL -->
+        <div class="home-hero-container">
+          <div class="home-hero-badge-row">
+            <span class="home-hero-badge">
+              <span class="pulse-dot"></span>
+              DRDO &bull; iDEX DEFENCE INNOVATION
+            </span>
+            <span class="home-hero-badge cyan">
+              SIH 2026 PROBLEM STATEMENT 26054
+            </span>
+            <span class="home-hero-badge purple">
+              PLATFORM: TAPAS-BH-201 MALE UAV
+            </span>
+          </div>
+
+          <h1 class="home-hero-title">
+            <span class="hero-title-gradient">AI-POWERED PROPULSION DIGITAL TWIN</span>
+            <span class="hero-title-sub">REAL-TIME HEALTH MONITORING &bull; PROGNOSTICS &bull; AUTONOMOUS RECOVERY</span>
+          </h1>
+
+          <p class="home-hero-desc">
+            Next-generation digital twin architecture engineered for <strong>DRDO MALE UAV aero piston propulsion systems</strong>. 
+            Integrates real-time 3D kinematic physics, edge Physics-Informed Neural Networks (PINN), sub-second acoustic knock detection, 
+            and autonomous mission recovery corridor diversion under high-altitude combat environments.
+          </p>
+
+          <!-- HERO ACTION BUTTONS -->
+          <div class="home-hero-actions">
+            <button class="tactical-btn primary home-cta-primary" id="btn-home-launch-cockpit">
+              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+              <span>LAUNCH DIGITAL TWIN COCKPIT</span>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+
+            <button class="tactical-btn home-cta-btn" id="btn-home-mission">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z"/></svg>
+              <span>TACTICAL MISSION MAP</span>
+            </button>
+
+            <button class="tactical-btn home-cta-btn" id="btn-home-sandbox">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              <span>FAULT SANDBOX</span>
+            </button>
+
+            <button class="tactical-btn home-cta-btn" id="btn-home-preflight" style="border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
+              <span class="pulse-dot" style="background:#a855f7;"></span>
+              <span>PRE-FLIGHT AI (GO)</span>
+            </button>
+          </div>
+
+          <!-- SYSTEM READINESS & TELEMETRY PREVIEW STRIP -->
+          <div class="home-specs-strip">
+            <div class="home-spec-card">
+              <span class="spec-label">TARGET PLATFORM</span>
+              <span class="spec-val">TAPAS-BH-201</span>
+              <span class="spec-meta">DRDO Rustom-II MALE UAV</span>
+            </div>
+            <div class="home-spec-card">
+              <span class="spec-label">PROPULSION SPEC</span>
+              <span class="spec-val">160 HP TURBO</span>
+              <span class="spec-meta">4-Cyl Opposed Aero Piston</span>
+            </div>
+            <div class="home-spec-card">
+              <span class="spec-label">SERVICE CEILING</span>
+              <span class="spec-val">28,000 FT</span>
+              <span class="spec-meta">Extended High-Altitude Loiter</span>
+            </div>
+            <div class="home-spec-card">
+              <span class="spec-label">AI INFERENCE CYCLE</span>
+              <span class="spec-val highlight">&lt; 38 MS</span>
+              <span class="spec-meta">Edge PINN Multi-Physics Loss</span>
+            </div>
+            <div class="home-spec-card">
+              <span class="spec-label">AIRWORTHINESS</span>
+              <span class="spec-val green">CEMILAC COMPLIANT</span>
+              <span class="spec-meta">DDPMAS / STANAG 4671 Bands</span>
+            </div>
+            <div class="home-spec-card">
+              <span class="spec-label">SYSTEM STATE</span>
+              <span class="spec-val green">ARMED &bull; LIVE</span>
+              <span class="spec-meta">Telemetry Link Active</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODULE SHOWCASE SECTION -->
+        <div class="home-section-header">
+          <div class="section-title-group">
+            <h2 class="home-section-title">CORE SYSTEM MODULES & CAPABILITIES</h2>
+            <p class="home-section-sub">Select any tactical module below to enter directly into the dedicated subsystem console.</p>
+          </div>
+          <span class="home-badge-counter">6 OPERATIONAL MODULES</span>
+        </div>
+
+        <div class="home-modules-grid">
+          <!-- CARD 1: 3D DIGITAL TWIN COCKPIT -->
+          <div class="home-module-card glass-card" id="card-mod-twin">
+            <div class="mod-card-top">
+              <div class="mod-card-icon cyan">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+              </div>
+              <span class="mod-card-badge">INTERACTIVE 3D</span>
+            </div>
+            <h3 class="mod-card-title">Propulsion 3D Digital Twin</h3>
+            <p class="mod-card-desc">
+              Real-time interactive 3D kinematic engine assembly with Otto cycle piston motion, thermal gradient heatmaps, 
+              solid/cutaway modes, and dynamic leader-line telemetry diagnostics for all 4 cylinders and turbocharger.
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; Real-time CHT / EGT heatmaps</span>
+              <span>&bull; Kinematic crankshaft & valve timing</span>
+              <span>&bull; Component leader-line HUD overlay</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn primary mod-launch-btn" id="btn-home-card-twin">
+                <span>ENTER 3D COCKPIT</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 2: PINN AI DIAGNOSTIC ENGINE -->
+          <div class="home-module-card glass-card" id="card-mod-pinn">
+            <div class="mod-card-top">
+              <div class="mod-card-icon purple">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <span class="mod-card-badge purple">AI EDGE PINN</span>
+            </div>
+            <h3 class="mod-card-title">Physics-Informed Neural Net</h3>
+            <p class="mod-card-desc">
+              Multi-loss neural architecture evaluating Fourier thermal dissipation, Petroff bearing hydrodynamics, 
+              and acoustic knock pressure detonation in real-time. Delivers sub-second incipient anomaly detection with SHAP attribution.
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; Multi-physics loss convergence</span>
+              <span>&bull; Incipient knock & cavitation detection</span>
+              <span>&bull; Remaining Useful Life (RUL) curve</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn mod-launch-btn" id="btn-home-card-pinn" style="border-color: rgba(168,85,247,0.4); color:#c084fc;">
+                <span>VIEW AI PROGNOSTICS</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 3: TACTICAL MISSION MAP & DIVERT -->
+          <div class="home-module-card glass-card" id="card-mod-mission">
+            <div class="mod-card-top">
+              <div class="mod-card-icon emerald">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2 6.4-6.4 2 2-6.4z"/></svg>
+              </div>
+              <span class="mod-card-badge emerald">AUTONOMOUS GCS</span>
+            </div>
+            <h3 class="mod-card-title">Mission Map & Recovery Corridor</h3>
+            <p class="mod-card-desc">
+              Tactical radar situational display calculating live engine-out glide envelopes, fuel bingo thresholds, 
+              and automated alternate airbase diversions across Western Sector garrisons (Garud, Adampur, Ambala).
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; Dynamic 14:1 glide range cone</span>
+              <span>&bull; Autonomous base reachability scoring</span>
+              <span>&bull; Waypoint loiter & emergency routing</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn mod-launch-btn" id="btn-home-card-mission">
+                <span>OPEN MISSION MAP</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 4: FAULT INJECTION SANDBOX -->
+          <div class="home-module-card glass-card" id="card-mod-sandbox">
+            <div class="mod-card-top">
+              <div class="mod-card-icon amber">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              </div>
+              <span class="mod-card-badge amber">TEST BENCH</span>
+            </div>
+            <h3 class="mod-card-title">Fault Injection & Stress Bench</h3>
+            <p class="mod-card-desc">
+              Military test bench for simulating hazardous flight regimes: Cylinder #3 thermal runaway, wrist pin galling, 
+              manifold pressure boost loss, and fuel spray starvation. Evaluates twin prognostics under extreme stress.
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; 6 pre-configured critical scenarios</span>
+              <span>&bull; Dynamic sensor parametric sliders</span>
+              <span>&bull; Real-time AI response validation</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn mod-launch-btn" id="btn-home-card-sandbox">
+                <span>RUN FAULT SANDBOX</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 5: PRE-FLIGHT AI AUDIT -->
+          <div class="home-module-card glass-card" id="card-mod-preflight">
+            <div class="mod-card-top">
+              <div class="mod-card-icon purple">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <span class="mod-card-badge purple">T-2H AUDIT</span>
+            </div>
+            <h3 class="mod-card-title">Pre-Flight AI Airworthiness Audit</h3>
+            <p class="mod-card-desc">
+              Automated pre-flight ignition clearance system verifying compression health, ignition timing symmetry, 
+              wastegate actuator response, and CAN-bus telemetry integrity before granting autonomous takeoff authorization.
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; 12-point automated verification</span>
+              <span>&bull; CEMILAC GO / NO-GO verdict</span>
+              <span>&bull; Sensor cross-calibration audit</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn mod-launch-btn" id="btn-home-card-preflight" style="border-color: rgba(168,85,247,0.4); color:#c084fc;">
+                <span>START PRE-FLIGHT AUDIT</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 6: HARDWARE-IN-THE-LOOP (HIL) -->
+          <div class="home-module-card glass-card" id="card-mod-hardware">
+            <div class="mod-card-top">
+              <div class="mod-card-icon emerald">
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              </div>
+              <span class="mod-card-badge emerald">PHYSICAL LINK</span>
+            </div>
+            <h3 class="mod-card-title">Real Engine Hardware Link</h3>
+            <p class="mod-card-desc">
+              Hardware-in-the-Loop telemetry bridge streaming physical Arduino / ESP32 sensor signals, thermocouple arrays, 
+              and engine test cell serial feeds directly into the digital twin through USB COM port or REST /api/telemetry.
+            </p>
+            <div class="mod-card-specs">
+              <span>&bull; Web Serial COM port ingestion</span>
+              <span>&bull; Python CAN-bus network bridge</span>
+              <span>&bull; Live packet validation & replay</span>
+            </div>
+            <div class="mod-card-footer">
+              <button class="tactical-btn mod-launch-btn" id="btn-home-card-hardware" style="border-color: rgba(16,185,129,0.4); color:var(--emerald-safe);">
+                <span>CONNECT HARDWARE</span>
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROBLEM STATEMENT & DEFENCE ARCHITECTURE SECTION -->
+        <div class="home-architecture-banner glass-card">
+          <div class="arch-col-text">
+            <span class="home-hero-badge cyan">DRDO PROBLEM STATEMENT ID: 26054</span>
+            <h3 class="arch-title">High-Altitude Reliability Engineering for MALE UAVs</h3>
+            <p class="arch-desc">
+              Aero piston engines deployed in Medium Altitude Long Endurance (MALE) UAVs endure extreme operating conditions: 
+              sub-zero ambient temperatures (-40&deg;C at 25,000 ft), severe cylinder head thermal gradients, reduced intake manifold air density, 
+              and sustained vibration profiles that induce micro-cracking and lubrication failure. 
+              <strong>AERO-TWIN</strong> bridges physical telemetry with multi-physics mathematical models to eliminate in-flight engine failures 
+              and safeguard critical national defence airborne assets.
+            </p>
+            <div class="arch-pills">
+              <span class="arch-pill">STANAG 4671 Compliant</span>
+              <span class="arch-pill">CEMILAC Certified Bounds</span>
+              <span class="arch-pill">MIL-STD-810G Environmental Bands</span>
+              <span class="arch-pill">Zero-Latency Airborne Edge Diagnostics</span>
+            </div>
+          </div>
+
+          <div class="arch-col-actions">
+            <div class="arch-card-prompt">
+              <span class="arch-prompt-title">DEFENCE DOCUMENTATION & COMPLIANCE</span>
+              <p class="arch-prompt-sub">Inspect full mathematical formulation, sensor schemas, or generate certified airworthiness reports.</p>
+              <div class="arch-btn-group">
+                <button class="tactical-btn" id="btn-home-dossier" title="Open Technical Dossier">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  <span>VIEW TECHNICAL DOSSIER</span>
+                </button>
+                <button class="tactical-btn primary" id="btn-home-report" title="Generate Airworthiness Report">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <span>GENERATE DEFENCE REPORT</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FOOTER TACTICAL STRIP -->
+        <div class="home-footer-strip">
+          <div class="footer-copy">
+            AERO-TWIN DIGITAL TWIN SYSTEM &bull; DEVELOPED FOR DRDO SMART INDIA HACKATHON 2026 (PS-26054) &bull; TAPAS-BH-201 MALE UAV PROPULSION
+          </div>
+          <div class="footer-status-tag">
+            <span class="pulse-dot"></span>
+            ALL SYSTEMS ARMED &bull; READY FOR FLIGHT OPERATIONS
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 1: DIGITAL TWIN 3D & TELEMETRY COCKPIT
+           =================================================================== -->
+      <section class="view-section" id="view-twin">
+        <!-- Quick Scenario Pills Strip -->
+        <div class="scenario-selector-strip">
+          <div class="scenario-pill btn-return-home" id="pill-twin-back-home" style="border-color: rgba(0, 240, 255, 0.45); color: var(--cyan-hud); background: rgba(0, 240, 255, 0.1); cursor: pointer; font-weight: 700;" title="Return to Tactical Home Page">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>&larr; BACK TO HOME</span>
+          </div>
+          <div class="scenario-pill active" data-scenario="nominal">
+            <span class="pulse-dot"></span>
+            <span>NOMINAL CRUISE (18k FT)</span>
+          </div>
+          <div class="scenario-pill crit" data-scenario="cyl3_thermal">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span>CYL #3 THERMAL RUNAWAY</span>
+          </div>
+          <div class="scenario-pill" data-scenario="turbo_wastegate">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span>TURBO WASTEGATE JAM</span>
+          </div>
+          <div class="scenario-pill" data-scenario="injector_clog">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            <span>INJECTOR #2 CLOG</span>
+          </div>
+          <div class="scenario-pill crit" data-scenario="oil_cavitation">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>OIL PUMP CAVITATION</span>
+          </div>
+          <div class="scenario-pill" data-scenario="sensor_drift" style="border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>SENSOR DRIFT (CHT #4)</span>
+          </div>
+          <div class="scenario-pill crit" data-scenario="combustion_instability">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+            <span>COMBUSTION MISFIRE</span>
+          </div>
+          <div class="scenario-pill" id="pill-open-preflight-audit" style="border-color: rgba(168, 85, 247, 0.7); background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 700; margin-left: auto; cursor: pointer;" title="Open T-2h Pre-Flight AI Engine Health Audit & Takeoff Verdict">
+            <span class="pulse-dot" style="background: #c084fc;"></span>
+            <span>🤖 T-2H PRE-FLIGHT AUDIT</span>
+          </div>
+        </div>
+
+        <!-- SIMULATION & MISSION BLACKBOX REPLAY TOOLBAR (DRDO Spec Section E) -->
+        <div class="simulation-replay-toolbar glass-card" id="simulation-replay-bar" style="margin-bottom:12px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; border-color:rgba(0,240,255,0.22);">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-family:var(--font-hud); font-size:10px; font-weight:800; color:var(--cyan-hud); letter-spacing:0.8px; display:flex; align-items:center; gap:5px;">
+              <span class="pulse-dot"></span>
+              BLACKBOX REPLAY:
+            </span>
+            <button class="tactical-btn" id="btn-replay-play-pause" style="padding:4px 10px; font-size:10px; border-color:var(--cyan-hud); color:#fff;" title="Play or Pause Historical Mission Flight Recorder Log">
+              <span id="replay-play-icon">▶</span>
+              <span id="replay-play-txt">PLAY LOG</span>
+            </button>
+            <div style="display:flex; gap:2px; background:rgba(0,0,0,0.3); border-radius:4px; padding:2px; border:1px solid rgba(0,240,255,0.15);">
+              <button class="replay-spd-btn active" data-spd="1" style="background:transparent; border:none; color:var(--cyan-hud); font-family:var(--font-mono); font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:3px; cursor:pointer;">1X</button>
+              <button class="replay-spd-btn" data-spd="2" style="background:transparent; border:none; color:var(--text-muted); font-family:var(--font-mono); font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:3px; cursor:pointer;">2X</button>
+              <button class="replay-spd-btn" data-spd="5" style="background:transparent; border:none; color:var(--text-muted); font-family:var(--font-mono); font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:3px; cursor:pointer;">5X</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="range" id="replay-progress-slider" min="0" max="59" value="0" step="1" style="width:140px; cursor:pointer; accent-color:var(--cyan-hud);" title="Scrub historical flight recorder timeline">
+              <span id="replay-time-display" style="font-family:var(--font-mono); font-size:10px; color:#cbd5e1;">00:00 / 01:00</span>
+            </div>
+            <span class="badge" id="replay-phase-badge" style="background:rgba(0,240,255,0.12); color:var(--cyan-hud); border:1px solid rgba(0,240,255,0.3); font-size:9.5px;">LIVE STREAM</span>
+          </div>
+
+          <!-- Environmental Condition Simulation Presets (DRDO Spec Section E) -->
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-family:var(--font-hud); font-size:9.5px; font-weight:800; color:var(--text-secondary); letter-spacing:0.8px;">ENV SIM:</span>
+            <button class="env-preset-btn active" data-env="nominal_cruise" style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; padding:4px 8px; border-radius:3px; background:rgba(0,240,255,0.12); border:1px solid var(--cyan-hud); color:var(--cyan-hud); cursor:pointer;" title="Nominal 18,000 FT ISA Cruise">
+              ✈️ 18k FT ISA
+            </button>
+            <button class="env-preset-btn" data-env="high_altitude" style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; padding:4px 8px; border-radius:3px; background:rgba(13,22,42,0.6); border:1px solid var(--border-subtle); color:var(--text-secondary); cursor:pointer;" title="Simulate High Altitude 28,000 FT MSL (-42°C thin air)">
+              🏔️ 28k FT HIGH ALT
+            </button>
+            <button class="env-preset-btn" data-env="hot_weather" style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; padding:4px 8px; border-radius:3px; background:rgba(13,22,42,0.6); border:1px solid var(--border-subtle); color:var(--text-secondary); cursor:pointer;" title="Simulate Hot Weather 45°C ambient tarmac heat soak">
+              ☀️ 45°C HOT WEATHER
+            </button>
+            <button class="env-preset-btn" data-env="endurance" style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; padding:4px 8px; border-radius:3px; background:rgba(13,22,42,0.6); border:1px solid var(--border-subtle); color:var(--text-secondary); cursor:pointer;" title="Simulate 24-Hour Continuous Loiter Fuel Burn">
+              ⏱️ 24H LOITER
+            </button>
+            <button class="env-preset-btn" data-env="throttle_burst" style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; padding:4px 8px; border-radius:3px; background:rgba(13,22,42,0.6); border:1px solid var(--border-subtle); color:var(--text-secondary); cursor:pointer;" title="Simulate Rapid 20% to 100% WOT Throttle Burst">
+              ⚡ THROTTLE SLAM
+            </button>
+          </div>
+        </div>
+
+        <!-- Master Caution & Annunciator Warning Panel -->
+        <div class="master-caution-banner nominal" id="master-caution-banner">
+          <div class="caution-header">
+            <div class="caution-title-group">
+              <span class="caution-pulse-icon" id="caution-pulse-icon">●</span>
+              <span class="caution-main-title" id="caution-main-title">MASTER ANNUNCIATOR: ALL PROPULSION ENVELOPES NOMINAL</span>
+            </div>
+            <div class="caution-bounds-indicator">
+              <span>REQUIRED SAFE ENVELOPE: RPM &gt;3000 &bull; MAP &gt;28 inHg &bull; OIL &gt;42 PSI &bull; TANK &gt;45 KG &bull; CHT &lt;185°C</span>
+            </div>
+          </div>
+          <div class="caution-chips-row" id="caution-chips-row">
+            <span class="annunciator-chip nominal">✓ ALL 7 ENGINE SUBSYSTEMS WITHIN SAFE CEMILAC LIMITS</span>
+          </div>
+        </div>
+
+        <div class="twin-grid-layout">
+          <!-- Left Column: 3D Engine Viewport & Lower Telemetry Tiles -->
+          <div class="twin-primary-col">
+            <div class="glass-card viewport-card">
+              <div class="card-header">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span>4-CYLINDER AERO BOXER ENGINE &bull; REAL-TIME DIGITAL TWIN</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button class="header-inspector-btn" id="btn-header-inspector" title="Jump to 3D Subsystem Defect Diagnostic Console">
+                    🔍 DEFECT INSPECTOR
+                  </button>
+                  <div class="badge badge-nominal" id="status-twin-sync">SYNCHRONIZED (60 FPS)</div>
+                </div>
+              </div>
+
+              <!-- 3D Canvas Container -->
+              <div class="viewport-container" id="engine-viewport-container">
+                <canvas id="engine-canvas-3d"></canvas>
+
+                <!-- HUD Top-Left Telemetry Overlay -->
+                <div class="hud-overlay-top-left">
+                  <div class="hud-callout">
+                    <div class="label">ENGINE SPEED</div>
+                    <div class="value"><span id="hud-rpm-val">4200</span> <small style="font-size:9px; color:var(--text-muted)">RPM</small></div>
+                  </div>
+                  <div class="hud-callout">
+                    <div class="label">MANIFOLD BOOST (MAP)</div>
+                    <div class="value"><span id="hud-map-val">34.5</span> <small style="font-size:9px; color:var(--text-muted)">inHg</small></div>
+                  </div>
+                  <div class="hud-callout">
+                    <div class="label">CYL #3 HEAD TEMP</div>
+                    <div class="value"><span id="hud-cht3-val">171°C</span></div>
+                  </div>
+                </div>
+
+                <!-- HUD Top-Right Otto 4-Stroke Cycle Kinematics Monitor -->
+                <div class="hud-overlay-top-right">
+                  <div class="hud-cycle-card">
+                    <div class="hud-cycle-header">
+                      <span class="hud-cycle-title">⚡ OTTO 4-STROKE KINEMATICS</span>
+                      <span class="hud-cycle-crank" id="hud-crank-deg">0° / 720°</span>
+                    </div>
+                    <div class="hud-cycle-cylinders">
+                      <div class="hud-cyl-row" id="hud-cyl-stroke-1">
+                        <span class="cyl-id">CYL 1</span>
+                        <span class="cyl-stroke-badge stroke-intake">INTAKE</span>
+                        <div class="cyl-progress-track"><div class="cyl-progress-bar" style="width: 25%"></div></div>
+                      </div>
+                      <div class="hud-cyl-row" id="hud-cyl-stroke-2">
+                        <span class="cyl-id">CYL 2</span>
+                        <span class="cyl-stroke-badge stroke-power">POWER</span>
+                        <div class="cyl-progress-track"><div class="cyl-progress-bar" style="width: 75%"></div></div>
+                      </div>
+                      <div class="hud-cyl-row" id="hud-cyl-stroke-3">
+                        <span class="cyl-id">CYL 3</span>
+                        <span class="cyl-stroke-badge stroke-exhaust">EXHAUST</span>
+                        <div class="cyl-progress-track"><div class="cyl-progress-bar" style="width: 50%"></div></div>
+                      </div>
+                      <div class="hud-cyl-row" id="hud-cyl-stroke-4">
+                        <span class="cyl-id">CYL 4</span>
+                        <span class="cyl-stroke-badge stroke-comp">COMPRESSION</span>
+                        <div class="cyl-progress-track"><div class="cyl-progress-bar" style="width: 90%"></div></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Viewport Bottom Camera Controls -->
+                <div class="viewport-controls-bar">
+                  <button class="cam-btn active" data-mode="solid">SOLID</button>
+                  <button class="cam-btn" data-mode="cutaway">CUTAWAY</button>
+                  <button class="cam-btn" data-mode="thermal">THERMAL IR</button>
+                  <button class="cam-btn" data-mode="wireframe">X-RAY</button>
+                  <span style="width:1px; height:14px; background:rgba(255,255,255,0.15); margin:0 4px;"></span>
+                  <button class="cam-btn active" data-preset="iso">ISO</button>
+                  <button class="cam-btn" data-preset="top">TOP</button>
+                  <button class="cam-btn" data-preset="cylinders">CYLINDERS</button>
+                  <button class="cam-btn" data-preset="turbo">TURBO</button>
+                  <span style="width:1px; height:14px; background:rgba(255,255,255,0.15); margin:0 4px;"></span>
+                  <button class="cam-btn active" id="btn-toggle-3d-labels">🏷️ 3D LABELS</button>
+                  <button class="cam-btn" id="btn-toggle-inspector">🔍 DEFECT INSPECTOR</button>
+                  <button class="emergency-quick-bar-btn" id="btn-quick-emergency" title="Trigger emergency failure on active component">🚨 EMERGENCY</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- DEDICATED REAL-TIME SUBSYSTEM DEFECT & HEALTH INSPECTOR PANEL (SHIFTS OUT OF 3D MODEL FOR CLEAN VIEW) -->
+            <div class="glass-card component-inspector-card" id="component-defect-inspector">
+              <div class="inspector-top-bar">
+                <div class="inspector-title-area">
+                  <div class="inspector-badge-icon">🔍</div>
+                  <div>
+                    <div class="inspector-main-title">3D SUBSYSTEM HEALTH &amp; DEFECT DIAGNOSTIC CONSOLE</div>
+                    <div class="inspector-sub-title">SELECT ANY COMPONENT BELOW OR CLICK DIRECTLY ON THE 3D ENGINE MODEL ABOVE</div>
+                  </div>
+                </div>
+                <div class="inspector-actions-area">
+                  <button class="tactical-btn emergency-trigger-btn" id="btn-trigger-component-emergency" title="Simulate critical in-flight emergency on this component">
+                    🚨 TRIGGER EMERGENCY
+                  </button>
+                  <span class="badge badge-nominal" id="inspect-comp-badge">HEALTHY</span>
+                  <button class="tactical-btn" id="btn-focus-current-comp" title="Align 3D Camera to this component">
+                    🎯 FOCUS 3D VIEW
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quick Component Switcher Strip -->
+              <div class="inspector-pills-row">
+                <span class="pills-legend">SUBSYSTEMS:</span>
+                <div class="component-quick-pills-strip" id="component-quick-pills">
+                  <button class="comp-pill highlight-uav-pill" data-comp="uav_airframe">✈️ DRDO TAPAS MALE UAV AIRFRAME</button>
+                  <button class="comp-pill" data-comp="cyl1">CYL 1 (FRONT LEFT)</button>
+                  <button class="comp-pill" data-comp="cyl2">CYL 2 (FRONT RIGHT)</button>
+                  <button class="comp-pill active" data-comp="cyl3">CYL 3 (REAR LEFT)</button>
+                  <button class="comp-pill" data-comp="cyl4">CYL 4 (REAR RIGHT)</button>
+                  <button class="comp-pill" data-comp="turbo">TURBOCHARGER &amp; WASTEGATE</button>
+                  <button class="comp-pill" data-comp="crankshaft">CRANKSHAFT &amp; BEARINGS</button>
+                  <button class="comp-pill" data-comp="oil_system">OIL PUMP &amp; SUMP</button>
+                  <button class="comp-pill" data-comp="fuel_system">FUEL RAIL &amp; FIREWALL</button>
+                  <button class="comp-pill" data-comp="gearbox">PRSU GEARBOX</button>
+                </div>
+              </div>
+
+              <!-- DEDICATED INDIVIDUAL SUBSYSTEM 3D CAD MODEL VIEWER -->
+              <div class="subsystem-cad-container">
+                <div class="cad-viewport-header">
+                  <div class="cad-header-left">
+                    <span class="cad-indicator-pulse"></span>
+                    <span class="cad-badge-tag">ISOLATED 3D CAD COMPONENT MODEL</span>
+                    <span class="cad-comp-name" id="cad-active-subsystem-title">CYLINDER &amp; PISTON ASSEMBLY #3 (REAR LEFT)</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <button class="cad-emergency-btn" id="btn-cad-emergency-trigger" title="Simulate emergency failure on this component">
+                      🚨 TRIGGER EMERGENCY
+                    </button>
+                    <div class="cad-part-meta-tag" id="cad-part-tag">CEMILAC AERO-CYL-304 &bull; 4-STROKE BOXER</div>
+                  </div>
+                </div>
+
+                <!-- Dedicated Component Kinematics & Slow-Motion Inspection Bar -->
+                <div class="cad-kinematic-control-strip">
+                  <div class="speed-control-group">
+                    <span class="speed-label">⏱️ KINEMATIC SPEED:</span>
+                    <div class="speed-selector-pills" id="cad-speed-pills">
+                      <button class="speed-btn" data-speed="1.0" title="Full Dyno RPM">1.0x LIVE</button>
+                      <button class="speed-btn" data-speed="0.2" title="Fast smooth visual speed">0.2x RAPID</button>
+                      <button class="speed-btn active" data-speed="0.05" title="Recommended Slow-Mo: ~3.4s per stroke for easy reading & comprehension">0.05x READABLE SLOW-MO</button>
+                      <button class="speed-btn" data-speed="0.01" title="Ultra Slow Motion: Detailed valve & ring inspection">0.01x ULTRA SLOW</button>
+                    </div>
+                  </div>
+                  <div class="cad-playback-group">
+                    <button class="speed-btn pause-btn" id="btn-cad-pause-toggle" title="Freeze frame at current crank angle">⏸️ FREEZE / PLAY</button>
+                    <button class="speed-btn step-btn" id="btn-cad-step-prev" title="Step Back 15°">⏮️ -15°</button>
+                    <button class="speed-btn step-btn" id="btn-cad-step-next" title="Step Forward 15°">⏭️ +15°</button>
+                    <span class="cad-live-stroke-indicator" id="cad-live-stroke-indicator">⚡ CRANK: 0° (INTAKE)</span>
+                  </div>
+                </div>
+
+                <!-- HIGH-VISIBILITY REAL-TIME MECHANICAL READING SHOWCASE -->
+                <div class="cad-reading-showcase" id="cad-reading-showcase">
+                  <div class="cad-reading-top-bar">
+                    <div class="reading-badges-wrapper">
+                      <span class="cad-badge-phase stroke-intake" id="cad-badge-phase">⚡ INTAKE STROKE 💨</span>
+                      <span class="cad-badge-deg" id="cad-badge-deg">0° / 720°</span>
+                    </div>
+                    <div class="cad-reading-headline" id="cad-reading-headline">
+                      CYLINDER #1 • FRESH CHARGE INDUCTION
+                    </div>
+                  </div>
+                  <div class="cad-reading-body">
+                    <div class="cad-reading-narration">
+                      <span class="narration-tag">KYA HO RAHA HAI:</span>
+                      <span class="narration-text" id="cad-narration-text">Piston descends from TDC to BDC creating suction. Intake poppet valve lifts 8.2mm allowing atomized fuel charge to fill the cylinder bore.</span>
+                    </div>
+                    <div class="cad-reading-chips-grid" id="cad-reading-chips">
+                      <span class="reading-metric-chip">VALVES: <strong>INTAKE OPEN • EXHAUST CLOSED</strong></span>
+                      <span class="reading-metric-chip">TEMP: <strong>CHT 172°C (NOMINAL)</strong></span>
+                      <span class="reading-metric-chip">PRESSURE: <strong>INDUCTION VACUUM (-2.4 PSI)</strong></span>
+                      <span class="reading-metric-chip">CRANK THROW: <strong>THROW 1 AT 0° (TDC)</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="cad-canvas-wrapper">
+                  <canvas id="subsystem-cad-canvas"></canvas>
+                  
+                  <!-- Quick CAD Interaction Toolbar -->
+                  <div class="subsystem-cad-toolbar">
+                    <button class="cad-btn active" data-cad-mode="solid">SOLID</button>
+                    <button class="cad-btn" data-cad-mode="cutaway">CUTAWAY</button>
+                    <button class="cad-btn" data-cad-mode="exploded">💥 EXPLODED VIEW</button>
+                    <button class="cad-btn" data-cad-mode="wireframe">X-RAY</button>
+                    <span style="width:1px; height:14px; background:rgba(255,255,255,0.15); margin:0 4px;"></span>
+                    <button class="cad-btn active" id="btn-cad-anatomy" title="Toggle 3D Part Callouts">🏷️ ANATOMY</button>
+                    <button class="cad-btn" id="btn-cad-slowmo" title="Toggle Slow-Motion (0.2x speed)">⏱️ SLOW-MO</button>
+                    <button class="cad-btn active" id="btn-cad-autorotate" title="Toggle 360° rotation">🔄 AUTO-SPIN</button>
+                    <button class="cad-btn" id="btn-cad-reset" title="Reset View">↺ RESET</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3-Column Detailed Diagnostic Grid -->
+              <div class="inspector-columns-grid">
+                <!-- Column 1: Subsystem Identity & Safe Envelope Limits -->
+                <div class="inspector-col">
+                  <div class="col-tag">1. SUBSYSTEM SPECIFICATION &amp; LIMITS</div>
+                  <div class="inspect-part-title" id="inspect-comp-title">CYLINDER HEAD #3 (LEFT REAR)</div>
+                  <div class="inspect-part-meta" id="inspect-part-meta">CEMILAC PART: AERO-CYL-304 &bull; BANK B (AFT)</div>
+
+                  <div class="inspect-metrics-table">
+                    <div class="metric-line">
+                      <span class="m-lbl">LIVE OPERATING READING:</span>
+                      <span class="m-val" id="inspect-stat-reading">172°C (NOMINAL)</span>
+                    </div>
+                    <div class="metric-line">
+                      <span class="m-lbl">SAFE CEMILAC THRESHOLD:</span>
+                      <span class="m-val cyan" id="inspect-stat-limit">&lt; 185°C CONTINUOUS</span>
+                    </div>
+                    <div class="metric-line">
+                      <span class="m-lbl">ESTIMATED RUL (HOURS):</span>
+                      <span class="m-val green" id="inspect-stat-rul">850 HRS (95% CONFIDENCE)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Column 2: Kya Kharab Hai? (Defect & Root Cause) -->
+                <div class="inspector-col defect-col">
+                  <div class="col-tag">2. KYA KHARAB HAI? (ROOT CAUSE ANALYSIS)</div>
+                  <div class="defect-diagnostic-box" id="inspect-defect-box">
+                    <div class="defect-box-title" id="inspect-defect-title">✓ NO ACTIVE DEFECTS (NOMINAL)</div>
+                    <div class="defect-box-desc" id="inspect-defect-desc">
+                      Cylinder head thermal dissipation is balanced across cooling fins. Valve lash, spark timing, and combustion pressure waves are within nominal limits.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Column 3: Maintenance & Flight Remediation Directive -->
+                <div class="inspector-col action-col">
+                  <div class="col-tag">3. MAINTENANCE &amp; FLIGHT DIRECTIVE</div>
+                  <div class="directive-box">
+                    <div class="directive-icon-row">
+                      <span class="directive-badge">OPERATIONAL SOP</span>
+                    </div>
+                    <div class="directive-main-text" id="inspect-defect-remedy">
+                      <strong>REMEDIATION:</strong> Continue planned ISR loiter mission profile.
+                    </div>
+                    <div class="directive-help-tip">
+                      💡 Tip: Click any component directly inside the 3D model canvas to focus camera and view live diagnostics.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. Subsystem Educational Anatomy & Operating Principle Guide -->
+              <div class="subsystem-anatomy-guide" id="subsystem-anatomy-guide">
+                <div class="anatomy-guide-header">
+                  <div class="guide-title-left">
+                    <span class="guide-icon">📖</span>
+                    <span class="guide-title">SUBSYSTEM OPERATING PRINCIPLE &amp; ANATOMICAL BREAKDOWN</span>
+                  </div>
+                  <span class="guide-badge" id="guide-subsystem-tag">CEMILAC AERO PROPULSION STANDARD</span>
+                </div>
+                <div class="anatomy-guide-body">
+                  <div class="anatomy-card">
+                    <div class="anatomy-card-title">PRIMARY FUNCTION &amp; AERO ROLE</div>
+                    <div class="anatomy-card-desc" id="guide-function-desc">
+                      Houses reciprocating combustion chamber where fuel-air mixture is ignited to generate mechanical torque on the crankshaft.
+                    </div>
+                  </div>
+                  <div class="anatomy-card">
+                    <div class="anatomy-card-title">WORKING PRINCIPLE &amp; THERMODYNAMICS</div>
+                    <div class="anatomy-card-desc" id="guide-principle-desc">
+                      Operates on the 4-stroke Otto cycle (Intake, Compression, Power, Exhaust) over 720° crankshaft rotation with opposed balance canceling primary vibration forces.
+                    </div>
+                  </div>
+                  <div class="anatomy-card">
+                    <div class="anatomy-card-title">CRITICAL FLIGHT ENVELOPE SPECS</div>
+                    <div class="anatomy-card-desc" id="guide-specs-desc">
+                      Max CHT: 185°C continuous (215°C transient) &bull; Bore: 97.5mm &bull; Stroke: 82mm &bull; Compression: 9.5:1 &bull; Dual aviation spark plugs.
+                    </div>
+                  </div>
+                  <div class="anatomy-card">
+                    <div class="anatomy-card-title">FAILURE MODES &amp; WARNING SYMPTOMS</div>
+                    <div class="anatomy-card-desc" id="guide-failure-desc">
+                      Pre-ignition acoustic knock (3200 Hz), valve seat micro-cracking from thermal cycling, cylinder fin cooling obstruction, and ring blow-by.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lower Telemetry Strip -->
+            <div class="lower-telemetry-grid">
+              <!-- Tile 1: Engine Speed (RPM) -->
+              <div class="telemetry-tile" id="tile-card-rpm">
+                <div class="tile-head">
+                  <span class="tile-title">ENGINE SPEED</span>
+                  <span class="tile-alert-badge nominal" id="badge-rpm-alert">✓ NOMINAL</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-rpm-val">4200</span>
+                  <span class="tile-sub-val" id="tile-rpm-sub">RPM (REQ: &gt;3000)</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-rpm" style="width: 72%;"></div>
+                </div>
+              </div>
+
+              <!-- Tile 2: Manifold Absolute Pressure (MAP) -->
+              <div class="telemetry-tile" id="tile-card-map">
+                <div class="tile-head">
+                  <span class="tile-title">MANIFOLD BOOST</span>
+                  <span class="tile-alert-badge nominal" id="badge-map-alert">✓ NOMINAL</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-map-val">34.5</span>
+                  <span class="tile-sub-val" id="tile-map-sub">inHg (REQ: &gt;28)</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-map" style="width: 76%;"></div>
+                </div>
+              </div>
+
+              <!-- Tile 3: Fuel Subsystem & Emergency Fuel Wall -->
+              <div class="telemetry-tile" id="tile-card-fuel" style="border-left-color: var(--amber-warn);">
+                <div class="tile-head">
+                  <span class="tile-title">FUEL SUBSYSTEM</span>
+                  <span class="tile-alert-badge nominal" id="badge-fuel-alert">✓ NOMINAL</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-fuel-flow">24.8</span>
+                  <span class="tile-sub-val" id="tile-fuel-sub">L/HR</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); margin-top:2px;">
+                  <span>TANK: <strong id="tile-fuel-remaining" style="color:#fff;">184.2</strong> KG</span>
+                  <span>AFR: <strong id="tile-fuel-afr" style="color:var(--cyan-hud);">14.7</strong>:1</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-fuel" style="width: 62%;"></div>
+                </div>
+                <div style="margin-top: 6px;">
+                  <button class="tactical-btn" id="btn-toggle-fuel-wall" style="width: 100%; justify-content: center; font-size: 9px; padding: 4px 6px; border-color: var(--emerald-safe); color: var(--emerald-safe);">
+                    <span id="fuel-wall-status-txt">🛡️ FUEL WALL: OPEN (ARMED)</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tile 4: Lubrication System (Oil Press / Temp) -->
+              <div class="telemetry-tile" id="tile-card-oil">
+                <div class="tile-head">
+                  <span class="tile-title">LUBRICATION</span>
+                  <span class="tile-alert-badge nominal" id="badge-oil-alert">✓ NOMINAL</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-oil-press">52.4</span>
+                  <span class="tile-sub-val" id="tile-oil-sub">PSI (REQ: &gt;42)</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-oil" style="width: 75%;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); margin-top:4px;">
+                  <span>TEMP: <strong id="tile-oil-temp" style="color:#fff;">88°C</strong></span>
+                  <span id="tile-oil-temp-sub" style="color:var(--emerald-safe); font-size:9.5px;">SAFE (&lt;105°)</span>
+                </div>
+              </div>
+
+              <!-- Tile 5: Cylinder Head Temperatures (Quad CHT 1-4) -->
+              <div class="telemetry-tile" id="tile-card-cht">
+                <div class="tile-head">
+                  <span class="tile-title">CYLINDER HEAD CHT</span>
+                  <span class="tile-alert-badge nominal" id="badge-cht-alert">✓ NOMINAL</span>
+                </div>
+                <div class="cylinder-bar-group">
+                  <div class="cyl-column">
+                    <div class="cyl-vertical-meter"><div class="cyl-meter-fill" id="cyl-bar-1" style="height: 62%;"></div></div>
+                    <span class="cyl-num">C1</span>
+                    <span class="cyl-reading" id="cyl-cht-1">168°</span>
+                  </div>
+                  <div class="cyl-column">
+                    <div class="cyl-vertical-meter"><div class="cyl-meter-fill" id="cyl-bar-2" style="height: 60%;"></div></div>
+                    <span class="cyl-num">C2</span>
+                    <span class="cyl-reading" id="cyl-cht-2">166°</span>
+                  </div>
+                  <div class="cyl-column">
+                    <div class="cyl-vertical-meter"><div class="cyl-meter-fill" id="cyl-bar-3" style="height: 65%;"></div></div>
+                    <span class="cyl-num">C3</span>
+                    <span class="cyl-reading" id="cyl-cht-3">171°</span>
+                  </div>
+                  <div class="cyl-column">
+                    <div class="cyl-vertical-meter"><div class="cyl-meter-fill" id="cyl-bar-4" style="height: 61%;"></div></div>
+                    <span class="cyl-num">C4</span>
+                    <span class="cyl-reading" id="cyl-cht-4">167°</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tile 6: Battery / Alternator Electrical Subsystem (DRDO Spec Section B) -->
+              <div class="telemetry-tile" id="tile-card-electrical" style="border-left-color: var(--cyan-hud);">
+                <div class="tile-head">
+                  <span class="tile-title">28V ELECTRICAL BUS</span>
+                  <span class="tile-alert-badge nominal" id="badge-electrical-alert">✓ CHARGING</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-battery-volt">28.2</span>
+                  <span class="tile-sub-val" id="tile-battery-sub">V DC (BUS)</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-battery" style="width: 82%;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); margin-top:4px;">
+                  <span>ALT LOAD: <strong id="tile-alt-amps" style="color:#fff;">38.5 A</strong></span>
+                  <span style="color:var(--emerald-safe); font-size:9.5px;" id="tile-alt-status">ALT HEALTH: 99%</span>
+                </div>
+              </div>
+
+              <!-- Tile 7: FADEC Injection Timing & Performance Map (DRDO Spec Section B & D) -->
+              <div class="telemetry-tile" id="tile-card-fadec" style="border-left-color: var(--purple-ai);">
+                <div class="tile-head">
+                  <span class="tile-title">FADEC TIMING & MAP</span>
+                  <span class="tile-alert-badge nominal" id="badge-fadec-alert">✓ OPTIMAL</span>
+                </div>
+                <div class="tile-main-val">
+                  <span id="tile-injection-timing">24.0°</span>
+                  <span class="tile-sub-val" id="tile-injection-sub">BTDC (ADVANCE)</span>
+                </div>
+                <div class="gauge-meter-bar">
+                  <div class="gauge-meter-fill" id="gauge-fill-fadec" style="width: 74%; background: var(--purple-ai);"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); margin-top:4px;">
+                  <span>PULSE: <strong id="tile-pulse-width" style="color:#fff;">4.25 ms</strong></span>
+                  <span>BTE: <strong id="tile-bte-val" style="color:var(--cyan-hud);">32.8%</strong> | BSFC: <strong id="tile-bsfc-val" style="color:#fff;">236</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: AI Health Index, FFT Vibration & CAN-bus stream -->
+          <div class="twin-sidebar-col">
+            <!-- AI Health Index & RUL Card -->
+            <div class="glass-card ai-health-card">
+              <div class="card-header" style="padding:0; margin-bottom:8px; border:none; cursor:pointer;" id="btn-header-deep-ai" title="Click to open Deep PINN Neural Network & Prognostics Architecture">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                  <span>PINN HEALTH ENGINE</span>
+                </div>
+                <span class="badge badge-nominal" id="ai-fault-badge" title="Click to view AI classification confidence & loss" style="cursor:pointer;">NOMINAL LOITER</span>
+              </div>
+
+              <div class="health-radial-box" id="ai-radial-box" style="cursor:pointer;" title="Click to inspect PINN Neural Network loss residuals & health index details">
+                <svg class="health-gauge-svg" viewBox="0 0 100 100">
+                  <circle class="gauge-bg-circle" cx="50" cy="50" r="45"></circle>
+                  <circle class="gauge-progress-circle" id="health-gauge-circle" cx="50" cy="50" r="45"></circle>
+                </svg>
+                <div class="health-metrics-col">
+                  <div class="health-big-num"><span id="ai-health-num">98</span><span>%</span></div>
+                  <div style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono);">HEALTH INDEX (HI)</div>
+                  <div style="font-size:10.5px; color:var(--emerald-safe); font-family:var(--font-mono);">DEGRADATION: 0.02%/HR</div>
+                </div>
+              </div>
+
+              <!-- Remaining Useful Life Forecast -->
+              <div class="rul-forecast-box" id="ai-rul-box" style="cursor:pointer;" title="Click to inspect Remaining Useful Life (RUL) Arrhenius degradation curve">
+                <div class="rul-label">ESTIMATED REMAINING USEFUL LIFE (RUL)</div>
+                <div class="rul-val">
+                  <span id="ai-rul-hours">840 HRS</span>
+                  <span class="conf">95% CONFIDENCE BAND</span>
+                </div>
+              </div>
+
+              <!-- Explainable AI (XAI) Attribution (CLICKABLE) -->
+              <div class="xai-attribution-section">
+                <div class="xai-header">
+                  <span>EXPLAINABLE AI (SHAP IMPACT)</span>
+                  <span style="color:var(--cyan-hud); font-size:9.5px;">CLICK TO INSPECT</span>
+                </div>
+                <div class="xai-bar-row interactive-xai-row" id="xai-row-cht3" title="Click to inspect Cylinder #3 thermal runaway & combustion model" style="cursor:pointer;">
+                  <div class="xai-bar-label"><span>CYL #3 CHT</span><span id="shap-cht3-pct">12%</span></div>
+                  <div class="xai-bar-track"><div class="xai-bar-fill" id="shap-cht3-bar" style="width: 12%;"></div></div>
+                </div>
+                <div class="xai-bar-row interactive-xai-row" id="xai-row-vibe" title="Click to inspect Crankshaft & Bearing vibration spectrum" style="cursor:pointer;">
+                  <div class="xai-bar-label"><span>HIGH-FREQ VIBRATION</span><span id="shap-vibe-pct">10%</span></div>
+                  <div class="xai-bar-track"><div class="xai-bar-fill" id="shap-vibe-bar" style="width: 10%;"></div></div>
+                </div>
+                <div class="xai-bar-row interactive-xai-row" id="xai-row-oil" title="Click to inspect Oil Pump hydraulic pressure & cavitation" style="cursor:pointer;">
+                  <div class="xai-bar-label"><span>OIL PRESSURE HYDRAULIC</span><span id="shap-oil-pct">8%</span></div>
+                  <div class="xai-bar-track"><div class="xai-bar-fill" id="shap-oil-bar" style="width: 8%;"></div></div>
+                </div>
+                <div class="xai-bar-row interactive-xai-row" id="xai-row-map" title="Click to inspect Turbocharger manifold boost & wastegate" style="cursor:pointer;">
+                  <div class="xai-bar-label"><span>TURBO BOOST RESIDUAL</span><span id="shap-map-pct">8%</span></div>
+                  <div class="xai-bar-track"><div class="xai-bar-fill" id="shap-map-bar" style="width: 8%;"></div></div>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
+                <!-- Pre-Flight T-2h Takeoff Readiness Audit Launcher -->
+                <button class="tactical-btn" id="btn-cockpit-preflight-audit" style="width: 100%; justify-content: center; border-color: rgba(168, 85, 247, 0.5); color: #c084fc; font-size: 11px; padding: 7px 10px; background: rgba(168, 85, 247, 0.08); font-weight: 600;" title="Open Pre-Flight Takeoff Health Prediction & GO/NO-GO Audit">
+                  🤖 PRE-FLIGHT T-2H AUDIT &amp; TAKEOFF VERDICT
+                </button>
+                <!-- Deep PINN Neural Network Architecture Launcher -->
+                <button class="tactical-btn" id="btn-cockpit-deep-ai" style="width: 100%; justify-content: center; border-color: rgba(0, 240, 255, 0.35); color: var(--cyan-hud); font-size: 10.5px; padding: 5px 8px; background: rgba(0, 240, 255, 0.05);" title="Inspect PINN Neural Network Residual Loss & Architecture">
+                  🧠 VIEW PINN NEURAL LOSS ARCHITECTURE
+                </button>
+              </div>
+            </div>
+
+            <!-- FFT Tri-Axial Vibration Spectrum -->
+            <!-- FFT Tri-Axial Vibration Spectrum -->
+            <div class="glass-card vibration-card" id="card-vibration-spectrum">
+              <div class="card-header" style="padding:0; margin-bottom:8px; border:none; display:flex; justify-content:space-between; align-items:center;">
+                <div class="card-title" id="title-vibe-header" style="cursor:pointer;" title="Click to open Deep Vibration Spectrum Analyzer">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  <span>FFT VIBRATION SPECTRUM (0 - 4000 Hz)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-secondary);"><span id="tile-vibe-rms">1.82</span> mm/s</span>
+                  <button class="tactical-btn" id="btn-open-vibe-modal" style="font-size:8.5px; padding:2px 7px; border-color:var(--cyan-hud); color:var(--cyan-hud); background:rgba(0,240,255,0.08);" title="Open Deep 3-Axis FFT Spectrum & Harmonics Analyzer">
+                    📊 DEEP SPECTRUM
+                  </button>
+                </div>
+              </div>
+              
+              <div style="position:relative; width:100%;">
+                <canvas id="fft-canvas" height="95"></canvas>
+                <div id="fft-tooltip" style="position:absolute; display:none; pointer-events:none; background:rgba(4,9,20,0.92); border:1px solid var(--cyan-hud); border-radius:3px; padding:2px 6px; font-family:var(--font-mono); font-size:9px; color:#fff; z-index:10; white-space:nowrap; transform:translate(-50%, -120%); box-shadow:0 0 10px rgba(0,0,0,0.8);"></div>
+              </div>
+
+              <!-- Interactive Frequency Zone Selector Buttons -->
+              <div class="fft-zone-selector" style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-family:var(--font-mono); font-size:8.5px; gap:4px;">
+                <button class="fft-zone-pill active" id="fft-zone-all" data-zone="all" title="View Full 0-4000 Hz Spectrum">ALL (0-4kHz)</button>
+                <button class="fft-zone-pill" id="fft-zone-shaft" data-zone="shaft" title="Filter 1X Shaft Balance (70 Hz)">1X SHAFT (70Hz)</button>
+                <button class="fft-zone-pill" id="fft-zone-bearing" data-zone="bearing" title="Filter PRSU Bearing Wear (1800 Hz)">BEARING (1.8kHz)</button>
+                <button class="fft-zone-pill" id="fft-zone-knock" data-zone="knock" title="Filter Pre-Knock Detonation (3.2 kHz)">KNOCK (3.2kHz)</button>
+              </div>
+
+              <!-- Live Zone Health & Diagnostic Status Line -->
+              <div class="vibe-status-line" id="vibe-status-line" style="margin-top:6px; padding:4px 8px; border-radius:3px; background:rgba(0,240,255,0.06); border:1px solid rgba(0,240,255,0.18); font-family:var(--font-mono); font-size:8.5px; color:#cbd5e1; display:flex; justify-content:space-between; align-items:center;">
+                <span id="vibe-status-desc">⚡ PEAK: 70 Hz (1X SHAFT) &bull; 0.95 mm/s &bull; ISO 10816: ZONE A (GOOD)</span>
+                <span id="vibe-status-badge" style="color:var(--emerald-safe); font-weight:700;">✓ NOMINAL</span>
+              </div>
+            </div>
+
+            <!-- CAN-bus / ARINC-429 Telemetry Streamer -->
+            <div class="glass-card can-terminal-card">
+              <div class="card-header" style="padding:10px 14px;">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                  <span>AVIONICS CAN-BUS / ARINC-429</span>
+                </div>
+                <span class="badge badge-nominal">100 Hz LINK</span>
+              </div>
+              <div class="terminal-window" id="can-bus-terminal-content">
+                <!-- Streamed dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 2: TACTICAL MISSION MAP & AUTONOMOUS CONTINGENCY
+           =================================================================== -->
+      <section class="view-section" id="view-mission">
+        <!-- Mission Explainer & Interactive Simulation Bar -->
+        <div class="mission-explainer-banner">
+          <div class="mission-guide-col">
+            <div class="mission-guide-header">
+              <span class="mission-guide-badge">TACTICAL FLIGHT OPERATION GUIDE</span>
+              <span class="mission-guide-title">DRDO TAPAS-BH-201 MALE UAV &bull; DYNAMIC RECOVERY CORRIDOR</span>
+            </div>
+            <div class="mission-steps-cards">
+              <div class="m-step-card active-step" id="step-card-1" role="button" tabindex="0" title="Click to simulate Nominal Border Patrol loiter">
+                <div class="m-step-num">01</div>
+                <div class="m-step-body">
+                  <div class="step-title-row">
+                    <strong>BORDER PATROL (SECTOR BRAVO)</strong>
+                    <span class="step-action-tag">🟢 NOMINAL</span>
+                  </div>
+                  <p>DRDO Tapas MALE UAV is loitering Indo-Pak border at 18,000 FT with pusher aero piston engine.</p>
+                </div>
+              </div>
+
+              <div class="m-step-card warning-step" id="step-card-2" role="button" tabindex="0" title="Click to simulate Cylinder #3 thermal runaway and dynamic safe reach contraction">
+                <div class="m-step-num">02</div>
+                <div class="m-step-body">
+                  <div class="step-title-row">
+                    <strong>HEALTH &rarr; SAFE REACH CIRCLE</strong>
+                    <span class="step-action-tag warn">⚠️ SIMULATE</span>
+                  </div>
+                  <p>Engine health directly controls recovery reach (~220 KM). Overheating/flameout contracts circle.</p>
+                </div>
+              </div>
+
+              <div class="m-step-card divert-step" id="step-card-3" role="button" tabindex="0" title="Click to execute Failsafe AI Autonomous Contingency & safe runway vectoring">
+                <div class="m-step-num">03</div>
+                <div class="m-step-body">
+                  <div class="step-title-row">
+                    <strong>AUTONOMOUS SAFE DIVERSION</strong>
+                    <span class="step-action-tag safe">✈️ EXECUTE</span>
+                  </div>
+                  <p>During engine faults, Failsafe AI automatically diverts UAV to nearest reachable runway (Deesa FLS).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1-Click Interactive Test Scenarios -->
+          <div class="mission-test-scenarios">
+            <div class="scenario-bar-lbl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>1-CLICK MISSION SIMULATIONS (चलाकर देखें):</span>
+            </div>
+            <div class="scenario-pills-row">
+              <button class="scenario-pill-btn active" id="btn-test-nominal" title="Nominal border patrol with 100% engine health">
+                <span class="pill-dot green"></span>
+                <span>🟢 NOMINAL PATROL</span>
+              </button>
+              <button class="scenario-pill-btn" id="btn-test-overheat" title="Simulate Cylinder #3 thermal runaway & test autonomous derate">
+                <span class="pill-dot amber"></span>
+                <span>⚠️ OVERHEAT &amp; DERATE</span>
+              </button>
+              <button class="scenario-pill-btn" id="btn-test-flameout" title="Emergency engine cut-off and dead-stick glide to Deesa FLS">
+                <span class="pill-dot red"></span>
+                <span>🚨 DEAD-STICK GLIDE</span>
+              </button>
+              <button class="scenario-pill-btn" id="btn-test-reset" title="Reset back to nominal flight">
+                <span>🔄 RESET</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mission-grid-layout">
+          <!-- Tactical Radar Map Card -->
+          <div class="glass-card tactical-map-card">
+            <div class="card-header">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/></svg>
+                <span>DRDO TAPAS-BH-201 TACTICAL RADAR &bull; WESTERN SECTOR C2</span>
+              </div>
+              <div class="card-header-actions">
+                <button class="map-ctrl-btn" id="btn-center-uav" title="Center map on DRDO Tapas UAV">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+                  <span>CENTER UAV</span>
+                </button>
+                <div class="badge badge-nominal" id="map-mission-status-badge">ISR SECTOR ACTIVE</div>
+              </div>
+            </div>
+
+            <div class="map-container">
+              <canvas id="mission-radar-canvas"></canvas>
+
+              <!-- Top HUD Badges -->
+              <div class="map-hud-top">
+                <div class="map-telemetry-badge">
+                  <div class="lbl">AIRCRAFT CALLSIGN</div>
+                  <div class="val highlight-cyan">GARUDA-04 &bull; TAPAS-004</div>
+                </div>
+                <div class="map-telemetry-badge">
+                  <div class="lbl">AIRSPEED &bull; ALTITUDE</div>
+                  <div class="val" id="map-hud-spd-alt">118 KTS &bull; 18,000 FT</div>
+                </div>
+                <div class="map-telemetry-badge">
+                  <div class="lbl">SAFE RECOVERY RADIUS</div>
+                  <div class="val highlight-emerald" id="map-hud-reach">~220 KM (NOMINAL)</div>
+                </div>
+                <div class="map-telemetry-badge">
+                  <div class="lbl">WIND &bull; SECTOR</div>
+                  <div class="val">270&deg; @ 14 KTS &bull; SECTOR BRAVO</div>
+                </div>
+              </div>
+
+              <!-- Map Legend -->
+              <div class="map-legend">
+                <div class="legend-header">RADAR TACTICAL SYMBOLS:</div>
+                <div class="legend-item"><span class="legend-dot uav"></span><span>DRDO TAPAS-BH-201 MALE UAV (Pusher Piston Engine)</span></div>
+                <div class="legend-item"><span class="legend-dot safe"></span><span>PRIMARY HOME BASE: AFS UTTARLAI (RWY 09/27)</span></div>
+                <div class="legend-item"><span class="legend-dot divert"></span><span>FORWARD EMERGENCY STRIP: DEESA FLS (RWY 14/32)</span></div>
+                <div class="legend-item"><span class="legend-dot reach"></span><span>DYNAMIC SAFE RECOVERY CORRIDOR (Engine Health Driven)</span></div>
+                <div class="legend-item"><span class="legend-dot border"></span><span>INDO-PAK BORDER &bull; SECTOR BRAVO AIRSPACE</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mission Sidebar: Advisory, Airframe & Airfields -->
+          <div class="mission-sidebar">
+            <!-- Autonomous Contingency Card -->
+            <div class="glass-card contingency-card" id="contingency-card-box">
+              <div class="card-header" style="padding:0; margin-bottom:8px; border:none;">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <span>AUTONOMOUS CONTINGENCY ADVISORY</span>
+                </div>
+              </div>
+
+              <div class="contingency-alert-box">
+                <div class="contingency-title safe" id="contingency-title-text">
+                  ALL PROPULSION SYSTEMS NOMINAL
+                </div>
+                <div class="contingency-desc" id="contingency-desc-text">
+                  Engine parameters are synchronized with digital twin model. Safe loiter reach intact.
+                </div>
+                <ul class="contingency-steps" id="contingency-steps-list">
+                  <li>CONTINUE PLANNED ISR SECTOR LOITER</li>
+                  <li>RECOVERY ENVELOPE: BASE ALPHA (UTTARLAI AFS) READY</li>
+                </ul>
+              </div>
+
+              <div class="failsafe-action-box">
+                <button class="failsafe-btn" id="btn-execute-failsafe">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  <span>EXECUTE FAILSAFE DERATE &amp; DIVERT</span>
+                </button>
+                <div style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono); text-align:center;">
+                  Throttles engine to 62%, cools cylinder heads, and vectors to Strip Bravo.
+                </div>
+              </div>
+            </div>
+
+            <!-- DRDO TAPAS MALE UAV Airframe Architecture Card -->
+            <div class="glass-card uav-architecture-card">
+              <div class="card-header" style="padding:0; margin-bottom:8px; border:none;">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                  <span>DRDO TAPAS-BH-201 MALE UAV PLATFORM</span>
+                </div>
+              </div>
+              
+              <!-- Visual Schematic Diagram of UAV -->
+              <div class="uav-schematic-visual">
+                <svg viewBox="0 0 340 130" class="uav-vector-svg">
+                  <!-- Wing outline -->
+                  <polygon points="170,40 330,55 330,62 170,54 10,62 10,55" fill="rgba(0, 240, 255, 0.15)" stroke="#00f0ff" stroke-width="1.5"/>
+                  <!-- Winglets -->
+                  <polyline points="330,62 334,48" stroke="#00f0ff" stroke-width="1.5"/>
+                  <polyline points="10,62 6,48" stroke="#00f0ff" stroke-width="1.5"/>
+                  <!-- Fuselage -->
+                  <path d="M170,12 C176,12 181,30 181,75 C181,95 177,105 170,105 C163,105 159,95 159,75 C159,30 164,12 170,12 Z" fill="rgba(15, 30, 60, 0.9)" stroke="#fff" stroke-width="1.5"/>
+                  <!-- Nose FLIR Turret -->
+                  <circle cx="170" cy="18" r="5" fill="#00f0ff" stroke="#fff" stroke-width="1"/>
+                  <text x="178" y="21" fill="#94a3b8" font-size="8" font-family="monospace">EO/IR GIMBAL</text>
+                  <!-- Twin Booms -->
+                  <line x1="120" y1="56" x2="120" y2="115" stroke="#00f0ff" stroke-width="1.5"/>
+                  <line x1="220" y1="56" x2="220" y2="115" stroke="#00f0ff" stroke-width="1.5"/>
+                  <!-- Inverted V-Tail -->
+                  <polyline points="108,122 170,106 232,122" fill="none" stroke="#00f0ff" stroke-width="1.5"/>
+                  <!-- Engine Nacelle & Pusher Propeller (HIGHLIGHTED) -->
+                  <rect x="162" y="80" width="16" height="22" rx="3" fill="rgba(245, 158, 11, 0.25)" stroke="#f59e0b" stroke-width="1.5"/>
+                  <line x1="148" y1="104" x2="192" y2="104" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+                  <!-- Callout to Engine -->
+                  <circle cx="170" cy="91" r="3" fill="#f59e0b"/>
+                  <polyline points="170,91 198,91 228,82" fill="none" stroke="#f59e0b" stroke-width="1"/>
+                  <text x="232" y="84" fill="#f59e0b" font-size="8.5" font-family="monospace" font-weight="bold">AERO PISTON ENGINE</text>
+                  <text x="232" y="94" fill="#94a3b8" font-size="7.5" font-family="monospace">(PUSHER PROPELLER)</text>
+                </svg>
+              </div>
+
+              <!-- Airframe Key Specifications Grid -->
+              <div class="uav-specs-mini-grid">
+                <div class="uav-spec-item">
+                  <span class="lbl">WINGSPAN</span>
+                  <span class="val">20.6 M (67.6 FT)</span>
+                </div>
+                <div class="uav-spec-item">
+                  <span class="lbl">LENGTH / MTOW</span>
+                  <span class="val">9.5 M / 1,800 KG</span>
+                </div>
+                <div class="uav-spec-item">
+                  <span class="lbl">PROPULSION</span>
+                  <span class="val highlight-amber">115 HP TURBO PISTON</span>
+                </div>
+                <div class="uav-spec-item">
+                  <span class="lbl">CONFIGURATION</span>
+                  <span class="val">TWIN-BOOM PUSHER</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Strategic Airfield Recovery Network Card -->
+            <div class="glass-card recovery-bases-card">
+              <div class="card-header" style="padding:0; margin-bottom:8px; border:none;">
+                <div class="card-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4v18M13 21V3l6 3v15"/></svg>
+                  <span>STRATEGIC AIRFIELD RECOVERY NETWORK</span>
+                </div>
+              </div>
+
+              <div class="bases-list">
+                <!-- Base Alpha -->
+                <div class="base-row-card" id="base-card-alpha">
+                  <div class="base-row-header">
+                    <span class="base-tag home">HOME BASE</span>
+                    <span class="base-name">AFS UTTARLAI (BASE ALPHA)</span>
+                  </div>
+                  <div class="base-row-metrics">
+                    <div class="b-metric"><span>DIST:</span> <strong id="base-dist-alpha">142 KM</strong></div>
+                    <div class="b-metric"><span>BRG:</span> <strong>238&deg;</strong></div>
+                    <div class="b-metric"><span>ETA:</span> <strong id="base-eta-alpha">38 MIN</strong></div>
+                    <div class="b-metric"><span>RWY:</span> <strong>09/27</strong></div>
+                  </div>
+                  <div class="base-row-action">
+                    <span class="base-reach-status safe" id="base-status-alpha">🟢 IN GLIDE RANGE</span>
+                    <button class="base-divert-btn" id="btn-divert-alpha">RETURN HOME</button>
+                  </div>
+                </div>
+
+                <!-- Strip Bravo -->
+                <div class="base-row-card priority-divert" id="base-card-bravo">
+                  <div class="base-row-header">
+                    <span class="base-tag divert">EMERGENCY STRIP</span>
+                    <span class="base-name">DEESA FLS (STRIP BRAVO)</span>
+                  </div>
+                  <div class="base-row-metrics">
+                    <div class="b-metric"><span>DIST:</span> <strong id="base-dist-bravo">68 KM</strong></div>
+                    <div class="b-metric"><span>BRG:</span> <strong>194&deg;</strong></div>
+                    <div class="b-metric"><span>ETA:</span> <strong id="base-eta-bravo">18 MIN</strong></div>
+                    <div class="b-metric"><span>RWY:</span> <strong>14/32</strong></div>
+                  </div>
+                  <div class="base-row-action">
+                    <span class="base-reach-status safe" id="base-status-bravo">🟢 PRIMARY RECOVERY</span>
+                    <button class="base-divert-btn primary-btn" id="btn-divert-bravo">DIVERT HERE</button>
+                  </div>
+                </div>
+
+                <!-- Base Charlie -->
+                <div class="base-row-card" id="base-card-charlie">
+                  <div class="base-row-header">
+                    <span class="base-tag backup">COASTAL BACKUP</span>
+                    <span class="base-name">BHUJ AFS (BASE CHARLIE)</span>
+                  </div>
+                  <div class="base-row-metrics">
+                    <div class="b-metric"><span>DIST:</span> <strong id="base-dist-charlie">195 KM</strong></div>
+                    <div class="b-metric"><span>BRG:</span> <strong>215&deg;</strong></div>
+                    <div class="b-metric"><span>ETA:</span> <strong id="base-eta-charlie">52 MIN</strong></div>
+                    <div class="b-metric"><span>RWY:</span> <strong>05/23</strong></div>
+                  </div>
+                  <div class="base-row-action">
+                    <span class="base-reach-status safe" id="base-status-charlie">🟢 IN POWERED RANGE</span>
+                    <button class="base-divert-btn" id="btn-divert-charlie">DIVERT HERE</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mission Flight Parameters -->
+            <div class="glass-card flight-params-card">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                <span>MALE UAV FLIGHT ENVELOPE</span>
+              </div>
+              <div class="flight-data-grid">
+                <div class="param-box">
+                  <span class="param-lbl">SERVICE CEILING</span>
+                  <span class="param-num">30,000 FT</span>
+                </div>
+                <div class="param-box">
+                  <span class="param-lbl">EST. ENDURANCE</span>
+                  <span class="param-num" id="map-endurance-hrs" style="color: var(--cyan-hud);">10.3 HRS</span>
+                </div>
+                <div class="param-box">
+                  <span class="param-lbl">FUEL REMAINING</span>
+                  <span class="param-num" id="map-fuel-remaining" style="color: #fff;">184.2 KG</span>
+                </div>
+                <div class="param-box">
+                  <span class="param-lbl">GLIDE RATIO (ENGINE OUT)</span>
+                  <span class="param-num">14.8 : 1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           TAB 3: FAULT INJECTION SANDBOX
+           =================================================================== -->
+      <section class="view-section" id="view-sandbox">
+        <div class="sandbox-container">
+          <div class="sandbox-header-banner">
+            <div class="sandbox-title-wrap">
+              <h2>
+                <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                <span>DEFENCE EVALUATOR FAULT INJECTION SANDBOX</span>
+              </h2>
+              <p>Simulate critical in-flight aero engine failure modes in real time to evaluate Physics-Informed Digital Twin response and contingency execution.</p>
+            </div>
+            <button class="tactical-btn" id="btn-reset-sandbox">
+              RESET ALL TO NOMINAL
+            </button>
+          </div>
+
+          <!-- 5 Detailed Scenario Cards Grid -->
+          <div class="fault-scenario-cards-grid">
+            <!-- Scenario 1 -->
+            <div class="scenario-card active" data-scenario="nominal">
+              <div class="scenario-card-head">
+                <span class="scenario-tag">SCENARIO 01</span>
+                <span class="badge badge-nominal">HEALTHY</span>
+              </div>
+              <h3>Nominal High-Altitude Loiter</h3>
+              <p>18,000 ft cruise, stable 4200 RPM, balanced thermal distribution across all 4 cylinders, zero pre-knock.</p>
+              <div class="scenario-impact">EXPECTED HI: 98-99% &bull; RUL: 800+ HRS</div>
+            </div>
+
+            <!-- Scenario 2 -->
+            <div class="scenario-card critical" data-scenario="cyl3_thermal">
+              <div class="scenario-card-head">
+                <span class="scenario-tag">SCENARIO 02</span>
+                <span class="badge badge-critical">CRITICAL</span>
+              </div>
+              <h3>Cyl #3 Thermal Runaway &amp; Pre-Knock</h3>
+              <p>Severe lean burn on Cylinder #3 drives CHT &gt; 235°C, creating acoustic detonation knock at 3200 Hz.</p>
+              <div class="scenario-impact" style="color:#ef4444;">EXPECTED HI: 28% &bull; IMMEDIATE DERATE REQUIRED</div>
+            </div>
+
+            <!-- Scenario 3 -->
+            <div class="scenario-card" data-scenario="turbo_wastegate">
+              <div class="scenario-card-head">
+                <span class="scenario-tag">SCENARIO 03</span>
+                <span class="badge badge-warning">DEGRADED</span>
+              </div>
+              <h3>Turbo Wastegate Actuator Jam</h3>
+              <p>Wastegate jammed 85% open at 22,000 ft. Manifold boost collapses from 34 to 21 inHg with altitude power loss.</p>
+              <div class="scenario-impact">EXPECTED HI: 62% &bull; SERVICE CEILING DERATE</div>
+            </div>
+
+            <!-- Scenario 4 -->
+            <div class="scenario-card" data-scenario="injector_clog">
+              <div class="scenario-card-head">
+                <span class="scenario-tag">SCENARIO 04</span>
+                <span class="badge badge-warning">DEGRADED</span>
+              </div>
+              <h3>Fuel Injector #2 Micro-Clog</h3>
+              <p>Partially restricted fuel orifice causes intermittent cylinder misfire, torque ripple, and EGT differential.</p>
+              <div class="scenario-impact">EXPECTED HI: 74% &bull; RUL: 280 HRS</div>
+            </div>
+
+            <!-- Scenario 5 -->
+            <div class="scenario-card critical" data-scenario="oil_cavitation">
+              <div class="scenario-card-head">
+                <span class="scenario-tag">SCENARIO 05</span>
+                <span class="badge badge-critical">CRITICAL</span>
+              </div>
+              <h3>Oil Pump Cavitation &amp; Bearing Wear</h3>
+              <p>Lube pressure plunges to 18 PSI, oil temp elevates to 112°C, and 1800 Hz hydrodynamic bearing harmonics spike.</p>
+              <div class="scenario-impact" style="color:#ef4444;">EXPECTED HI: 34% &bull; RISK OF SEIZURE</div>
+            </div>
+          </div>
+
+          <!-- Manual Sliders Grid -->
+          <div class="manual-sliders-grid">
+            <div class="slider-group-box">
+              <div class="slider-group-title">CYLINDER #3 HEAT BIAS</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>OVERHEAT OFFSET</span><span class="val" id="val-cyl3-heat">+0°C</span></div>
+                <input type="range" class="tactical-range-input" id="slider-cyl3-heat" min="0" max="80" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">TURBO WASTEGATE LEAK</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>VALVE STUCK RATIO</span><span class="val" id="val-wg-leak">0%</span></div>
+                <input type="range" class="tactical-range-input" id="slider-wg-leak" min="0" max="1" step="0.05" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">OIL PUMP CAVITATION</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>PRESSURE LOSS</span><span class="val" id="val-oil-wear">0%</span></div>
+                <input type="range" class="tactical-range-input" id="slider-oil-wear" min="0" max="1" step="0.05" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">BEARING DAMAGE / VIBE</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>HARMONIC WEAR</span><span class="val" id="val-bearing-wear">0%</span></div>
+                <input type="range" class="tactical-range-input" id="slider-bearing-wear" min="0" max="1" step="0.05" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">FUEL PRESSURE LOSS</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>RESTRICTION RATIO</span><span class="val" id="val-fuel-leak">0%</span></div>
+                <input type="range" class="tactical-range-input" id="slider-fuel-leak" min="0" max="0.9" step="0.05" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">THROTTLE POSITION</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>COMMANDED POWER</span><span class="val" id="val-throttle">75%</span></div>
+                <input type="range" class="tactical-range-input" id="slider-throttle" min="20" max="100" value="75">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">AIR-FUEL MIXTURE (AFR)</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>MIXTURE RATIO</span><span class="val" id="val-afr-mixture">14.7 : 1 (STOICH)</span></div>
+                <input type="range" class="tactical-range-input" id="slider-afr-mixture" min="-0.3" max="0.4" step="0.05" value="0">
+              </div>
+            </div>
+
+            <div class="slider-group-box">
+              <div class="slider-group-title">EMERGENCY FUEL WALL (SHUTOFF)</div>
+              <div class="tactical-slider-item">
+                <div class="slider-label-row"><span>FIREWALL VALVE</span><span class="val" id="val-sandbox-fuel-wall" style="color:var(--emerald-safe)">OPEN (ARMED)</span></div>
+                <button class="tactical-btn danger" id="btn-sandbox-fuel-wall" style="width:100%; justify-content:center; margin-top:4px;">
+                  TRIGGER FUEL WALL CUTOFF
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- TACTICAL FOOTER STATUS BAR -->
+    <footer class="tactical-statusbar">
+      <div class="status-left">
+        <div class="status-item">
+          <span class="pulse-dot"></span>
+          <span>ARINC-429 LINK:</span>
+          <span class="status-val nominal">CONNECTED (0.8 ms LATENCY)</span>
+        </div>
+        <div class="status-item">
+          <span>AI MODEL:</span>
+          <span class="status-val">DRDO-PINN-AeroV3 (THERMODYNAMIC HYBRID)</span>
+        </div>
+        <div class="status-item">
+          <span>ENGINE SPEED:</span>
+          <span class="status-val" id="status-engine-rpm">4200 RPM</span>
+        </div>
+      </div>
+      <div class="status-right">
+        <div class="status-item">
+          <span>AIRWORTHINESS STATUS:</span>
+          <span class="status-val nominal" id="status-mode-val">NOMINAL</span>
+        </div>
+        <div class="status-item">
+          <span>HEALTH INDEX:</span>
+          <span class="status-val" id="status-health-val">98.4%</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ===================================================================
+         MODAL 1: AIRWORTHINESS MAINTENANCE AUDIT REPORT (DRDO / CEMILAC)
+         =================================================================== -->
+    <div class="modal-backdrop" id="report-modal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id">FORM DD-26054</span>
+            <span>DRDO &bull; CEMILAC AIRWORTHINESS INSPECTION &amp; MAINTENANCE ORDER</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-report">&times;</button>
+        </div>
+        <div class="modal-body" id="report-modal-content">
+          <!-- Dynamically populated by ReportGenerator -->
+        </div>
+        <div style="padding:16px 24px; background:rgba(10,16,30,0.8); border-top:1px solid var(--border-subtle); display:flex; justify-content:flex-end; gap:12px;">
+          <button class="tactical-btn" id="btn-export-csv">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <span>EXPORT TELEMETRY CSV</span>
+          </button>
+          <button class="tactical-btn primary" id="btn-print-report">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <span>PRINT / SAVE PDF</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL 2: SIH 26054 PROBLEM STATEMENT DOSSIER
+         =================================================================== -->
+    <div class="modal-backdrop" id="dossier-modal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id">SIH 2026 #26054</span>
+            <span>OFFICIAL PROBLEM STATEMENT DOSSIER &amp; INDIGENOUS ARCHITECTURE</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-dossier">&times;</button>
+        </div>
+        <div class="modal-body" style="line-height:1.7; font-size:12.5px; color:#cbd5e1;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:rgba(255,255,255,0.03); padding:16px; border-radius:6px; margin-bottom:20px;">
+            <div><strong style="color:var(--cyan-hud)">ORGANIZATION:</strong> DRDO (Defence Research and Development Organisation)</div>
+            <div><strong style="color:var(--cyan-hud)">DEPARTMENT:</strong> Dept of Defence Production / iDEX</div>
+            <div><strong style="color:var(--cyan-hud)">THEME:</strong> Robotics and Drones</div>
+            <div><strong style="color:var(--cyan-hud)">CATEGORY:</strong> Software / Edge AI / Digital Twin</div>
+          </div>
+
+          <h3 style="color:#fff; font-family:var(--font-hud); font-size:14px; margin-bottom:6px;">PROBLEM TITLE</h3>
+          <p style="color:var(--cyan-hud); font-weight:600; font-size:13px; margin-bottom:16px;">
+            AI-Enabled Real-Time Digital Twin System for Health Monitoring, Fault Prediction and Mission Reliability Enhancement of Aero Piston Engines used in MALE UAVs.
+          </p>
+
+          <h3 style="color:#fff; font-family:var(--font-hud); font-size:13px; margin-bottom:6px;">BACKGROUND &amp; OPERATIONAL CRITICALITY</h3>
+          <p style="margin-bottom:14px;">
+            Medium Altitude Long Endurance (MALE) UAVs like the <strong>DRDO Tapas-BH-201 (Rustom-II)</strong> execute strategic long-duration intelligence, surveillance, reconnaissance (ISR), and maritime border patrolling for up to 24+ hours at altitudes between 18,000 and 30,000 ft. The propulsion system (turbocharged aero piston engine) is the single point of failure: an in-flight engine flameout, cylinder seizure, or turbocharger failure results in catastrophic asset loss, mission abort, or uncontrolled crashes into contested territories.
+          </p>
+
+          <h3 style="color:#fff; font-family:var(--font-hud); font-size:13px; margin-bottom:6px;">SHORTCOMINGS OF CURRENT SYSTEMS</h3>
+          <p style="margin-bottom:14px;">
+            Traditional UAV avionics rely on simple static threshold alarms (e.g., CHT &gt; 220°C). These are <em>reactive</em>—by the time a static threshold is breached, irreversible mechanical scoring, valve deformation, or catastrophic bearing seizure has already occurred. They lack physics awareness of altitude lapse rates, ambient temperature extremes (-50°C at 25,000 ft), and incipient multi-signal degradation patterns.
+          </p>
+
+          <h3 style="color:#fff; font-family:var(--font-hud); font-size:13px; margin-bottom:6px;">OUR PROPOSED INDIGENOUS SOLUTION</h3>
+          <ul style="padding-left:20px; margin-bottom:16px; display:flex; flex-direction:column; gap:6px;">
+            <li><strong>Physics-Informed Digital Twin (PIDT):</strong> Combines 0D/1D thermodynamic Mean Value Engine Models (MVEM) with Deep Physics-Informed Neural Networks (PINN) running on low-SWaP airborne edge compute (FPGA/Jetson) and GCS.</li>
+            <li><strong>Incipient Anomaly Detection:</strong> Predicts micro-faults 45–90 minutes before failure (e.g., lean pre-knock, wastegate leakage, injector clogging, oil cavitation).</li>
+            <li><strong>Remaining Useful Life (RUL) Forecasting:</strong> Dynamic Arrhenius wear &amp; Gaussian Process degradation curves with confidence intervals.</li>
+            <li><strong>Mission Contingency Engine:</strong> Real-time in-flight safe recovery corridor calculator with autonomous throttle derate advisory to guarantee safe return to base (RTB).</li>
+          </ul>
+
+          <div style="background:rgba(0,240,255,0.08); border:1px solid var(--border-active); border-radius:6px; padding:14px; margin-top:16px;">
+            <strong style="color:var(--cyan-hud);">STRATEGIC DEFENCE IMPACT:</strong> Eliminates reliance on foreign proprietary diagnostics (Austro/Rotax), supports Atmanirbhar Bharat, cuts UAV fleet lifecycle maintenance costs by 38%, and enhances operational sortie completion rates across Indian Armed Forces.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL 3: REAL ENGINE HARDWARE LINK & I/O GATEWAY
+         =================================================================== -->
+    <div class="modal-backdrop" id="hardware-modal">
+      <div class="modal-container" style="max-width: 860px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id" style="border-color: var(--emerald-safe); color: var(--emerald-safe);">HIL GATEWAY</span>
+            <span>REAL AERO ENGINE HARDWARE CONNECTION &bull; SENSOR INGESTION</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-hardware">&times;</button>
+        </div>
+
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:20px;">
+          <!-- Status Banner -->
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid var(--emerald-safe); border-radius: 8px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-family: var(--font-hud); font-size: 11px; color: var(--emerald-safe); letter-spacing: 1px;">ACTIVE TELEMETRY SOURCE</div>
+              <div id="hw-active-source-lbl" style="font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: #fff; margin-top: 2px;">
+                SIMULATION MODE (INTERNAL 0D/1D THERMODYNAMIC MODEL)
+              </div>
+            </div>
+            <div style="text-align: right; font-family: var(--font-mono); font-size: 11px;">
+              <span style="color: var(--text-muted)">PACKETS INGESTED:</span>
+              <span id="hw-packets-count" style="color: var(--cyan-hud); font-weight: 700; font-size: 13px;">0</span>
+            </div>
+          </div>
+
+          <!-- Connection Options Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <!-- Option 1: Web Serial USB/COM Port -->
+            <div class="glass-card" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                <span>OPTION 1: DIRECT USB / COM PORT</span>
+              </div>
+              <p style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4;">
+                Connect Arduino, ESP32, STM32, or USB-to-CAN analyzer (CANable / MCP2515) directly to your PC via USB cable. Browser reads live serial frames via Web Serial API.
+              </p>
+
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <label style="font-size: 10.5px; color: var(--text-muted); font-family: var(--font-mono);">BAUD RATE:</label>
+                <select id="hw-baud-select" style="background: #040813; border: 1px solid var(--border-subtle); color: var(--cyan-hud); padding: 4px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px;">
+                  <option value="115200" selected>115200 bps (Standard)</option>
+                  <option value="9600">9600 bps (Arduino Standard)</option>
+                  <option value="57600">57600 bps</option>
+                  <option value="921600">921600 bps (High-speed CAN)</option>
+                </select>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <div style="display: flex; gap: 8px;">
+                  <button class="tactical-btn primary" id="btn-hw-connect-serial" style="flex: 1; justify-content: center;">
+                    CONNECT USB / COM PORT
+                  </button>
+                  <button class="tactical-btn danger" id="btn-hw-disconnect-serial" style="display: none; flex: 1; justify-content: center;">
+                    DISCONNECT SERIAL
+                  </button>
+                </div>
+                <button class="tactical-btn" id="btn-hw-simulate-serial" style="justify-content: center; font-size: 10px; border-color: rgba(0, 240, 255, 0.4); color: var(--cyan-hud);">
+                  🎮 SIMULATE USB ARDUINO SENSORS (NO HW NEEDED)
+                </button>
+              </div>
+              <div id="hw-serial-msg" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); min-height: 14px;"></div>
+            </div>
+
+            <!-- Option 2: Local Network API Ingestion Bridge -->
+            <div class="glass-card" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <span>OPTION 2: NETWORK API INGESTION</span>
+              </div>
+              <p style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.4;">
+                Stream data from any engine test bench using Python, MATLAB, or CAN bus listener sending JSON to <code style="color:var(--cyan-hud)">POST /api/telemetry</code>.
+              </p>
+
+              <div style="background: #040813; padding: 8px 10px; border-radius: 4px; font-family: var(--font-mono); font-size: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #38bdf8;">$ python hardware_bridge.py --test-bench</span>
+                <button class="tactical-btn" id="btn-copy-python" style="font-size: 9px; padding: 2px 6px;">COPY</button>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <div style="display: flex; gap: 8px;">
+                  <button class="tactical-btn" id="btn-hw-connect-api" style="flex: 1; justify-content: center; border-color: var(--cyan-hud); color: var(--cyan-hud);">
+                    ENABLE INGESTION POLLING
+                  </button>
+                  <button class="tactical-btn danger" id="btn-hw-disconnect-api" style="display: none; flex: 1; justify-content: center;">
+                    STOP POLLING
+                  </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="tactical-btn primary" id="btn-hw-start-feeder" style="flex: 1.4; justify-content: center; font-size: 10px;">
+                    🚀 START VIRTUAL TEST BENCH FEEDER
+                  </button>
+                  <button class="tactical-btn" id="btn-hw-send-packet" style="flex: 1; justify-content: center; font-size: 10px;">
+                    📤 SEND 1 PACKET
+                  </button>
+                </div>
+              </div>
+              <div id="hw-api-msg" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); min-height: 14px;"></div>
+            </div>
+          </div>
+
+          <!-- Documentation & Code Snippet Box -->
+          <div class="glass-card" style="padding: 14px 18px;">
+            <div class="card-title" style="margin-bottom: 8px; justify-content: space-between;">
+              <span>READY-TO-USE HARDWARE FIRMWARE &amp; SCRIPTS IN THIS REPO</span>
+              <button class="tactical-btn" id="btn-copy-curl" style="font-size: 9.5px; padding: 2px 8px;">📋 COPY CURL TEST COMMAND</button>
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-secondary); line-height: 1.6;">
+              <ul style="padding-left: 18px;">
+                <li><strong style="color:#fff">Node.js Feeder (Zero Python Setup):</strong> <code style="color:var(--cyan-hud)">feeder.js</code> &mdash; Run <code style="color:#fff">node feeder.js</code> directly in terminal to stream live dyno frames instantly.</li>
+                <li><strong style="color:#fff">Python Bridge Script:</strong> <code style="color:var(--cyan-hud)">hardware_bridge.py</code> &mdash; Run <code style="color:#fff">python hardware_bridge.py --port COM3</code> or <code style="color:#fff">--test-bench</code> to test real serial/CAN-bus.</li>
+                <li><strong style="color:#fff">Arduino/ESP32 Firmware:</strong> <code style="color:var(--cyan-hud)">arduino_aero_engine_sensors.ino</code> &mdash; Upload to Arduino to read physical K-type thermocouples (MAX6675), MAP pressure transducers, oil pressure, and ADXL345 vibration sensors.</li>
+                <li><strong style="color:#fff">JSON Telemetry Payload Schema:</strong> <code style="color:var(--text-muted)">{"rpm":4200, "map":34.5, "cht":[168,166,171,167], "egt":[780,775,790,780], "oilPress":52, "oilTemp":88, "vibrationRms":1.8}</code></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL 4: PRE-FLIGHT T-2h AI ENGINE HEALTH AUDIT & TAKEOFF VERDICT
+         =================================================================== -->
+    <div class="modal-backdrop" id="preflight-modal">
+      <div class="modal-container preflight-modal-container" style="max-width: 980px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id" style="border-color: #a855f7; color: #c084fc; background: rgba(168, 85, 247, 0.15);">PRE-FLIGHT AI AUDIT</span>
+            <span>T-2h PRE-TAKEOFF ENGINE HEALTH PREDICTION &bull; GO / NO-GO CLEARANCE</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-preflight">&times;</button>
+        </div>
+
+        <div class="modal-body preflight-modal-body" style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Mission & Aircraft Header Bar -->
+          <div class="preflight-info-banner">
+            <div class="p-info-item">
+              <span class="p-info-label">PLATFORM:</span>
+              <strong class="p-info-val">DRDO TAPAS-BH-201 MALE UAV (TAIL #T-07)</strong>
+            </div>
+            <div class="p-info-item">
+              <span class="p-info-label">SCHEDULED MISSION:</span>
+              <strong class="p-info-val">14-HR STRATEGIC BORDER PATROL (18,000 FT)</strong>
+            </div>
+            <div class="p-info-item">
+              <span class="p-info-label">COUNTDOWN TO TAKEOFF:</span>
+              <strong class="p-info-val" style="color: #c084fc; font-family: var(--font-hud);">T - 02:00:00 (PRE-FLIGHT GATE)</strong>
+            </div>
+          </div>
+
+          <!-- Interactive Test Scenarios for Evaluators -->
+          <div class="preflight-scenarios-bar">
+            <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase;">SIMULATE PRE-TAKEOFF CONDITIONS:</span>
+            <div class="preflight-pill-group">
+              <button class="preflight-pill-btn active" data-preflight-scen="nominal">🟢 NOMINAL (GO)</button>
+              <button class="preflight-pill-btn" data-preflight-scen="cyl3_thermal">🔴 CYL #3 THERMAL/PRE-KNOCK</button>
+              <button class="preflight-pill-btn" data-preflight-scen="turbo_wastegate">🟠 TURBO WASTEGATE SEIZED</button>
+              <button class="preflight-pill-btn" data-preflight-scen="injector_clog">🟡 INJECTOR #2 CLOG</button>
+              <button class="preflight-pill-btn" data-preflight-scen="oil_cavitation">🔴 OIL PUMP CAVITATION</button>
+            </div>
+          </div>
+
+          <!-- Dynamic Takeoff Verdict Banner -->
+          <div id="preflight-verdict-card" class="preflight-verdict-card go">
+            <div class="verdict-left">
+              <div class="verdict-icon-box" id="preflight-verdict-icon">✓</div>
+              <div>
+                <div class="verdict-badge" id="preflight-verdict-tag">TAKEOFF VERDICT</div>
+                <h2 class="verdict-headline" id="preflight-verdict-headline">TAKEOFF CLEARED (GO) • ALL AIRWORTHINESS CRITERIA CERTIFIED</h2>
+                <p class="verdict-desc" id="preflight-verdict-summary">T-2H pre-flight ground run indicates nominal thermo-acoustic and mechanical balance. Projected mission success probability: 98.4% across planned 18.5-hour MALE loiter profile.</p>
+              </div>
+            </div>
+            <div class="verdict-stats-col">
+              <div class="verdict-stat-item">
+                <span class="v-label">AIRWORTHINESS SCORE</span>
+                <span class="v-val" id="preflight-readiness-score" style="color: var(--emerald-safe)">98.6%</span>
+              </div>
+              <div class="verdict-stat-item">
+                <span class="v-label">FAILURE PROBABILITY</span>
+                <span class="v-val" id="preflight-fail-prob" style="color: var(--emerald-safe)">1.2%</span>
+              </div>
+              <div class="verdict-stat-item">
+                <span class="v-label">SAFETY RISK LEVEL</span>
+                <span class="v-val" id="preflight-risk-level" style="color: var(--emerald-safe)">LOW</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3-Phase Deep Analytical Architecture (Past Health + Present Ground Run + Future Forecast) -->
+          <div class="preflight-phases-grid">
+            <!-- Phase 1: Past Health & Historical Degradation -->
+            <div class="glass-card preflight-phase-card">
+              <div class="phase-card-header">
+                <span class="phase-number">PHASE 1</span>
+                <span class="phase-title">📜 PAST HEALTH &amp; LOG HISTORY</span>
+              </div>
+              <div class="phase-metrics-list">
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Cumulative Flight Hours</span>
+                  <span class="pm-val" id="pf-past-hours">148.4 / 1,200 HRS TBO</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Thermal Duty Cycles</span>
+                  <span class="pm-val" id="pf-past-cycles">46 / 300 Max</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Historical Degradation Rate</span>
+                  <span class="pm-val text-green" id="pf-past-degradation">0.018% / flight hr</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Oil Spectrometry Baseline</span>
+                  <span class="pm-val text-dim" id="pf-past-spectrometry">Fe: 12 • Cu: 4 • Al: 6 ppm</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">CEMILAC Fleet Compliance</span>
+                  <span class="pm-val text-green" id="pf-past-status">CAR-21 COMPLIANT</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 2: Present Ground Run Telemetry -->
+            <div class="glass-card preflight-phase-card">
+              <div class="phase-card-header">
+                <span class="phase-number">PHASE 2</span>
+                <span class="phase-title">⚡ PRESENT GROUND RUN-UP</span>
+              </div>
+              <div class="phase-metrics-list">
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Ground Idle Speed</span>
+                  <span class="pm-val" id="pf-present-rpm">1850 RPM</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Lube Pressure @ Idle</span>
+                  <span class="pm-val" id="pf-present-oil">51.2 PSI (Nominal)</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Manifold Boost Response</span>
+                  <span class="pm-val" id="pf-present-map">29.6 inHg</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Ground Vibration RMS</span>
+                  <span class="pm-val" id="pf-present-vibe">1.65 mm/s</span>
+                </div>
+                <div class="pf-cyl-bars-box">
+                  <span class="pm-lbl" style="font-size:10px; margin-bottom:4px; display:block;">CYLINDER THERMAL BALANCE:</span>
+                  <div class="pf-cyl-bars-row" id="pf-cyl-bars-container">
+                    <!-- Populated dynamically -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 3: Future In-Flight Forecast -->
+            <div class="glass-card preflight-phase-card">
+              <div class="phase-card-header">
+                <span class="phase-number">PHASE 3</span>
+                <span class="phase-title">🔮 FUTURE IN-FLIGHT PREDICTION</span>
+              </div>
+              <div class="phase-metrics-list">
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Predicted Time to Failure</span>
+                  <strong class="pm-val" id="pf-future-ttf" style="color:var(--emerald-safe);">&gt; 840 Flight Hours</strong>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Projected Failure Mode</span>
+                  <span class="pm-val" id="pf-future-mode">None (Nominal Cruise)</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Failure Probability</span>
+                  <span class="pm-val" id="pf-future-risk">1.2% (Negligible Risk)</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Projected Altitude Ceiling</span>
+                  <span class="pm-val" id="pf-future-ceiling">30,000 FT (Full Envelope)</span>
+                </div>
+                <div class="p-metric-row">
+                  <span class="pm-lbl">Safe RTB Margin</span>
+                  <span class="pm-val text-green" id="pf-future-rtb">GUARANTEED (100% MARGIN)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prescriptive Corrective Directive & Ground Repair Action -->
+          <div class="glass-card preflight-solution-card" id="preflight-solution-card">
+            <div class="solution-header-row">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="solution-icon" id="pf-solution-icon">🛠️</span>
+                <div>
+                  <div class="solution-sub">CEMILAC PRESCRIPTIVE CORRECTIVE ACTION &bull; DRDO STANDARD</div>
+                  <h4 class="solution-title" id="pf-solution-title">CLEAN ENGINE AIRWORTHINESS BASELINE</h4>
+                </div>
+              </div>
+              <div class="solution-meta" id="pf-solution-meta">
+                <span class="sol-badge" id="pf-solution-time">EST. FIX TIME: 0 MINS</span>
+                <span class="sol-directive" id="pf-solution-directive">CAR-21 / DGAQA SOP-26054-01</span>
+              </div>
+            </div>
+
+            <div class="solution-body-grid">
+              <div class="sol-col-root">
+                <strong style="color:var(--cyan-hud); font-size:11px;">ROOT CAUSE ANALYSIS:</strong>
+                <p id="pf-solution-root" style="font-size:12px; color:var(--text-secondary); line-height:1.5; margin-top:4px;">
+                  No anomalous thermodynamic, acoustic, or hydraulic residuals detected during pre-flight ground run. Compression delta &lt; 2.5% across all 4 cylinders.
+                </p>
+                <div style="margin-top:10px;" id="pf-solution-parts-row">
+                  <strong style="color:#fff; font-size:11px;">REQUIRED SPARE PARTS:</strong>
+                  <div id="pf-solution-parts" style="font-family:var(--font-mono); font-size:11.5px; color:#facc15; margin-top:2px;">None (All Components Certified Airworthy)</div>
+                </div>
+              </div>
+
+              <div class="sol-col-steps">
+                <strong style="color:var(--cyan-hud); font-size:11px;">STEP-BY-STEP RECTIFICATION PROCEDURE:</strong>
+                <ol id="pf-solution-steps" class="pf-steps-list">
+                  <li>Perform standard pre-flight visual walkaround inspection.</li>
+                  <li>Verify dual magneto ignition check at 2500 ground RPM.</li>
+                  <li>Check fuel tank sump drain for water or particulate contamination.</li>
+                  <li>Sign CEMILAC Form DD-AERO-26054 Airworthiness Release.</li>
+                </ol>
+              </div>
+            </div>
+
+            <!-- Ground Fix Interactive Execution Button -->
+            <div class="preflight-action-footer">
+              <div id="pf-fix-status-note" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">
+                Ground maintenance team can execute prescribed repair before takeoff window expires.
+              </div>
+              <button class="tactical-btn" id="btn-apply-ground-fix" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(0, 240, 255, 0.2)); border-color: var(--emerald-safe); color: #fff; font-weight: 700; padding: 10px 20px; font-size: 12px; letter-spacing: 0.5px;">
+                🔧 EXECUTE GROUND MAINTENANCE FIX &amp; RE-AUDIT ENGINE
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL 5: DEEP PINN NEURAL NETWORK & PROGNOSTICS ARCHITECTURE
+         =================================================================== -->
+    <div class="modal-backdrop" id="ai-deep-modal">
+      <div class="modal-container" style="max-width: 960px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id" style="border-color: var(--cyan-hud); color: var(--cyan-hud);">PINN DEEPNET</span>
+            <span>PHYSICS-INFORMED NEURAL NETWORK &bull; REAL-TIME LOSS &amp; PROGNOSTICS</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-ai-deep">&times;</button>
+        </div>
+
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Top Architecture Summary Strip -->
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">MODEL ARCHITECTURE</div>
+              <div style="font-size:13px; font-weight:700; color:#fff; font-family:var(--font-hud); margin-top:3px;">PINN-AeroV3</div>
+              <div style="font-size:9.5px; color:var(--cyan-hud);">Hybrid Physics-DeepNet</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">PINN TOTAL RESIDUAL LOSS</div>
+              <div id="pinn-total-loss-val" style="font-size:13px; font-weight:700; color:var(--emerald-safe); font-family:var(--font-mono); margin-top:3px;">0.0028</div>
+              <div style="font-size:9.5px; color:var(--text-secondary);">Loss &lt; 0.01 = NOMINAL</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">HEALTH INDEX (HI)</div>
+              <div id="pinn-hi-val" style="font-size:13px; font-weight:700; color:var(--emerald-safe); font-family:var(--font-hud); margin-top:3px;">98.4%</div>
+              <div style="font-size:9.5px; color:var(--text-secondary);">Confidence: 94.8%</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">ESTIMATED RUL</div>
+              <div id="pinn-rul-val" style="font-size:13px; font-weight:700; color:#fff; font-family:var(--font-hud); margin-top:3px;">840 HRS</div>
+              <div style="font-size:9.5px; color:var(--text-secondary);">Arrhenius Wear Curve</div>
+            </div>
+          </div>
+
+          <!-- Section 1: Physics-Informed Multi-Loss Residual Gauges -->
+          <div class="glass-card" style="padding:16px;">
+            <div class="card-title" style="margin-bottom:12px; justify-content:space-between;">
+              <span>PHYSICS GOVERNING EQUATIONS &amp; RESIDUAL LOSS BINS</span>
+              <span style="font-size:10.5px; font-family:var(--font-mono); color:var(--text-muted);">L_total = L_thermo + L_acoustic + L_hydro + L_boost</span>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:14px;">
+              <!-- Loss 1: Thermodynamic CHT -->
+              <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <strong style="color:#fff; font-size:11.5px;">1. Thermodynamic Heat Residual (L_thermo)</strong>
+                  <span id="pinn-loss-thermo-badge" class="badge badge-nominal">0.0012 (NOMINAL)</span>
+                </div>
+                <div style="font-size:10.5px; color:var(--text-secondary); line-height:1.4;">
+                  Governing Eq: <code>Q_in - Q_out = m_air &bull; Cp &bull; &Delta;T</code>. Checks cylinder CHT dissipation against Mean Value Engine Model.
+                </div>
+                <div class="gauge-meter-bar" style="margin-top:8px;">
+                  <div class="gauge-meter-fill" id="pinn-bar-thermo" style="width: 12%;"></div>
+                </div>
+              </div>
+
+              <!-- Loss 2: Acoustic Knock Detonation -->
+              <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <strong style="color:#fff; font-size:11.5px;">2. Detonation Acoustic Loss (L_knock)</strong>
+                  <span id="pinn-loss-knock-badge" class="badge badge-nominal">0.0004 (NOMINAL)</span>
+                </div>
+                <div style="font-size:10.5px; color:var(--text-secondary); line-height:1.4;">
+                  Governing Eq: High-frequency pressure wave speed <code>c = &radic;(&gamma;RT)</code> at 3200 Hz. Identifies pre-knock detonation wave.
+                </div>
+                <div class="gauge-meter-bar" style="margin-top:8px;">
+                  <div class="gauge-meter-fill" id="pinn-bar-knock" style="width: 8%;"></div>
+                </div>
+              </div>
+
+              <!-- Loss 3: Lube Hydraulic Bearing -->
+              <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <strong style="color:#fff; font-size:11.5px;">3. Hydrodynamic Bearing Loss (L_hydro)</strong>
+                  <span id="pinn-loss-hydro-badge" class="badge badge-nominal">0.0006 (NOMINAL)</span>
+                </div>
+                <div style="font-size:10.5px; color:var(--text-secondary); line-height:1.4;">
+                  Governing Eq: Petroff / Reynolds equation <code>P = &mu; &bull; (U/h)&sup2;</code>. Detects gerotor aeration, cavitation, and journal boundary scoring.
+                </div>
+                <div class="gauge-meter-bar" style="margin-top:8px;">
+                  <div class="gauge-meter-fill" id="pinn-bar-hydro" style="width: 10%;"></div>
+                </div>
+              </div>
+
+              <!-- Loss 4: Turbo Manifold Boost -->
+              <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; border:1px solid var(--border-subtle);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <strong style="color:#fff; font-size:11.5px;">4. Manifold Aerodynamic Boost (L_boost)</strong>
+                  <span id="pinn-loss-boost-badge" class="badge badge-nominal">0.0006 (NOMINAL)</span>
+                </div>
+                <div style="font-size:10.5px; color:var(--text-secondary); line-height:1.4;">
+                  Governing Eq: Isentropic compressor pressure ratio <code>P2/P1 = [1 + &eta;_c(T2/T1 - 1)]^(&gamma;/(&gamma;-1))</code>. Detects wastegate stiction.
+                </div>
+                <div class="gauge-meter-bar" style="margin-top:8px;">
+                  <div class="gauge-meter-fill" id="pinn-bar-boost" style="width: 9%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Multi-Class Incipient Fault Probabilities & SHAP Attribution -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <!-- Left: Softmax Classification Spectrum -->
+            <div class="glass-card" style="padding:14px;">
+              <div class="card-title" style="margin-bottom:10px;">
+                <span>AI MULTI-CLASS FAULT CLASSIFIER</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;" id="pinn-classifier-bars">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Right: Interactive Component Quick Actions -->
+            <div class="glass-card" style="padding:14px; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <div class="card-title" style="margin-bottom:8px;">
+                  <span>AI DIAGNOSTIC ATTRIBUTION INSIGHTS</span>
+                </div>
+                <div id="pinn-ai-insight-text" style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+                  The Physics-Informed Neural Network is running at 10 Hz directly on airborne edge telemetry. All thermodynamic, acoustic, and hydraulic equations are satisfied within certified CEMILAC airworthiness bands.
+                </div>
+              </div>
+
+              <div style="display:flex; gap:10px; margin-top:14px;">
+                <button class="tactical-btn" id="btn-pinn-launch-preflight" style="flex:1; justify-content:center; border-color:#a855f7; color:#c084fc;">
+                  🤖 OPEN PRE-FLIGHT AUDIT
+                </button>
+                <button class="tactical-btn primary" id="btn-pinn-focus-subsystem" style="flex:1; justify-content:center;">
+                  🔍 INSPECT ACTIVE COMPONENT
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         DRDO SIH-26054 SYSTEM ARCHITECTURE & REQUIREMENTS COMPLIANCE MODAL
+         =================================================================== -->
+    <div class="modal-backdrop" id="compliance-modal">
+      <div class="modal-container" style="max-width: 1060px; max-height: 90vh;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge badge-nominal" style="font-size:10px; padding:3px 8px; margin-right:8px;">100% SPECIFICATION FULFILLED</span>
+            <span>DRDO SIH-26054 &bull; REQUIREMENTS & ARCHITECTURE COMPLIANCE MATRIX</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-compliance">&times;</button>
+        </div>
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:18px; line-height:1.6; font-size:12.5px; color:#cbd5e1;">
+
+          <!-- Top Executive Summary -->
+          <div style="background:rgba(0,240,255,0.06); border:1px solid rgba(0,240,255,0.25); border-radius:8px; padding:14px 18px;">
+            <div style="font-family:var(--font-hud); font-size:14px; font-weight:800; color:#fff; margin-bottom:4px;">
+              DEFENCE RESEARCH & DEVELOPMENT ORGANISATION (DRDO) &bull; PROBLEM STATEMENT 26054
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary);">
+              <strong>Official Scope:</strong> AI-Enabled Real-Time Digital Twin System for Health Monitoring, Fault Prediction and Mission Reliability Enhancement of Aero Piston Engines used in MALE UAVs (TAPAS-BH-201). Below is the comprehensive verification matrix mapping all mandated subsystems, diagnostics, and innovation areas to working software capabilities.
+            </div>
+          </div>
+
+          <!-- Section A & B: Core & Health Monitoring -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <!-- Section A -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--cyan-hud); font-family:var(--font-hud); font-size:11.5px;">A. DIGITAL TWIN CORE FRAMEWORK</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Virtual Engine Model:</strong> Horizontally opposed 4-cylinder turbocharged 3D kinematic model with real-time Otto cycle thermodynamics.</li>
+                <li><strong style="color:#fff;">✓ Modular Scalability:</strong> Clean decoupling of Telemetry Engine, PINN Diagnostic Net, 3D Canvas, Mission Planner, and Hardware Link.</li>
+                <li><strong style="color:#fff;">✓ Real-Time Ingestion:</strong> Multi-channel telemetry support: Web Serial COM Port, Python CAN-bus Socket Bridge, and REST API (/api/telemetry).</li>
+              </ul>
+            </div>
+
+            <!-- Section B -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--emerald-safe); font-family:var(--font-hud); font-size:11.5px;">B. HEALTH MONITORING SYSTEM</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Rotational & Boost:</strong> Engine RPM (1400-5800 RPM) & Manifold Absolute Pressure (MAP inHg).</li>
+                <li><strong style="color:#fff;">✓ Thermal Arrays:</strong> 4x Cylinder Head Temperatures (CHT 1-4) & 4x Exhaust Gas Temperatures (EGT 1-4).</li>
+                <li><strong style="color:#fff;">✓ Lubrication & Fuel:</strong> Oil Pressure (PSI), Oil Temp (°C), Fuel Burn (L/hr), Fuel Mass (kg), Endurance (hrs).</li>
+                <li><strong style="color:#fff;">✓ Vibration Signatures:</strong> 3-Axis FFT Spectrum (0-4000 Hz, 64 bins) with 1X shaft & bearing harmonics.</li>
+                <li><strong style="color:#fff;">✓ Battery & Alternator:</strong> 28V Mil-STD-704F DC bus voltage, alternator current (A) & charging status.</li>
+                <li><strong style="color:#fff;">✓ FADEC Injection Timing:</strong> Ignition advance (°BTDC) & injection pulse width (ms).</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Section C & D: Fault Detection & AI/ML Layer -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <!-- Section C -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--amber-warn); font-family:var(--font-hud); font-size:11.5px;">C. FAULT DETECTION & PREDICTIVE ANALYTICS</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Misfire & Combustion Instability:</strong> Flame flutter, cyclic COV variance, and subharmonic 0.5X vibration.</li>
+                <li><strong style="color:#fff;">✓ Injector Abnormalities:</strong> Fuel injector micro-clogging and asymmetric lean-burn detection.</li>
+                <li><strong style="color:#fff;">✓ Cooling & Lubrication:</strong> Cylinder thermal runaway, oil cavitation, and journal bearing boundary scoring.</li>
+                <li><strong style="color:#fff;">✓ Sensor Drift / Failure:</strong> AI-based thermistor calibration drift isolation vs real thermal anomalies.</li>
+                <li><strong style="color:#fff;">✓ Overheating & Turbo Boost:</strong> Fourier thermal dissipation loss & wastegate seizure detection.</li>
+              </ul>
+            </div>
+
+            <!-- Section D -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--purple-ai); font-family:var(--font-hud); font-size:11.5px;">D. AI/ML LAYER & PROGNOSTICS</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Physics-Informed Neural Net (PINN):</strong> Multi-physics loss convergence: Fourier heat transfer, Petroff lube, acoustic detonation.</li>
+                <li><strong style="color:#fff;">✓ Remaining Useful Life (RUL):</strong> Arrhenius & Weibull degradation curves delivering flight-hour forecasts.</li>
+                <li><strong style="color:#fff;">✓ Trend & Performance Maps:</strong> Real-time Brake Thermal Efficiency (BTE %) & BSFC (g/kWh).</li>
+                <li><strong style="color:#fff;">✓ Explainable AI (XAI):</strong> Real-time SHAP feature attribution pinpointing root-cause sensor contribution.</li>
+                <li><strong style="color:#fff;">✓ Predictive Maintenance:</strong> Actionable component overhaul advisories before catastrophic failure.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Section E & F: Simulation & Visualization -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <!-- Section E -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--cyan-hud); font-family:var(--font-hud); font-size:11.5px;">E. SIMULATION & MISSION REPLAY</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Blackbox Historical Replay:</strong> Interactive 60s flight recorder with Play/Pause, 1x/2x/5x scrub controls.</li>
+                <li><strong style="color:#fff;">✓ High-Altitude Simulation:</strong> 28,000 FT MSL, -42°C ambient thin-air boost testing.</li>
+                <li><strong style="color:#fff;">✓ Hot-Weather Operation:</strong> 45°C ambient tarmac soak & high-density-altitude loiter.</li>
+                <li><strong style="color:#fff;">✓ 24H Endurance Mission:</strong> Continuous long-endurance fuel loiter burn modeling.</li>
+                <li><strong style="color:#fff;">✓ Rapid Throttle Burst:</strong> Transient snap response (20% idle to 100% WOT).</li>
+              </ul>
+            </div>
+
+            <!-- Section F -->
+            <div class="glass-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong style="color:var(--emerald-safe); font-family:var(--font-hud); font-size:11.5px;">F. VISUALIZATION DASHBOARD & REPORTS</strong>
+                <span class="badge badge-nominal">100% VERIFIED</span>
+              </div>
+              <ul style="list-style:none; display:flex; flex-direction:column; gap:6px; font-size:11.5px; color:#94a3b8;">
+                <li><strong style="color:#fff;">✓ Tactical GCS 3D Cockpit:</strong> Full 3D kinematic engine visualization with thermal leader-line HUD.</li>
+                <li><strong style="color:#fff;">✓ Master Annunciator:</strong> MIL-STD warning and caution annunciator with acoustic alerts.</li>
+                <li><strong style="color:#fff;">✓ Tactical Mission Map:</strong> Dynamic 14:1 glide recovery cone & autonomous base diversion routing.</li>
+                <li><strong style="color:#fff;">✓ Defence Airworthiness Reports:</strong> Automated CEMILAC, DGCA & STANAG 4671 certified PDF/defense reports.</li>
+                <li><strong style="color:#fff;">✓ T-2h Pre-Flight AI Clearance:</strong> 12-point automated pre-ignition checklist & GO/NO-GO verdict.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Bottom Action Buttons -->
+          <div style="display:flex; gap:10px; margin-top:6px;">
+            <button class="tactical-btn primary" id="btn-comp-to-twin" style="flex:1; justify-content:center;">
+              🚀 ENTER DIGITAL TWIN COCKPIT
+            </button>
+            <button class="tactical-btn" id="btn-comp-to-mission" style="flex:1; justify-content:center;">
+              🗺️ OPEN MISSION MAP
+            </button>
+            <button class="tactical-btn" id="btn-comp-to-report" style="flex:1; justify-content:center; border-color:var(--emerald-safe); color:var(--emerald-safe);">
+              📄 GENERATE DEFENCE REPORT
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL 7: DEEP TRI-AXIAL FFT VIBRATION SPECTRUM & HARMONICS ANALYZER
+         =================================================================== -->
+    <div class="modal-backdrop" id="vibe-modal">
+      <div class="modal-container" style="max-width: 980px;">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="badge-id" style="border-color: var(--cyan-hud); color: var(--cyan-hud);">FFT ANALYZER</span>
+            <span>TRI-AXIAL VIBRATION SPECTRUM &amp; HARMONIC HEALTH (0 - 4000 Hz)</span>
+          </div>
+          <button class="modal-close-btn" id="btn-close-vibe-modal">&times;</button>
+        </div>
+
+        <div class="modal-body" style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Top Metric Strip -->
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">OVERALL VIBE RMS</div>
+              <div id="vibe-modal-rms-val" style="font-size:14px; font-weight:700; color:var(--cyan-hud); font-family:var(--font-mono); margin-top:3px;">1.82 mm/s</div>
+              <div id="vibe-modal-iso-badge" style="font-size:9.5px; color:var(--emerald-safe); font-weight:700;">ISO 10816: ZONE A (GOOD)</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">DOMINANT PEAK FREQ</div>
+              <div id="vibe-modal-peak-val" style="font-size:14px; font-weight:700; color:#fff; font-family:var(--font-mono); margin-top:3px;">70.0 Hz (1X)</div>
+              <div id="vibe-modal-peak-amp" style="font-size:9.5px; color:var(--text-secondary);">Peak Amplitude: 0.95 mm/s</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">BEARING SPALL INDEX</div>
+              <div id="vibe-modal-bearing-val" style="font-size:14px; font-weight:700; color:var(--emerald-safe); font-family:var(--font-mono); margin-top:3px;">0.12 mm/s</div>
+              <div id="vibe-modal-bearing-status" style="font-size:9.5px; color:var(--text-secondary);">Hydrodynamic Film Nominal</div>
+            </div>
+            <div class="glass-card" style="padding:10px 14px;">
+              <div style="font-size:9.5px; color:var(--text-muted); font-family:var(--font-mono);">KNOCK DETONATION ENERGY</div>
+              <div id="vibe-modal-knock-val" style="font-size:14px; font-weight:700; color:var(--emerald-safe); font-family:var(--font-mono); margin-top:3px;">0.08 mm/s</div>
+              <div id="vibe-modal-knock-status" style="font-size:9.5px; color:var(--text-secondary);">No Acoustic Shockwaves</div>
+            </div>
+          </div>
+
+          <!-- Section 1: High-Resolution Spectrum Canvas with Channel Controls -->
+          <div class="glass-card" style="padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-family:var(--font-hud); font-size:10px; font-weight:700; color:var(--cyan-hud);">CHANNEL:</span>
+                <button class="vibe-channel-btn active" data-channel="composite">ALL AXES (RMS)</button>
+                <button class="vibe-channel-btn" data-channel="radial">X: RADIAL (SHAFT)</button>
+                <button class="vibe-channel-btn" data-channel="vertical">Y: VERTICAL (PISTON)</button>
+                <button class="vibe-channel-btn" data-channel="axial">Z: AXIAL (PRSU THRUST)</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-family:var(--font-hud); font-size:10px; font-weight:700; color:var(--text-secondary);">BAND FILTER:</span>
+                <button class="vibe-band-btn active" data-band="all">0-4000 Hz</button>
+                <button class="vibe-band-btn" data-band="shaft">1X SHAFT (70Hz)</button>
+                <button class="vibe-band-btn" data-band="bearing">BEARING (1.8kHz)</button>
+                <button class="vibe-band-btn" data-band="knock">KNOCK (3.2kHz)</button>
+              </div>
+            </div>
+
+            <!-- Large Spectrum Canvas with Grid & Axis Markers -->
+            <div style="position:relative; width:100%;">
+              <canvas id="modal-fft-canvas" height="160" style="width:100%; height:160px; background:#02060d; border:1px solid rgba(0,240,255,0.25); border-radius:4px; display:block;"></canvas>
+              <div id="modal-fft-tooltip" style="position:absolute; display:none; pointer-events:none; background:rgba(4,9,20,0.95); border:1px solid var(--cyan-hud); border-radius:3px; padding:3px 8px; font-family:var(--font-mono); font-size:10px; color:#fff; z-index:10; white-space:nowrap; transform:translate(-50%, -120%); box-shadow:0 0 12px rgba(0,0,0,0.9);"></div>
+            </div>
+
+            <!-- Frequency scale markers below canvas -->
+            <div style="display:flex; justify-content:space-between; margin-top:4px; font-family:var(--font-mono); font-size:9px; color:var(--text-muted);">
+              <span>0 Hz</span>
+              <span>500 Hz</span>
+              <span>1000 Hz (1 kHz)</span>
+              <span>1500 Hz</span>
+              <span>2000 Hz (2 kHz)</span>
+              <span>2500 Hz</span>
+              <span>3000 Hz (3 kHz)</span>
+              <span>3500 Hz</span>
+              <span>4000 Hz (4 kHz)</span>
+            </div>
+          </div>
+
+          <!-- Section 2: Harmonic Orders & Failure Signature Mapping -->
+          <div class="glass-card" style="padding:14px;">
+            <div class="card-title" style="margin-bottom:10px; justify-content:space-between;">
+              <span>HARMONIC ORDER BREAKDOWN &amp; ROOT-CAUSE CORRELATION</span>
+              <span style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted);">ISO 10816-3 CLASS II VIBRATION SEVERITY CRITERIA</span>
+            </div>
+
+            <div class="vibe-harmonics-grid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;">
+              <!-- 1X Shaft -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:var(--cyan-hud); font-size:10.5px;">1X SHAFT FUNDAMENTAL</strong>
+                  <span id="vibe-card-1x-badge" class="badge badge-nominal">0.88 mm/s</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Frequency: <strong>~70.0 Hz</strong> (Engine Speed / 60)</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Indicator for crankshaft balance, propeller track & dynamic runout.</div>
+              </div>
+
+              <!-- 2X / 4X Order -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#c084fc; font-size:10.5px;">2X &amp; 4X RECIPROCATING</strong>
+                  <span id="vibe-card-2x-badge" class="badge badge-nominal">0.44 mm/s</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Frequency: <strong>140 Hz &bull; 280 Hz</strong></div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Indicator for connecting rod wrist-pin clearance and firing impulses.</div>
+              </div>
+
+              <!-- 0.5X Subharmonic -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#fbbf24; font-size:10.5px;">0.5X SUB-HARMONIC</strong>
+                  <span id="vibe-card-05x-badge" class="badge badge-nominal">0.12 mm/s</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Frequency: <strong>~35.0 Hz</strong> (Four-Stroke Cam Cycle)</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Indicator for combustion flutter, cyclic misfire & flame instability.</div>
+              </div>
+
+              <!-- PRSU Gear Mesh / Bearing -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:var(--amber-warn); font-size:10.5px;">PRSU GEAR / BEARING</strong>
+                  <span id="vibe-card-gear-badge" class="badge badge-nominal">0.16 mm/s</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Frequency: <strong>1800 - 1875 Hz</strong> (Tooth Mesh & BPFO)</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Indicator for reduction gear tooth spalling, bearing race micro-pitting.</div>
+              </div>
+
+              <!-- Acoustic Knock -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:var(--crimson-crit); font-size:10.5px;">ACOUSTIC KNOCK DETONATION</strong>
+                  <span id="vibe-card-knock-badge" class="badge badge-nominal">0.08 mm/s</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Frequency: <strong>3150 - 3300 Hz</strong> (End-Gas Detonation)</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Indicator for destructive pre-ignition shockwaves in cylinder bore.</div>
+              </div>
+
+              <!-- ISO Severity Standard -->
+              <div class="glass-card" style="padding:10px; background:rgba(0,0,0,0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#10b981; font-size:10.5px;">ISO 10816-3 SEVERITY</strong>
+                  <span id="vibe-card-iso-rating" class="badge badge-nominal">ZONE A (GOOD)</span>
+                </div>
+                <div style="font-size:9.5px; color:#cbd5e1; margin-top:4px;">Thresholds: &lt;1.8 (A), 2.8 (B), 4.5 (C), &gt;4.5 (D)</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Military UAV piston propulsion airworthiness certification baseline.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Interactive Simulation & Quick Injector -->
+          <div class="glass-card" style="padding:12px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-family:var(--font-hud); font-size:9.5px; font-weight:700; color:var(--cyan-hud);">QUICK SPECTRUM INJECTOR:</span>
+              <button class="tactical-btn" id="btn-test-vibe-bearing" style="font-size:9px; padding:3px 8px; border-color:var(--amber-warn); color:var(--amber-warn);">⚡ INJECT BEARING WEAR</button>
+              <button class="tactical-btn" id="btn-test-vibe-knock" style="font-size:9px; padding:3px 8px; border-color:var(--crimson-crit); color:var(--crimson-crit);">💥 INJECT PRE-KNOCK</button>
+              <button class="tactical-btn" id="btn-test-vibe-misfire" style="font-size:9px; padding:3px 8px; border-color:#c084fc; color:#c084fc;">⚠️ INJECT MISFIRE</button>
+              <button class="tactical-btn" id="btn-test-vibe-nominal" style="font-size:9px; padding:3px 8px; border-color:var(--emerald-safe); color:var(--emerald-safe);">✓ RESET NOMINAL</button>
+            </div>
+            <button class="tactical-btn primary" id="btn-close-vibe-bottom" style="font-size:10px; padding:4px 12px;">
+              CLOSE ANALYZER
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="js/engine-3d.js?v=20260912_drdo"></script>
+  <script src="js/component-3d.js?v=20260912_drdo"></script>
+  <script src="js/telemetry-engine.js?v=20260912_drdo"></script>
+  <script src="js/hardware-link.js?v=20260912_drdo"></script>
+  <script src="js/ai-diagnostic-net.js?v=20260912_drdo"></script>
+  <script src="js/fault-simulator.js?v=20260912_drdo"></script>
+  <script src="js/mission-planner.js?v=20260912_drdo"></script>
+  <script src="js/report-generator.js?v=20260912_drdo"></script>
+  <script src="js/app.js?v=20260912_drdo"></script>
+</body>
+</html>

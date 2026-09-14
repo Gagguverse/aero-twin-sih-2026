@@ -6130,7 +6130,7 @@ main.main-viewport {
                 </div>
                 <div class="uav-spec-item">
                   <span class="lbl">PROPULSION</span>
-                  <span class="val highlight-amber">115 HP TURBO PISTON</span>
+                  <span class="val highlight-amber">160 HP TURBO PISTON</span>
                 </div>
                 <div class="uav-spec-item">
                   <span class="lbl">CONFIGURATION</span>
@@ -8839,7 +8839,7 @@ class AeroEngine3D {
           limit: 'SERVICE CEILING: 30,000 FT',
           rul: '1,420 FLIGHT HRS',
           defectTitle: (!t.fuelWallOpen) ? '🚨 ENGINE OUT - BEST GLIDE DESCENT' : (t.cht[2] > 205 ? '⚠️ PROPULSION THERMAL ENVELOPE REDUCTION' : '✓ ALL AIRFRAME & PROPULSION SYSTEMS AIRWORTHY'),
-          defectDesc: 'Composite twin-boom airframe with rear-mounted 115 HP turbocharged aero piston engine. Wingspan 20.6m, MTOW 1,800 kg, safe loiter reach intact.',
+          defectDesc: 'Composite twin-boom airframe with rear-mounted 160 HP turbocharged 4-cyl opposed aero piston engine. Wingspan 20.6m, MTOW 1,800 kg, safe loiter reach intact.',
           remedy: (!t.fuelWallOpen) ? 'DIRECTIVE: Maintain 104 KTS glide speed, vector to Deesa FLS Runway 14/32.' : 'DIRECTIVE: Maintain border patrol loiter sector.'
         };
 
@@ -9145,7 +9145,7 @@ class AeroEngine3D {
           partMeta: 'DRDO / ADE • MEDIUM ALTITUDE LONG ENDURANCE (MALE) UAV',
           level: 'nominal',
           badgeText: '✓ CERTIFIED MALE PLATFORM',
-          reading: '20.6M WINGSPAN • 115 HP PUSHER',
+          reading: '20.6M WINGSPAN • 160 HP TURBO PUSHER',
           limit: 'SERVICE CEILING: 30,000 FT',
           rul: '3,200 FLIGHT HRS',
           defectTitle: '✓ AIRFRAME & PROPULSION INTEGRITY NOMINAL',
@@ -9933,15 +9933,15 @@ class Subsystem3DViewer {
         badgeClass: 'stroke-uav',
         degText: 'FULL AIRFRAME & PROPULSION',
         headline: 'DRDO TAPAS-BH-201 MALE UAV AIRFRAME & ENGINE BAY',
-        narration: 'Composite twin-boom airframe with rear-mounted 115 HP turbocharged aero piston engine. Pusher propeller delivers efficient high-altitude endurance of 18+ hours.',
+        narration: 'Composite twin-boom airframe with rear-mounted 160 HP turbocharged 4-cyl opposed aero piston engine. Pusher propeller delivers efficient high-altitude endurance of 18+ hours.',
         chips: [
           { label: 'WINGSPAN', val: '20.6 M (HIGH-ASPECT RATIO)' },
-          { label: 'PROPULSION', val: '115 HP TURBO PISTON (PUSHER)' },
+          { label: 'PROPULSION', val: '160 HP TURBO PISTON (PUSHER)' },
           { label: 'MAX CEILING', val: '30,000 FT (MALE ENVELOPE)' },
           { label: 'CRUISE SPEED', val: '118 KTS • 218 KM/H' },
           { label: 'MTOW / PAYLOAD', val: '1,800 KG / 350 KG' }
         ],
-        compactSummary: '✈️ DRDO TAPAS-BH-201 MALE UAV • 115 HP PUSHER PROPULSION • 20.6M WINGSPAN'
+        compactSummary: '✈️ DRDO TAPAS-BH-201 MALE UAV • 160 HP TURBO PUSHER • 20.6M WINGSPAN'
       };
     }
 
@@ -11153,7 +11153,7 @@ class Subsystem3DViewer {
       const labels = [
         { title: "1. EO/IR SENSOR GIMBAL", pt: pTurretCenter, offX: -45, offY: -28 },
         { title: "2. 20.6M COMPOSITE WINGS", pt: pWL_TipLE, offX: -60, offY: -25 },
-        { title: "3. 115 HP TURBO PISTON (PUSHER)", pt: this.project(0, engY + 12, 38), offX: 55, offY: -30 },
+        { title: "3. 160 HP TURBO PISTON (PUSHER)", pt: this.project(0, engY + 12, 38), offX: 55, offY: -30 },
         { title: "4. TWIN CARBON TAIL BOOMS", pt: pBoomR_R, offX: 50, offY: -15 },
         { title: "5. INVERTED V-TAIL", pt: pTailApex, offX: 45, offY: 25 },
         { title: "6. 3-BLADE PUSHER PROPELLER", pt: pPropHub, offX: -55, offY: 30 }
@@ -13937,7 +13937,7 @@ class MissionPlanner {
     ctx.lineWidth = 1.8;
     ctx.stroke();
 
-    // Center Rear Engine Bay (115 HP Aero Piston Engine Nacelle)
+    // Center Rear Engine Bay (160 HP Aero Piston Engine Nacelle)
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(-4, 6, 8, 8);
     ctx.strokeStyle = '#fff';
@@ -14000,7 +14000,7 @@ class MissionPlanner {
 
     ctx.fillStyle = '#f59e0b';
     ctx.font = '8px "JetBrains Mono", monospace';
-    ctx.fillText(`HDG: ${Math.round(this.uav.heading).toString().padStart(3, '0')}° | PROPULSION: 115HP PUSHER`, 42, 14);
+    ctx.fillText(`HDG: ${Math.round(this.uav.heading).toString().padStart(3, '0')}° | PROPULSION: 160HP TURBO PUSHER`, 42, 14);
 
     // Leader line to aircraft center
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)';
@@ -14173,8 +14173,8 @@ class ReportGenerator {
         <div class="report-meta-grid">
           <div><strong style="color:var(--text-muted)">UAV PLATFORM:</strong><br><span style="color:#fff">TAPAS-BH-201 MALE UAV</span></div>
           <div><strong style="color:var(--text-muted)">TAIL NUMBER:</strong><br><span style="color:var(--cyan-hud)">DRDO-TAPAS-004</span></div>
-          <div><strong style="color:var(--text-muted)">ENGINE TYPE:</strong><br><span style="color:#fff">4-CYL TURBOCHARGED BOXER</span></div>
-          <div><strong style="color:var(--text-muted)">ENG SERIAL NO:</strong><br><span style="color:#fff">AE-914-IND-0824</span></div>
+          <div><strong style="color:var(--text-muted)">ENGINE TYPE:</strong><br><span style="color:#fff">160 HP 4-CYL TURBOCHARGED BOXER</span></div>
+          <div><strong style="color:var(--text-muted)">ENG SERIAL NO:</strong><br><span style="color:#fff">AE-160-IND-0824</span></div>
           <div><strong style="color:var(--text-muted)">DATE & TIME:</strong><br><span style="color:#fff">${dateStr} ${timeStr} IST</span></div>
           <div><strong style="color:var(--text-muted)">TOTAL FLIGHT HRS:</strong><br><span style="color:#fff">482.6 HRS</span></div>
           <div><strong style="color:var(--text-muted)">DIGITAL TWIN STATUS:</strong><br><span style="color:${ai.status === 'NOMINAL' ? 'var(--emerald-safe)' : 'var(--crimson-crit)'}">${ai.status}</span></div>
@@ -14862,7 +14862,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tag: 'DRDO TAPAS-BH-201 MALE UAV PLATFORM • ADE / CEMILAC CERTIFIED',
       fn: 'Medium Altitude Long Endurance (MALE) Unmanned Aerial Vehicle designed for continuous 18+ hours intelligence, surveillance, and reconnaissance (ISR) missions.',
       principle: 'High-aspect-ratio carbon-composite airframe with twin tail booms and an inverted V-tail (ruddervators). Pusher engine configuration minimizes nose drag and leaves the front fuselage clear for EO/IR payloads and SATCOM antennas.',
-      specs: 'Wingspan: 20.6 M (67.6 FT) • Length: 9.5 M • MTOW: 1,800 KG • Payload: 350 KG • Propulsion: 115 HP Turbocharged Boxer Aero Piston Engine • Service Ceiling: 30,000 FT • Cruise Speed: 118 KTS • Glide Ratio: 14.8:1.',
+      specs: 'Wingspan: 20.6 M (67.6 FT) • Length: 9.5 M • MTOW: 1,800 KG • Payload: 350 KG • Propulsion: 160 HP Turbocharged 4-Cyl Opposed Aero Piston Engine • Service Ceiling: 30,000 FT • Cruise Speed: 118 KTS • Glide Ratio: 14.8:1.',
       failure: 'Airframe structural stress during turbulence, engine firewall overheat, ice accumulation on leading edges at high altitude, actuator servo failure.'
     }
   };

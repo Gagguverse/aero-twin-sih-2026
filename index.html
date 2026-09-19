@@ -268,6 +268,33 @@
             <span class="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
           </div>
 
+          <!-- Physical Engine Component Labeling Layer -->
+          <div class="twin-callouts-overlay" id="twin-callouts-overlay">
+            <svg class="twin-callouts-svg" id="twin-callouts-svg" aria-hidden="true"></svg>
+            <div class="twin-callouts-container" id="twin-callouts-container">
+              <!-- Dynamically rendered 12 subsystem callouts -->
+            </div>
+          </div>
+
+          <!-- Small Engine Components Legend -->
+          <div class="engine-components-legend" id="engine-components-legend">
+            <div class="legend-header-bar">
+              <div class="legend-titles">
+                <span class="legend-title-badge">ENGINE COMPONENTS</span>
+                <span class="legend-subtitle-text">Aero Piston Digital Twin Subsystems (12)</span>
+              </div>
+              <button class="btn-toggle-callouts active" id="btn-toggle-callouts" type="button" title="Toggle physical component labels">
+                <span class="dot-indicator"></span>
+                <span>LABELS</span>
+              </button>
+            </div>
+            <div class="legend-pills-bar">
+              <button class="btn-comp-filter active" data-filter="all" type="button">ALL (12)</button>
+              <button class="btn-comp-filter" data-filter="core" type="button">CORE MECHANICAL (8)</button>
+              <button class="btn-comp-filter" data-filter="systems" type="button">SUPPORTING SYSTEMS (4)</button>
+            </div>
+          </div>
+
           <!-- Floating Interactive Inspection HUD -->
           <div class="twin-inspection-hud" id="twin-inspection-hud" style="display: none;">
             <div class="hud-header">
@@ -275,8 +302,14 @@
                 <span class="hud-category" id="hud-category">CYLINDER 1</span>
                 <h4 class="hud-name" id="hud-name">PISTON 1</h4>
               </div>
-              <span class="hud-status-badge badge-nominal" id="hud-status">HEALTHY</span>
+              <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
             </div>
+
+            <div class="hud-function-box" id="hud-function-box">
+              <span class="hud-function-tag">FUNCTION:</span>
+              <span class="hud-function-text" id="hud-function-text">Converts combustion pressure into mechanical motion.</span>
+            </div>
+
             <div class="hud-motion-pill" id="hud-motion-pill">
               <span class="motion-dot pulse"></span>
               <span id="hud-motion-text">MOTION: RECIPROCATING</span>
@@ -300,6 +333,10 @@
               <div class="hud-telem-item"><span class="telem-label">RPM</span><span class="telem-val" id="hud-rpm">4,199</span></div>
               <div class="hud-telem-item"><span class="telem-label">LOAD</span><span class="telem-val" id="hud-load">71.9 %</span></div>
               <div class="hud-telem-item"><span class="telem-label">OIL P</span><span class="telem-val" id="hud-oil-p">44.0 PSI</span></div>
+              <div class="hud-telem-item"><span class="telem-label">OIL T</span><span class="telem-val" id="hud-oil-t">88.5 °C</span></div>
+              <div class="hud-telem-item"><span class="telem-label">MAP</span><span class="telem-val" id="hud-map">33.2 inHg</span></div>
+              <div class="hud-telem-item"><span class="telem-label">FUEL</span><span class="telem-val" id="hud-fuel">24.2 L/h</span></div>
+              <div class="hud-telem-item"><span class="telem-label">TRUST</span><span class="telem-val" id="hud-trust">0.96</span></div>
             </div>
             <div class="hud-relevance" id="hud-relevance">
               <span class="relevance-tag">DIAGNOSTIC RELEVANCE:</span>

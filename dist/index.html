@@ -1005,6 +1005,326 @@ body {
   border-color: var(--accent-blue);
 }
 
+/* ==========================================================================
+   PHYSICAL ENGINE COMPONENT LABELING LAYER & CALLOUTS
+   ========================================================================== */
+.twin-callouts-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 5;
+  transition: opacity var(--transition-fast);
+}
+
+.twin-callouts-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.twin-callouts-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.twin-callouts-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Callout Card */
+.twin-callout-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(51, 65, 85, 0.65);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  min-width: 115px;
+  max-width: 165px;
+}
+
+.twin-callout-card:hover {
+  border-color: rgba(56, 189, 248, 0.85);
+  background: rgba(30, 41, 59, 0.95);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 10px rgba(56, 189, 248, 0.2);
+  transform: translateY(-1px);
+}
+
+.twin-callout-card.active {
+  border-color: var(--accent-blue);
+  background: rgba(30, 41, 59, 0.98);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+}
+
+.callout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.callout-name {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.callout-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-nominal);
+  flex-shrink: 0;
+}
+
+.callout-status-dot.warn {
+  background: var(--status-warning);
+}
+
+.callout-status-dot.crit {
+  background: var(--status-critical);
+}
+
+.callout-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.callout-metric-val {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.callout-status-tag {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--status-nominal);
+}
+
+.callout-status-tag.warn {
+  color: var(--status-warning);
+}
+
+.callout-status-tag.crit {
+  color: var(--status-critical);
+}
+
+/* Callout Leader Line in SVG */
+.callout-leader-line {
+  stroke: rgba(148, 163, 184, 0.45);
+  stroke-width: 1px;
+  stroke-dasharray: 2, 2;
+  fill: none;
+  transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.callout-leader-line.active {
+  stroke: #38bdf8;
+  stroke-width: 1.5px;
+  stroke-dasharray: none;
+}
+
+.callout-anchor-dot {
+  fill: #38bdf8;
+  opacity: 0.85;
+}
+
+/* Engine Components Legend */
+.engine-components-legend {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(10, 14, 22, 0.88);
+  border: 1px solid rgba(40, 53, 72, 0.8);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  backdrop-filter: blur(8px);
+  z-index: 6;
+  pointer-events: auto;
+  gap: 8px;
+}
+
+.legend-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-titles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-title-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  background: rgba(59, 130, 246, 0.16);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.legend-subtitle-text {
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+}
+
+.btn-toggle-callouts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-toggle-callouts.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--status-nominal);
+}
+
+.btn-toggle-callouts .dot-indicator {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.legend-pills-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-comp-filter {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-comp-filter:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.btn-comp-filter.active {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #ffffff;
+}
+
+/* Function Box in HUD */
+.hud-function-box {
+  background: rgba(30, 41, 59, 0.5);
+  border-left: 2px solid var(--accent-blue);
+  padding: 5px 8px;
+  border-radius: 0 3px 3px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hud-function-tag {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.hud-function-text {
+  font-size: 0.72rem;
+  color: #e2e8f0;
+  line-height: 1.35;
+}
+
+/* Responsive adjustment for callout layer */
+@media (max-width: 960px) {
+  .twin-callout-card {
+    min-width: 95px;
+    max-width: 130px;
+    padding: 3px 6px;
+  }
+  .callout-name {
+    font-size: 0.62rem;
+  }
+  .callout-subrow {
+    font-size: 0.58rem;
+  }
+  .legend-subtitle-text {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .twin-callouts-svg {
+    display: none;
+  }
+  .twin-callouts-container {
+    position: absolute;
+    bottom: 42px;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding: 4px 0;
+    pointer-events: auto;
+  }
+  .twin-callout-card {
+    position: static !important;
+    flex-shrink: 0;
+  }
+}
+
 /* Subtle Engine Motion Explainer Overlay (How It Works) */
 .twin-motion-flow {
   position: absolute;
@@ -2394,6 +2714,33 @@ body {
             <span class="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
           </div>
 
+          <!-- Physical Engine Component Labeling Layer -->
+          <div class="twin-callouts-overlay" id="twin-callouts-overlay">
+            <svg class="twin-callouts-svg" id="twin-callouts-svg" aria-hidden="true"></svg>
+            <div class="twin-callouts-container" id="twin-callouts-container">
+              <!-- Dynamically rendered 12 subsystem callouts -->
+            </div>
+          </div>
+
+          <!-- Small Engine Components Legend -->
+          <div class="engine-components-legend" id="engine-components-legend">
+            <div class="legend-header-bar">
+              <div class="legend-titles">
+                <span class="legend-title-badge">ENGINE COMPONENTS</span>
+                <span class="legend-subtitle-text">Aero Piston Digital Twin Subsystems (12)</span>
+              </div>
+              <button class="btn-toggle-callouts active" id="btn-toggle-callouts" type="button" title="Toggle physical component labels">
+                <span class="dot-indicator"></span>
+                <span>LABELS</span>
+              </button>
+            </div>
+            <div class="legend-pills-bar">
+              <button class="btn-comp-filter active" data-filter="all" type="button">ALL (12)</button>
+              <button class="btn-comp-filter" data-filter="core" type="button">CORE MECHANICAL (8)</button>
+              <button class="btn-comp-filter" data-filter="systems" type="button">SUPPORTING SYSTEMS (4)</button>
+            </div>
+          </div>
+
           <!-- Floating Interactive Inspection HUD -->
           <div class="twin-inspection-hud" id="twin-inspection-hud" style="display: none;">
             <div class="hud-header">
@@ -2401,8 +2748,14 @@ body {
                 <span class="hud-category" id="hud-category">CYLINDER 1</span>
                 <h4 class="hud-name" id="hud-name">PISTON 1</h4>
               </div>
-              <span class="hud-status-badge badge-nominal" id="hud-status">HEALTHY</span>
+              <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
             </div>
+
+            <div class="hud-function-box" id="hud-function-box">
+              <span class="hud-function-tag">FUNCTION:</span>
+              <span class="hud-function-text" id="hud-function-text">Converts combustion pressure into mechanical motion.</span>
+            </div>
+
             <div class="hud-motion-pill" id="hud-motion-pill">
               <span class="motion-dot pulse"></span>
               <span id="hud-motion-text">MOTION: RECIPROCATING</span>
@@ -2426,6 +2779,10 @@ body {
               <div class="hud-telem-item"><span class="telem-label">RPM</span><span class="telem-val" id="hud-rpm">4,199</span></div>
               <div class="hud-telem-item"><span class="telem-label">LOAD</span><span class="telem-val" id="hud-load">71.9 %</span></div>
               <div class="hud-telem-item"><span class="telem-label">OIL P</span><span class="telem-val" id="hud-oil-p">44.0 PSI</span></div>
+              <div class="hud-telem-item"><span class="telem-label">OIL T</span><span class="telem-val" id="hud-oil-t">88.5 °C</span></div>
+              <div class="hud-telem-item"><span class="telem-label">MAP</span><span class="telem-val" id="hud-map">33.2 inHg</span></div>
+              <div class="hud-telem-item"><span class="telem-label">FUEL</span><span class="telem-val" id="hud-fuel">24.2 L/h</span></div>
+              <div class="hud-telem-item"><span class="telem-label">TRUST</span><span class="telem-val" id="hud-trust">0.96</span></div>
             </div>
             <div class="hud-relevance" id="hud-relevance">
               <span class="relevance-tag">DIAGNOSTIC RELEVANCE:</span>
@@ -7176,12 +7533,70 @@ if (typeof window !== 'undefined') {
       });
       this.pickableMeshes.push(mainJournal);
 
+      // Precision Ground Camshaft (runs parallel beneath crankshaft)
+      this.camshaftGroup = new THREE.Group();
+      this.engineGroup.add(this.camshaftGroup);
+
+      const camJournalGeo = new THREE.CylinderGeometry(0.10, 0.10, 2.7, 16);
+      const camJournal = new THREE.Mesh(camJournalGeo, this.matConrod);
+      camJournal.rotation.x = Math.PI / 2;
+      camJournal.position.set(0, -0.42, 0);
+      this.camshaftGroup.add(camJournal);
+
+      // 8 Cam Lobes for 4 cylinders (intake + exhaust per cylinder)
+      for (let z = -0.95; z <= 0.95; z += 0.27) {
+        const lobeGeo = new THREE.BoxGeometry(0.24, 0.14, 0.08);
+        const lobe = new THREE.Mesh(lobeGeo, this.matChrome);
+        lobe.position.set(0.04 * Math.sin(z * 4), -0.42 + 0.04 * Math.cos(z * 4), z);
+        this.camshaftGroup.add(lobe);
+      }
+
+      camJournal.userData = {
+        componentId: 'camshaft',
+        name: 'Precision Ground Camshaft',
+        category: 'TIMING & VALVETRAIN',
+        type: 'camshaft',
+        desc: 'Billet steel camshaft driven at 1:2 crank speed regulating valve timing and lift.'
+      };
+      this.selectableComponents.set('camshaft', {
+        mesh: camJournal,
+        name: 'Precision Ground Camshaft',
+        category: 'TIMING & VALVETRAIN',
+        type: 'camshaft',
+        desc: 'Billet steel camshaft driven at 1:2 crank speed regulating valve timing and lift.'
+      });
+      this.pickableMeshes.push(camJournal);
+
       // Bottom Ribbed Oil Sump
       const sumpGeo = new THREE.BoxGeometry(1.2, 0.55, 2.2);
       const sumpMesh = new THREE.Mesh(sumpGeo, this.matCrankcase);
       sumpMesh.position.set(0, -0.9, 0);
       sumpMesh.castShadow = true;
       this.engineGroup.add(sumpMesh);
+
+      // Positive-Displacement Trochoid Oil Pump Housing
+      const pumpGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.28, 20);
+      const pumpMesh = new THREE.Mesh(pumpGeo, this.matGearbox);
+      pumpMesh.rotation.x = Math.PI / 2;
+      pumpMesh.position.set(0, -0.85, -1.08);
+      pumpMesh.castShadow = true;
+      this.engineGroup.add(pumpMesh);
+
+      pumpMesh.userData = {
+        componentId: 'lubrication_system',
+        name: 'Oil Pump & Lubrication System',
+        category: 'LUBRICATION SYSTEM',
+        type: 'lubrication_system',
+        desc: 'Positive-displacement trochoid oil pump supplying 40-60 PSI to the engine oil gallery.'
+      };
+      this.selectableComponents.set('lubrication_system', {
+        mesh: pumpMesh,
+        name: 'Oil Pump & Lubrication System',
+        category: 'LUBRICATION SYSTEM',
+        type: 'lubrication_system',
+        desc: 'Positive-displacement trochoid oil pump supplying 40-60 PSI to the engine oil gallery.'
+      });
+      this.pickableMeshes.push(pumpMesh);
 
       // Oil Drain Plug (Brass)
       const drainGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.12, 6);
@@ -7482,6 +7897,78 @@ if (typeof window !== 'undefined') {
         plugCeramic.position.set(cfg.side * 1.35, 0.64, 0);
         cylGroup.add(plugCeramic);
 
+        plugHex.userData = {
+          componentId: 'spark_plug',
+          name: 'Aviation Spark Plug ' + cfg.index,
+          category: 'IGNITION SYSTEM',
+          type: 'spark_plug',
+          cylIndex: cfg.index,
+          desc: 'Dual aviation spark plug delivering timed high-voltage arc to initiate combustion.'
+        };
+        if (!this.selectableComponents.has('spark_plug') || cfg.index === 1) {
+          this.selectableComponents.set('spark_plug', {
+            mesh: plugHex,
+            name: 'Aviation Spark Plug',
+            category: 'IGNITION SYSTEM',
+            type: 'spark_plug',
+            cylIndex: cfg.index,
+            desc: 'Dual aviation spark plug delivering timed high-voltage arc to initiate combustion.'
+          });
+        }
+        this.pickableMeshes.push(plugHex);
+
+        // Intake Valve Port & Stem Assembly
+        const inValveGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.22, 12);
+        const inValveMesh = new THREE.Mesh(inValveGeo, this.matChrome);
+        inValveMesh.position.set(cfg.side * 1.46, 0.28, cfg.z < 0 ? -0.16 : 0.16);
+        cylGroup.add(inValveMesh);
+
+        inValveMesh.userData = {
+          componentId: 'intake_valve',
+          name: 'Intake Valve Assembly ' + cfg.index,
+          category: 'VALVETRAIN',
+          type: 'intake_valve',
+          cylIndex: cfg.index,
+          desc: 'Nimonic alloy intake valve admitting stoichiometric air-fuel charge into combustion chamber.'
+        };
+        if (!this.selectableComponents.has('intake_valve') || cfg.index === 1) {
+          this.selectableComponents.set('intake_valve', {
+            mesh: inValveMesh,
+            name: 'Intake Valve Assembly',
+            category: 'VALVETRAIN',
+            type: 'intake_valve',
+            cylIndex: cfg.index,
+            desc: 'Nimonic alloy intake valve admitting stoichiometric air-fuel charge into combustion chamber.'
+          });
+        }
+        this.pickableMeshes.push(inValveMesh);
+
+        // Exhaust Valve Port & Stem Assembly
+        const exValveGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.22, 12);
+        const exValveMesh = new THREE.Mesh(exValveGeo, this.matBrass);
+        exValveMesh.position.set(cfg.side * 1.46, -0.28, cfg.z < 0 ? 0.16 : -0.16);
+        cylGroup.add(exValveMesh);
+
+        exValveMesh.userData = {
+          componentId: 'exhaust_valve',
+          name: 'Sodium-Cooled Exhaust Valve ' + cfg.index,
+          category: 'VALVETRAIN',
+          type: 'exhaust_valve',
+          cylIndex: cfg.index,
+          desc: 'Sodium-filled heat-resistant exhaust valve discharging combustion gases to exhaust headers.'
+        };
+        if (!this.selectableComponents.has('exhaust_valve') || cfg.index === 1) {
+          this.selectableComponents.set('exhaust_valve', {
+            mesh: exValveMesh,
+            name: 'Sodium-Cooled Exhaust Valve',
+            category: 'VALVETRAIN',
+            type: 'exhaust_valve',
+            cylIndex: cfg.index,
+            desc: 'Sodium-filled heat-resistant exhaust valve discharging combustion gases to exhaust headers.'
+          });
+        }
+        this.pickableMeshes.push(exValveMesh);
+
         // HT Ignition Cable (Black lead)
         const wireGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.7, 12);
         const wireMesh = new THREE.Mesh(wireGeo, this.matRubber);
@@ -7626,6 +8113,35 @@ if (typeof window !== 'undefined') {
         this.intakeGroup.add(fuelRail);
       });
 
+      // Electronic Fuel Injectors (4 individual atomization injectors)
+      cylinderConfigs.forEach(cfg => {
+        const injGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.22, 12);
+        const injMesh = new THREE.Mesh(injGeo, this.matBrass);
+        injMesh.position.set(cfg.side * 0.70, 0.82, cfg.z);
+        injMesh.rotation.z = -cfg.side * 0.35;
+        this.intakeGroup.add(injMesh);
+
+        injMesh.userData = {
+          componentId: 'fuel_system',
+          name: 'Electronic Fuel Injector ' + cfg.index,
+          category: 'FUEL SYSTEM',
+          type: 'fuel_system',
+          cylIndex: cfg.index,
+          desc: 'High-pressure electronic fuel injector atomizing metered fuel into the induction stream.'
+        };
+        if (!this.selectableComponents.has('fuel_system') || cfg.index === 1) {
+          this.selectableComponents.set('fuel_system', {
+            mesh: injMesh,
+            name: 'Electronic Fuel Injector & Rail',
+            category: 'FUEL SYSTEM',
+            type: 'fuel_system',
+            cylIndex: cfg.index,
+            desc: 'High-pressure electronic fuel injector atomizing metered fuel into the induction stream.'
+          });
+        }
+        this.pickableMeshes.push(injMesh);
+      });
+
       // ======================================================================
       // 7. OIL PRESSURE TRANSDUCER (CORE DIFFERENTIATOR SENSOR FOCUS)
       // ======================================================================
@@ -7688,6 +8204,15 @@ if (typeof window !== 'undefined') {
       this.sensorCallout.position.set(0.72, 1.25, 1.25);
       this.sensorCallout.visible = false;
       this.engineGroup.add(this.sensorCallout);
+
+      // Standardize selectable component registry for all 12 core subsystems
+      this.selectableComponents.set('piston', this.selectableComponents.get('piston_1'));
+      this.selectableComponents.set('cylinder', this.selectableComponents.get('cyl_1'));
+      this.selectableComponents.set('conrod', this.selectableComponents.get('conrod_1'));
+      this.selectableComponents.set('intake_manifold', this.selectableComponents.get('intake_system'));
+      this.selectableComponents.set('exhaust_manifold', this.selectableComponents.get('exhaust_system'));
+      this.selectableComponents.set('oil_pump', this.selectableComponents.get('lubrication_system'));
+      this.selectableComponents.set('oil_system', this.selectableComponents.get('lubrication_system'));
 
       // Perform initial kinematic assembly placement
       this._updateKinematics();
@@ -7773,6 +8298,19 @@ if (typeof window !== 'undefined') {
     }
 
     selectComponent(componentId) {
+      const aliasMap = {
+        'piston': 'piston_1',
+        'cylinder': 'cyl_1',
+        'conrod': 'conrod_1',
+        'head': 'head_1',
+        'intake_manifold': 'intake_system',
+        'exhaust_manifold': 'exhaust_system',
+        'oil_pump': 'lubrication_system',
+        'oil_system': 'lubrication_system'
+      };
+      if (aliasMap[componentId] && !this.selectableComponents.has(componentId)) {
+        componentId = aliasMap[componentId];
+      }
       this.selectedComponentId = componentId;
       const comp = this.selectableComponents.get(componentId);
       if (!comp) return;
@@ -7871,6 +8409,11 @@ if (typeof window !== 'undefined') {
         this.crankshaftGroup.rotation.z = this.crankAngle;
       }
 
+      // Rotate camshaft at half crankshaft speed (1:2 4-stroke drive ratio)
+      if (this.camshaftGroup) {
+        this.camshaftGroup.rotation.z = this.crankAngle * 0.5;
+      }
+
       // Drive each slider-crank kinematic chain
       for (let i = 0; i < this.kinematicPistons.length; i++) {
         const item = this.kinematicPistons[i];
@@ -7884,6 +8427,75 @@ if (typeof window !== 'undefined') {
         item.conrodGroup.position.set(xPin, yPin, item.cfg.z);
         item.conrodGroup.rotation.z = Math.atan2(-yPin, xPiston - xPin);
       }
+    }
+
+    getComponentAnchor(componentId) {
+      const aliasMap = {
+        'piston': 'piston_1',
+        'cylinder': 'cyl_1',
+        'conrod': 'conrod_1',
+        'head': 'head_1',
+        'intake_manifold': 'intake_system',
+        'exhaust_manifold': 'exhaust_system',
+        'oil_pump': 'lubrication_system',
+        'oil_system': 'lubrication_system'
+      };
+      const resolvedId = aliasMap[componentId] || componentId;
+
+      if (resolvedId === 'piston_1' || resolvedId === 'piston') {
+        const kin = this.kinematicPistons && this.kinematicPistons[0];
+        if (kin && kin.crownMesh) {
+          const p = new THREE.Vector3();
+          kin.crownMesh.getWorldPosition(p);
+          return p;
+        }
+      }
+      if (resolvedId === 'conrod_1' || resolvedId === 'conrod') {
+        const kin = this.kinematicPistons && this.kinematicPistons[0];
+        if (kin && kin.rodBeam) {
+          const p = new THREE.Vector3();
+          kin.rodBeam.getWorldPosition(p);
+          return p;
+        }
+      }
+
+      const comp = this.selectableComponents.get(resolvedId) || this.selectableComponents.get(componentId);
+      if (comp && comp.mesh) {
+        const p = new THREE.Vector3();
+        comp.mesh.getWorldPosition(p);
+        return p;
+      }
+
+      // Calibrated fallbacks in local 3D engine space
+      const fallbackMap = {
+        spark_plug: new THREE.Vector3(-1.35, 0.64, -0.72),
+        cylinder: new THREE.Vector3(-1.35, 0.05, -0.72),
+        piston: new THREE.Vector3(-0.95, 0.05, -0.72),
+        conrod: new THREE.Vector3(-0.45, 0.0, -0.72),
+        crankshaft: new THREE.Vector3(0.0, 0.0, -0.2),
+        camshaft: new THREE.Vector3(0.0, -0.42, -0.2),
+        intake_valve: new THREE.Vector3(-1.46, 0.28, -0.88),
+        exhaust_valve: new THREE.Vector3(-1.46, -0.28, -0.56),
+        lubrication_system: new THREE.Vector3(0.0, -0.85, -1.08),
+        fuel_system: new THREE.Vector3(-0.70, 0.82, -0.72),
+        intake_manifold: new THREE.Vector3(0.0, 0.95, 0.0),
+        exhaust_manifold: new THREE.Vector3(0.0, -1.38, 1.4)
+      };
+      return fallbackMap[componentId] || null;
+    }
+
+    projectToScreen(pos) {
+      if (!this.camera || !this.canvas || !pos) return null;
+      const v = pos.clone();
+      v.project(this.camera);
+      const rect = this.canvas.getBoundingClientRect();
+      const w = rect.width || this.canvas.parentElement?.clientWidth || 600;
+      const h = rect.height || this.canvas.parentElement?.clientHeight || 360;
+      return {
+        x: ((v.x * 0.5) + 0.5) * w,
+        y: (-(v.y * 0.5) + 0.5) * h,
+        inFront: v.z < 1.0
+      };
     }
 
     toggleMotion() {
@@ -8089,6 +8701,9 @@ if (typeof window !== 'undefined') {
       }
 
       this.renderer.render(this.scene, this.camera);
+      if (typeof window.update3DCallouts === 'function') {
+        window.update3DCallouts();
+      }
       requestAnimationFrame(this._animate);
     }
   }
@@ -8221,6 +8836,7 @@ if (typeof window !== 'undefined') {
     if (window.AeroPistonDigitalTwin) {
       digitalTwin = new window.AeroPistonDigitalTwin('engine-canvas');
       window.digitalTwin = digitalTwin;
+      initEngineCalloutsLayer();
     }
   }
 
@@ -8501,10 +9117,11 @@ if (typeof window !== 'undefined') {
     // 7. Section 8: Mission Timeline & Scrubber
     renderTimelineDisplay(s);
 
-    // 8. Interactive Component HUD (if active)
+    // 8. Interactive Component HUD (if active) & Component Callout Telemetry
     if (selectedComponent) {
       updateInspectionHud(selectedComponent);
     }
+    updateCalloutTelemetryValues(s);
   }
 
   // ==========================================================================
@@ -10025,27 +10642,75 @@ if (typeof window !== 'undefined') {
   window.getAssistantSnapshot = getAssistantSnapshot;
   window.captureAppStateSnapshot = getAssistantSnapshot;
 
+  function sanitizeUnicode(text) {
+    if (!text || typeof text !== 'string') return text || '';
+    let s = text;
+    s = s.replace(/\uFFFD+/g, '-');
+    s = s.replace(/âˆ’|â€‘/g, '−');
+    s = s.replace(/â€¯/g, ' ');
+    s = s.replace(/Â°/g, '°');
+    s = s.replace(/[\u202F\u2009\u00A0]/g, ' ');
+    s = s.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    s = s.replace(/\u2011/g, '−');
+    return s;
+  }
+
+  function isEngineeringQuery(q) {
+    if (!q || typeof q !== 'string') return false;
+    const qStr = q.toLowerCase();
+    const domainPatterns = [
+      /\b(engine|motor|powertrain|propulsion)\b/,
+      /\b(status|condition|state|health|healthy)\b/,
+      /\b(ehi|rul|residual|residuals)\b/,
+      /\b(sensor|sensors|transducer|probe|quarantine|quarantined)\b/,
+      /\b(trust|reliable|reliability|unreliable)\b/,
+      /\b(fault|faults|anomaly|anomalies|anomalous|defect|failure|issue|problem|abnormal)\b/,
+      /\b(diagnos\w*|isolation\s+forest|random\s+forest)\b/,
+      /\b(degrad\w*|wear|damage|fatigue|life|endurance|hours)\b/,
+      /\b(rpm|speed|tachometer|rotation|rotational)\b/,
+      /\b(egt|cht|exhaust|cylinder|head|combustion)\b/,
+      /\b(temp|temperature|thermal|heat|hot|overheat|overheating|runaway|cooling|coolant)\b/,
+      /\b(oil|pressure|psi|lubricat\w*)\b/,
+      /\b(fuel|flow|consumption|injector)\b/,
+      /\b(map|manifold|inhg|boost|throttle|load)\b/,
+      /\b(vibrat\w*|vibe|rms|fft|bearing|knock)\b/,
+      /\b(mission|flight|cruise|climb|takeoff|loiter|landing)\b/,
+      /\b(maintenance|advisory|inspection|repair|borescope)\b/,
+      /\b(piston|conrod|connecting\s+rod|crankshaft|valve)\b/,
+      /\b(twin|digital\s+twin|physics|telemetry|telemetry\s+data)\b/,
+      /\b(scenario|simulation|synthetic|replay)\b/,
+      /\b(parameters?|metrics?|readings?|measurements?)\b/
+    ];
+    return domainPatterns.some(pat => pat.test(qStr));
+  }
+
   function routeDeterministicIntent(query) {
     if (!query || typeof query !== 'string') return null;
     const qLower = query.trim().toLowerCase();
+    const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
 
-    // Category A: Natural Greetings (Fast-path: no telemetry sent to Groq)
+    // 1. GREETING (Fast-path: direct greeting)
     if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25) {
       return "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?";
     }
 
-    // Category B: Identity / Model Queries (Fast-path: direct accurate answer)
-    const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
+    // 2. GROK SPECIFIC QUERY (Fast-path)
+    if (/^grok\??$/i.test(qClean) || /^(are\s+(you|u)|is\s+this)\s+grok\??$/i.test(qClean)) {
+      return "I’m the AERO TWIN Decision-Support Assistant. Groq Cloud powers the natural-language explanation layer.";
+    }
+
+    // 2. IDENTITY / MODEL (Fast-path: direct accurate answer)
     const isIdentityOrModel = 
       /\b(your|what's|whats|what is|tell me( your)?)\s+(the\s+)?model(\s+name)?\b/i.test(qClean) ||
       /\bmodel\s+name\b/i.test(qClean) ||
       /\b(which|what|tell me)\s+(about\s+)?(your\s+|the\s+)?(ai\s+)?model\b/i.test(qClean) ||
-      /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this)\b/i.test(qClean) ||
-      /\b(which|what)\s+ai\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this|are\s+you\s+using)\b/i.test(qClean) ||
-      /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qClean) ||
+      /\b(which|what)\s+model\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this)\b/i.test(qClean) ||
+      /\b(which|what)\s+ai\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this|are\s+(you|u)\s+using)\b/i.test(qClean) ||
+      /^(who|what)\s+(are\s+(you|u)|can\s+(you|u)\s+do)\b/i.test(qClean) ||
       /^introduce\s+yourself\b/i.test(qClean) ||
       /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qClean) ||
       qClean === 'who are you' ||
+      qClean === 'who r u' ||
       qClean === 'what are you' ||
       qClean === 'what can you do' ||
       qClean === 'your model name' ||
@@ -10054,7 +10719,11 @@ if (typeof window !== 'undefined') {
       qClean === 'whats your model name' ||
       qClean === 'tell me your model' ||
       qClean === 'which model are you' ||
+      qClean === 'which model u are' ||
+      qClean === 'which model are u' ||
       qClean === 'what model are you' ||
+      qClean === 'what model u are' ||
+      qClean === 'what model are u' ||
       qClean === 'what ai are you' ||
       qClean === 'what ai model are you' ||
       qClean === 'which ai powers you' ||
@@ -10065,14 +10734,22 @@ if (typeof window !== 'undefined') {
       return "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer.";
     }
 
-    return null;
+    // 3. ENGINEERING / DIGITAL TWIN
+    if (isEngineeringQuery(qLower)) {
+      return null; // Passes through to Groq / Digital Twin pipeline
+    }
+
+    // 4. UNKNOWN / CASUAL / OFF-TOPIC
+    return "Yes, I’m here. Ask me about the engine condition, sensor trust, diagnostics, degradation, or RUL.";
   }
 
   window.routeDeterministicIntent = routeDeterministicIntent;
+  window.isEngineeringQuery = isEngineeringQuery;
+  window.sanitizeUnicode = sanitizeUnicode;
 
   function formatAssistantMarkdown(rawText) {
     if (!rawText) return '';
-    let text = rawText.trim();
+    let text = sanitizeUnicode(rawText.trim());
     
     // Markdown headers ### Title -> **Title**
     text = text.replace(/^#{1,4}\s+(.+)$/gm, '**$1**');
@@ -10484,6 +11161,428 @@ if (typeof window !== 'undefined') {
   // ==========================================================================
   // INTERACTIVE ENGINE INSPECTION & X-RAY CUTAWAY MODE
   // ==========================================================================
+  // ==========================================================================
+  // PHYSICAL ENGINE COMPONENT LABELING LAYER (12 Subsystems)
+  // ==========================================================================
+  const PHYSICAL_COMPONENTS = [
+    {
+      id: 'spark_plug',
+      name: 'SPARK PLUG',
+      category: 'IGNITION SYSTEM',
+      type: 'spark_plug',
+      group: 'core',
+      function: 'Delivers timed high-voltage electrical discharge to ignite the compressed fuel-air mixture.',
+      side: 'left',
+      metricKey: 'cht',
+      metricUnit: '°C'
+    },
+    {
+      id: 'intake_valve',
+      name: 'INTAKE VALVE',
+      category: 'VALVETRAIN',
+      type: 'intake_valve',
+      group: 'core',
+      function: 'Regulates air-fuel mixture induction into combustion chamber according to camshaft timing.',
+      side: 'left',
+      metricKey: 'map',
+      metricUnit: 'inHg'
+    },
+    {
+      id: 'cylinder',
+      name: 'CYLINDER',
+      category: 'COMBUSTION CHAMBER',
+      type: 'cylinder',
+      group: 'core',
+      function: 'Contains the combustion process and guides reciprocating piston motion.',
+      side: 'left',
+      metricKey: 'cht',
+      metricUnit: '°C'
+    },
+    {
+      id: 'piston',
+      name: 'PISTON',
+      category: 'RECIPROCATING ASSEMBLY',
+      type: 'piston',
+      group: 'core',
+      function: 'Converts combustion pressure into linear mechanical motion.',
+      side: 'left',
+      metricKey: 'load',
+      metricUnit: '%'
+    },
+    {
+      id: 'conrod',
+      name: 'CONNECTING ROD',
+      category: 'KINEMATIC LINKAGE',
+      type: 'conrod',
+      group: 'core',
+      function: 'Transfers reciprocating piston pressure directly to the rotating crankshaft journal.',
+      side: 'left',
+      metricKey: 'rpm',
+      metricUnit: 'RPM'
+    },
+    {
+      id: 'exhaust_valve',
+      name: 'EXHAUST VALVE',
+      category: 'VALVETRAIN',
+      type: 'exhaust_valve',
+      group: 'core',
+      function: 'Carries high-temperature combustion gases away from cylinder into exhaust header.',
+      side: 'left',
+      metricKey: 'egt',
+      metricUnit: '°C'
+    },
+    {
+      id: 'crankshaft',
+      name: 'CRANKSHAFT',
+      category: 'ROTATIONAL ASSEMBLY',
+      type: 'crankshaft',
+      group: 'core',
+      function: 'Converts reciprocating piston motion into rotational motion to drive PRSU and propeller.',
+      side: 'right',
+      metricKey: 'rpm',
+      metricUnit: 'RPM'
+    },
+    {
+      id: 'camshaft',
+      name: 'CAMSHAFT',
+      category: 'TIMING & VALVETRAIN',
+      type: 'camshaft',
+      group: 'core',
+      function: 'Controls valve lift timing and duration synchronized at 1:2 ratio with crankshaft.',
+      side: 'right',
+      metricKey: 'rpm_half',
+      metricUnit: 'RPM'
+    },
+    {
+      id: 'intake_manifold',
+      name: 'INTAKE MANIFOLD',
+      category: 'INDUCTION SYSTEM',
+      type: 'intake',
+      group: 'systems',
+      function: 'Distributes pressurized air charge from compressor plenum evenly across cylinders.',
+      side: 'right',
+      metricKey: 'map',
+      metricUnit: 'inHg'
+    },
+    {
+      id: 'fuel_system',
+      name: 'FUEL SYSTEM / INJECTOR',
+      category: 'FUEL INJECTION',
+      type: 'fuel_system',
+      group: 'systems',
+      function: 'Delivers metered, atomized high-pressure fuel pulse into intake runners for combustion.',
+      side: 'right',
+      metricKey: 'fuelFlow',
+      metricUnit: 'L/h'
+    },
+    {
+      id: 'lubrication_system',
+      name: 'LUBRICATION / OIL PUMP',
+      category: 'LUBRICATION SYSTEM',
+      type: 'lubrication_system',
+      group: 'systems',
+      function: 'Pressurizes and circulates engine oil through main gallery to bearings, journals, and sumps.',
+      side: 'right',
+      metricKey: 'oilPress',
+      metricUnit: 'PSI'
+    },
+    {
+      id: 'exhaust_manifold',
+      name: 'EXHAUST MANIFOLD',
+      category: 'EXHAUST & TURBO',
+      type: 'exhaust',
+      group: 'systems',
+      function: 'Channels high-temperature combustion exhaust gases away from cylinders to turbo turbine.',
+      side: 'right',
+      metricKey: 'egt',
+      metricUnit: '°C'
+    }
+  ];
+
+  let activeCalloutFilter = 'all'; // 'all' | 'core' | 'systems'
+  let calloutsVisible = true;
+
+  function initEngineCalloutsLayer() {
+    const container = document.getElementById('twin-callouts-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    PHYSICAL_COMPONENTS.forEach(comp => {
+      const card = document.createElement('div');
+      card.className = `twin-callout-card callout-side-${comp.side}`;
+      card.id = `callout-${comp.id}`;
+      card.setAttribute('data-comp-id', comp.id);
+      card.setAttribute('data-group', comp.group);
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', `Engine Component: ${comp.name}`);
+
+      card.innerHTML = `
+        <div class="callout-header">
+          <span class="callout-name">${comp.name}</span>
+          <span class="callout-status-dot" id="dot-${comp.id}"></span>
+        </div>
+        <div class="callout-subrow">
+          <span class="callout-metric-val" id="metric-${comp.id}">--</span>
+          <span class="callout-status-tag" id="tag-${comp.id}">NOMINAL</span>
+        </div>
+      `;
+
+      card.addEventListener('click', (e) => {
+        e.stopPropagation();
+        inspectComponent(comp.id);
+      });
+
+      card.addEventListener('mouseenter', () => {
+        if (digitalTwin && typeof digitalTwin.highlightMesh === 'function') {
+          const c = digitalTwin.selectableComponents && digitalTwin.selectableComponents.get(comp.id);
+          if (c && c.mesh) {
+            digitalTwin.highlightMesh(c.mesh, 0x38bdf8, 0.6);
+          }
+        }
+        const line = document.getElementById(`line-${comp.id}`);
+        if (line) line.classList.add('active');
+      });
+
+      card.addEventListener('mouseleave', () => {
+        if (selectedComponent?.id !== comp.id && digitalTwin) {
+          digitalTwin.clearHighlights();
+          if (selectedComponent) {
+            digitalTwin.selectComponent(selectedComponent.id || selectedComponent.componentId);
+          }
+        }
+        const line = document.getElementById(`line-${comp.id}`);
+        if (line && selectedComponent?.id !== comp.id) line.classList.remove('active');
+      });
+
+      container.appendChild(card);
+    });
+
+    // Toggle Button
+    const btnToggle = document.getElementById('btn-toggle-callouts');
+    if (btnToggle) {
+      btnToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        calloutsVisible = !calloutsVisible;
+        btnToggle.classList.toggle('active', calloutsVisible);
+        const overlay = document.getElementById('twin-callouts-overlay');
+        if (overlay) overlay.classList.toggle('hidden', !calloutsVisible);
+      });
+    }
+
+    // Filter Buttons
+    const filterBtns = document.querySelectorAll('.btn-comp-filter');
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeCalloutFilter = btn.getAttribute('data-filter') || 'all';
+        applyCalloutFilter();
+      });
+    });
+
+    applyCalloutFilter();
+  }
+
+  function applyCalloutFilter() {
+    PHYSICAL_COMPONENTS.forEach(comp => {
+      const card = document.getElementById(`callout-${comp.id}`);
+      const line = document.getElementById(`line-${comp.id}`);
+      const dot = document.getElementById(`anchor-${comp.id}`);
+      const visible = activeCalloutFilter === 'all' || comp.group === activeCalloutFilter;
+      if (card) card.style.display = visible ? 'flex' : 'none';
+      if (line) line.style.display = visible ? 'block' : 'none';
+      if (dot) dot.style.display = visible ? 'block' : 'none';
+    });
+  }
+
+  window.update3DCallouts = function () {
+    if (!calloutsVisible || !digitalTwin || !digitalTwin.canvas || !digitalTwin.camera) return;
+
+    const svg = document.getElementById('twin-callouts-svg');
+    const container = document.getElementById('twin-callouts-container');
+    if (!svg || !container) return;
+
+    const rect = digitalTwin.canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    if (w <= 0 || h <= 0) return;
+
+    // Filtered list
+    const visibleComponents = PHYSICAL_COMPONENTS.filter(c => activeCalloutFilter === 'all' || c.group === activeCalloutFilter);
+    const leftComps = visibleComponents.filter(c => c.side === 'left');
+    const rightComps = visibleComponents.filter(c => c.side === 'right');
+
+    const leftTotal = leftComps.length;
+    const rightTotal = rightComps.length;
+
+    const topPad = 44;
+    const botPad = 40;
+    const availH = Math.max(120, h - topPad - botPad);
+
+    let svgLines = '';
+
+    // Position left column
+    leftComps.forEach((comp, idx) => {
+      const card = document.getElementById(`callout-${comp.id}`);
+      if (!card) return;
+
+      const cardY = topPad + (idx * (availH / Math.max(1, leftTotal)));
+      const cardX = 12;
+      card.style.left = `${cardX}px`;
+      card.style.top = `${Math.round(cardY)}px`;
+      const isSel = selectedComponent && (selectedComponent.id === comp.id || selectedComponent.componentId === comp.id || (comp.id === 'piston' && selectedComponent.type === 'piston') || (comp.id === 'cylinder' && selectedComponent.type === 'cylinder') || (comp.id === 'conrod' && selectedComponent.type === 'conrod'));
+      card.classList.toggle('active', !!isSel);
+
+      const anchorPos = digitalTwin.getComponentAnchor(comp.id);
+      if (anchorPos) {
+        const screenPos = digitalTwin.projectToScreen(anchorPos);
+        if (screenPos && screenPos.inFront) {
+          const cardRight = cardX + (card.offsetWidth || 120);
+          const cardMidY = cardY + 14;
+          const lineCls = isSel ? 'callout-leader-line active' : 'callout-leader-line';
+          const elbowX = Math.min(screenPos.x - 8, cardRight + 16);
+          svgLines += `
+            <path id="line-${comp.id}" class="${lineCls}" d="M ${Math.round(screenPos.x)},${Math.round(screenPos.y)} L ${Math.round(elbowX)},${Math.round(cardMidY)} L ${Math.round(cardRight)},${Math.round(cardMidY)}" />
+            <circle id="anchor-${comp.id}" class="callout-anchor-dot" cx="${Math.round(screenPos.x)}" cy="${Math.round(screenPos.y)}" r="${isSel ? 3.5 : 2.5}" />
+          `;
+        }
+      }
+    });
+
+    // Position right column
+    rightComps.forEach((comp, idx) => {
+      const card = document.getElementById(`callout-${comp.id}`);
+      if (!card) return;
+
+      const cardY = topPad + (idx * (availH / Math.max(1, rightTotal)));
+      const cardW = card.offsetWidth || 120;
+      const cardX = w - cardW - 12;
+      card.style.left = `${Math.round(cardX)}px`;
+      card.style.top = `${Math.round(cardY)}px`;
+      const isSel = selectedComponent && (selectedComponent.id === comp.id || selectedComponent.componentId === comp.id || (comp.id === 'crankshaft' && selectedComponent.type === 'crankshaft') || (comp.id === 'lubrication_system' && selectedComponent.type === 'lubrication_system'));
+      card.classList.toggle('active', !!isSel);
+
+      const anchorPos = digitalTwin.getComponentAnchor(comp.id);
+      if (anchorPos) {
+        const screenPos = digitalTwin.projectToScreen(anchorPos);
+        if (screenPos && screenPos.inFront) {
+          const cardLeft = cardX;
+          const cardMidY = cardY + 14;
+          const lineCls = isSel ? 'callout-leader-line active' : 'callout-leader-line';
+          const elbowX = Math.max(screenPos.x + 8, cardLeft - 16);
+          svgLines += `
+            <path id="line-${comp.id}" class="${lineCls}" d="M ${Math.round(screenPos.x)},${Math.round(screenPos.y)} L ${Math.round(elbowX)},${Math.round(cardMidY)} L ${Math.round(cardLeft)},${Math.round(cardMidY)}" />
+            <circle id="anchor-${comp.id}" class="callout-anchor-dot" cx="${Math.round(screenPos.x)}" cy="${Math.round(screenPos.y)}" r="${isSel ? 3.5 : 2.5}" />
+          `;
+        }
+      }
+    });
+
+    svg.innerHTML = svgLines;
+  };
+
+  function updateCalloutTelemetryValues(s) {
+    if (!s || !s.rawTelemetry) return;
+    const raw = s.rawTelemetry;
+    const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : 178;
+    const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : 824;
+
+    const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || s.diagnosticResult?.faultClass === 'THERMAL_DEGRADATION' || currentScenarioKey === 'thermal_degradation';
+    const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || s.diagnosticResult?.faultClass === 'SENSOR_FAULT' || currentScenarioKey === 'sensor_freeze' || currentScenarioKey === 'sensor_drop';
+    const isLubricationFault = s.diagnosticResult?.faultClass === 'LUBRICATION_DEGRADATION' || currentScenarioKey === 'lubrication_degradation';
+    const isRpmInstability = s.diagnosticResult?.faultClass === 'RPM_INSTABILITY' || currentScenarioKey === 'rpm_instability';
+
+    PHYSICAL_COMPONENTS.forEach(comp => {
+      const metricEl = document.getElementById(`metric-${comp.id}`);
+      const tagEl = document.getElementById(`tag-${comp.id}`);
+      const dotEl = document.getElementById(`dot-${comp.id}`);
+
+      // Metric string
+      let metricStr = '--';
+      switch (comp.metricKey) {
+        case 'cht':
+          metricStr = `${avgCht.toFixed(1)} °C`;
+          break;
+        case 'egt':
+          metricStr = `${avgEgt.toFixed(0)} °C`;
+          break;
+        case 'rpm':
+          metricStr = `${Math.round(raw.rpm).toLocaleString()} RPM`;
+          break;
+        case 'rpm_half':
+          metricStr = `${Math.round(raw.rpm * 0.5).toLocaleString()} RPM`;
+          break;
+        case 'oilPress':
+          metricStr = `${raw.oilPress.toFixed(1)} PSI`;
+          break;
+        case 'fuelFlow':
+          metricStr = `${raw.fuelFlow.toFixed(1)} L/h`;
+          break;
+        case 'map':
+          metricStr = `${raw.map.toFixed(1)} inHg`;
+          break;
+        case 'load':
+          metricStr = `${raw.load.toFixed(0)}% LOAD`;
+          break;
+      }
+      if (metricEl) metricEl.textContent = metricStr;
+
+      // Status tag & dot class
+      let statusTag = 'NOMINAL';
+      let statusCls = '';
+
+      if (isSensorFault) {
+        if (comp.id === 'lubrication_system') {
+          statusTag = 'SENSOR FAULT';
+          statusCls = 'warn';
+        } else {
+          statusTag = 'NOMINAL';
+          statusCls = '';
+        }
+      } else if (isThermal) {
+        if (comp.id === 'cylinder' || comp.id === 'exhaust_manifold' || comp.id === 'exhaust_valve' || comp.id === 'piston' || comp.id === 'spark_plug') {
+          statusTag = 'OVERHEAT';
+          statusCls = 'crit';
+        } else {
+          statusTag = 'HEAT SOAK';
+          statusCls = 'warn';
+        }
+      } else if (isLubricationFault) {
+        if (comp.id === 'lubrication_system') {
+          statusTag = 'LOW OIL P';
+          statusCls = 'crit';
+        } else if (comp.id === 'crankshaft' || comp.id === 'camshaft' || comp.id === 'conrod') {
+          statusTag = 'WEAR RISK';
+          statusCls = 'warn';
+        } else {
+          statusTag = 'NOMINAL';
+          statusCls = '';
+        }
+      } else if (isRpmInstability) {
+        if (comp.id === 'crankshaft' || comp.id === 'camshaft') {
+          statusTag = 'UNSTABLE';
+          statusCls = 'warn';
+        } else {
+          statusTag = 'NOMINAL';
+          statusCls = '';
+        }
+      } else {
+        statusTag = 'NOMINAL';
+        statusCls = '';
+      }
+
+      if (tagEl) {
+        tagEl.textContent = statusTag;
+        tagEl.className = `callout-status-tag ${statusCls}`;
+      }
+      if (dotEl) {
+        dotEl.className = `callout-status-dot ${statusCls}`;
+      }
+    });
+  }
+
   function getCylinderDeltas(cylIndex) {
     if (!cylIndex) return { cht: 0, egt: 0 };
     switch (cylIndex) {
@@ -10498,15 +11597,26 @@ if (typeof window !== 'undefined') {
   function updateInspectionHud(comp) {
     if (!comp) return;
 
+    const compId = comp.componentId || comp.id || comp.type || 'piston';
+    const normId = compId.replace(/_[1-4]$/, ''); // e.g. piston_1 -> piston
+    const physComp = PHYSICAL_COMPONENTS.find(p => p.id === compId || p.id === normId || p.type === comp.type);
+
     const catEl = document.getElementById('hud-category');
     const nameEl = document.getElementById('hud-name');
     const descEl = document.getElementById('hud-desc');
+    const funcEl = document.getElementById('hud-function-text');
     const statusEl = document.getElementById('hud-status');
     const relevanceEl = document.getElementById('hud-relevance-text');
 
-    if (catEl) catEl.textContent = comp.category || 'POWERTRAIN COMPONENT';
-    if (nameEl) nameEl.textContent = comp.name || 'ENGINE COMPONENT';
-    if (descEl) descEl.textContent = comp.desc || 'Aero piston engine mechanical component.';
+    const compName = comp.name || physComp?.name || 'ENGINE COMPONENT';
+    const compCat = comp.category || physComp?.category || 'POWERTRAIN COMPONENT';
+    const compDesc = comp.desc || physComp?.function || 'Aero piston engine mechanical component.';
+    const compFunc = physComp?.function || comp.function || 'Converts chemical energy from aviation fuel into UAV propeller thrust.';
+
+    if (catEl) catEl.textContent = compCat;
+    if (nameEl) nameEl.textContent = compName;
+    if (descEl) descEl.textContent = compDesc;
+    if (funcEl) funcEl.textContent = compFunc;
 
     // Kinematic Chain Association
     const motionPill = document.getElementById('hud-motion-pill');
@@ -10518,13 +11628,13 @@ if (typeof window !== 'undefined') {
     const chainCrank = document.getElementById('chain-crank');
 
     if (chainBox) {
-      if (comp.type === 'piston' || comp.type === 'conrod') {
+      if (comp.type === 'piston' || comp.type === 'conrod' || normId === 'piston' || normId === 'conrod') {
         chainBox.style.display = 'block';
         if (chainCyl) chainCyl.textContent = `CYLINDER ${comp.cylIndex || 1}`;
-        if (chainPiston) chainPiston.className = comp.type === 'piston' ? 'chain-node active' : 'chain-node';
-        if (chainRod) chainRod.className = comp.type === 'conrod' ? 'chain-node active' : 'chain-node';
+        if (chainPiston) chainPiston.className = (comp.type === 'piston' || normId === 'piston') ? 'chain-node active' : 'chain-node';
+        if (chainRod) chainRod.className = (comp.type === 'conrod' || normId === 'conrod') ? 'chain-node active' : 'chain-node';
         if (chainCrank) chainCrank.className = 'chain-node';
-      } else if (comp.type === 'crankshaft') {
+      } else if (comp.type === 'crankshaft' || normId === 'crankshaft' || normId === 'camshaft') {
         chainBox.style.display = 'block';
         if (chainPiston) chainPiston.className = 'chain-node';
         if (chainRod) chainRod.className = 'chain-node';
@@ -10535,15 +11645,18 @@ if (typeof window !== 'undefined') {
     }
 
     if (motionPill && motionText) {
-      if (comp.type === 'piston') {
+      if (comp.type === 'piston' || normId === 'piston') {
         motionPill.style.display = 'inline-flex';
         motionText.textContent = 'MOTION: RECIPROCATING';
-      } else if (comp.type === 'conrod') {
+      } else if (comp.type === 'conrod' || normId === 'conrod') {
         motionPill.style.display = 'inline-flex';
         motionText.textContent = 'MOTION: OSCILLATING & TRANSLATING';
-      } else if (comp.type === 'crankshaft') {
+      } else if (comp.type === 'crankshaft' || normId === 'crankshaft') {
         motionPill.style.display = 'inline-flex';
         motionText.textContent = 'MOTION: CONTINUOUS ROTATION';
+      } else if (normId === 'camshaft') {
+        motionPill.style.display = 'inline-flex';
+        motionText.textContent = 'MOTION: 1:2 ROTATION (HALF CRANK SPEED)';
       } else {
         motionPill.style.display = 'none';
       }
@@ -10551,11 +11664,13 @@ if (typeof window !== 'undefined') {
 
     // Status & Diagnostic Relevance (preserves "BAD SENSOR != BAD ENGINE")
     const s = window.appState;
-    const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT');
-    const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION');
+    const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT') || currentScenarioKey === 'sensor_freeze' || currentScenarioKey === 'sensor_drop';
+    const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION') || currentScenarioKey === 'thermal_degradation';
+    const isLubricationFault = (s.diagnosticResult && s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION') || currentScenarioKey === 'lubrication_degradation';
+    const isRpmInstability = (s.diagnosticResult && s.diagnosticResult.faultClass === 'RPM_INSTABILITY') || currentScenarioKey === 'rpm_instability';
 
     if (isSensorFault) {
-      const isLubricationOrSensor = (comp.type === 'lubrication' || comp.id === 'oil_pump' || comp.id === 'oil_pan' || (comp.name && comp.name.toLowerCase().includes('oil')));
+      const isLubricationOrSensor = (normId === 'lubrication_system' || normId === 'oil_pump' || normId === 'oil_system' || comp.type === 'sensor' || (compName && compName.toLowerCase().includes('oil')));
       const rawOil = s.rawTelemetry && s.rawTelemetry.oilPress !== undefined ? s.rawTelemetry.oilPress.toFixed(1) : '--';
       if (isLubricationOrSensor) {
         if (statusEl) {
@@ -10567,22 +11682,22 @@ if (typeof window !== 'undefined') {
         }
       } else {
         if (statusEl) {
-          statusEl.textContent = 'HEALTHY (PROTECTED)';
+          statusEl.textContent = 'NOMINAL (PROTECTED)';
           statusEl.className = 'hud-status-badge badge-nominal';
         }
         if (relevanceEl) {
-          relevanceEl.textContent = `✅ BAD SENSOR ≠ BAD ENGINE REASSURANCE: ${comp.name} is mechanically healthy. Despite the faulty oil pressure sensor reading, engine core integrity is shielded at EHI ${Math.round(s.ehi)}/100 to prevent false mission abort.`;
+          relevanceEl.textContent = `✅ BAD SENSOR ≠ BAD ENGINE REASSURANCE: ${compName} is mechanically healthy. Despite the faulty oil pressure sensor reading, engine core integrity is shielded at EHI ${Math.round(s.ehi)}/100 to prevent false mission abort.`;
         }
       }
     } else if (isThermal) {
-      const isHotCombustionPart = (comp.type === 'piston' || comp.type === 'head' || comp.type === 'cylinder' || comp.type === 'conrod' || comp.type === 'exhaust');
+      const isHotCombustionPart = (normId === 'cylinder' || normId === 'exhaust_manifold' || normId === 'exhaust_valve' || normId === 'piston' || normId === 'spark_plug' || comp.type === 'head' || comp.type === 'cylinder' || comp.type === 'piston' || comp.type === 'exhaust');
       if (isHotCombustionPart) {
         if (statusEl) {
           statusEl.textContent = 'THERMAL RUNAWAY';
           statusEl.className = 'hud-status-badge badge-critical';
         }
         if (relevanceEl) {
-          relevanceEl.textContent = `🔥 AUTHENTIC MECHANICAL OVERHEAT: Dual trusted sensors corroborate severe combustion runaway on ${comp.name}. EHI downgraded to ${Math.round(s.ehi)}/100; RUL revised to ${s.rulLabel || (s.rulHours + ' h')}.`;
+          relevanceEl.textContent = `🔥 AUTHENTIC MECHANICAL OVERHEAT: Dual trusted sensors corroborate severe combustion runaway on ${compName}. EHI downgraded to ${Math.round(s.ehi)}/100; RUL revised to ${s.rulLabel || (s.rulHours + ' h')}.`;
         }
       } else {
         if (statusEl) {
@@ -10590,37 +11705,90 @@ if (typeof window !== 'undefined') {
           statusEl.className = 'hud-status-badge badge-warning';
         }
         if (relevanceEl) {
-          relevanceEl.textContent = `Secondary thermal load: Heat soak from combustion chambers is elevating crankcase temperatures.`;
+          relevanceEl.textContent = `Secondary thermal load: Heat soak from combustion chambers is elevating crankcase and component temperatures.`;
+        }
+      }
+    } else if (isLubricationFault) {
+      if (normId === 'lubrication_system' || normId === 'oil_pump' || normId === 'oil_system') {
+        if (statusEl) {
+          statusEl.textContent = 'LUBRICATION FAULT';
+          statusEl.className = 'hud-status-badge badge-critical';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `⚠️ AUTHENTIC OIL SYSTEM FAILURE: Actual mechanical oil pressure drop (${s.rawTelemetry?.oilPress?.toFixed(1)} PSI). Hydrodynamic oil film compromised.`;
+        }
+      } else if (normId === 'crankshaft' || normId === 'camshaft' || normId === 'conrod' || normId === 'piston') {
+        if (statusEl) {
+          statusEl.textContent = 'BEARING WEAR RISK';
+          statusEl.className = 'hud-status-badge badge-warning';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `Boundary lubrication regime: Journal bearings and piston skirts experiencing elevated friction due to low oil pressure.`;
+        }
+      } else {
+        if (statusEl) {
+          statusEl.textContent = 'NOMINAL';
+          statusEl.className = 'hud-status-badge badge-nominal';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `Component operating within acceptable envelope under current lubrication state.`;
+        }
+      }
+    } else if (isRpmInstability) {
+      if (normId === 'crankshaft' || normId === 'camshaft' || normId === 'conrod') {
+        if (statusEl) {
+          statusEl.textContent = 'RPM INSTABILITY';
+          statusEl.className = 'hud-status-badge badge-warning';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `Torsional oscillation: Engine RPM fluctuating across drivetrain assembly (governor hunt / fuel delivery variation).`;
+        }
+      } else {
+        if (statusEl) {
+          statusEl.textContent = 'NOMINAL';
+          statusEl.className = 'hud-status-badge badge-nominal';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `Component maintaining structural nominal status despite transient RPM oscillation.`;
         }
       }
     } else {
       if (statusEl) {
-        statusEl.textContent = 'HEALTHY';
+        statusEl.textContent = 'NOMINAL';
         statusEl.className = 'hud-status-badge badge-nominal';
       }
       if (relevanceEl) {
-        relevanceEl.textContent = `Nominal thermal & mechanical profile. Combustion pressure and heat dissipation across ${comp.name} correlate perfectly with calibrated 4-stroke aero piston physics model.`;
+        relevanceEl.textContent = `Nominal thermal & mechanical profile. Combustion pressure and heat dissipation across ${compName} correlate perfectly with calibrated 4-stroke aero piston physics model.`;
       }
     }
 
     // Telemetry items in HUD
     if (s.rawTelemetry) {
       const raw = s.rawTelemetry;
-      const deltas = getCylinderDeltas(comp.cylIndex);
-      const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : null;
-      const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : null;
+      const deltas = getCylinderDeltas(comp.cylIndex || (physComp && physComp.cylIndex));
+      const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : 178;
+      const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : 824;
+      const trustScore = (s.trustResult && s.trustResult.scores && s.trustResult.scores.oilPress !== undefined) ? s.trustResult.scores.oilPress : 0.96;
 
       const chtEl = document.getElementById('hud-cht');
       const egtEl = document.getElementById('hud-egt');
       const rpmEl = document.getElementById('hud-rpm');
       const loadEl = document.getElementById('hud-load');
       const oilPEl = document.getElementById('hud-oil-p');
+      const oilTEl = document.getElementById('hud-oil-t');
+      const mapEl = document.getElementById('hud-map');
+      const fuelEl = document.getElementById('hud-fuel');
+      const trustEl = document.getElementById('hud-trust');
 
-      if (chtEl) chtEl.textContent = avgCht !== null ? `${(avgCht + deltas.cht).toFixed(1)} °C` : '--';
-      if (egtEl) egtEl.textContent = avgEgt !== null ? `${(avgEgt + deltas.egt).toFixed(1)} °C` : '--';
+      if (chtEl) chtEl.textContent = `${(avgCht + deltas.cht).toFixed(1)} °C`;
+      if (egtEl) egtEl.textContent = `${(avgEgt + deltas.egt).toFixed(1)} °C`;
       if (rpmEl) rpmEl.textContent = raw.rpm !== undefined ? `${Math.round(raw.rpm).toLocaleString()}` : '--';
       if (loadEl) loadEl.textContent = raw.load !== undefined ? `${raw.load.toFixed(1)} %` : '--';
       if (oilPEl) oilPEl.textContent = raw.oilPress !== undefined ? `${raw.oilPress.toFixed(1)} PSI` : '--';
+      if (oilTEl) oilTEl.textContent = raw.oilTemp !== undefined ? `${raw.oilTemp.toFixed(1)} °C` : '--';
+      if (mapEl) mapEl.textContent = raw.map !== undefined ? `${raw.map.toFixed(1)} inHg` : '--';
+      if (fuelEl) fuelEl.textContent = raw.fuelFlow !== undefined ? `${raw.fuelFlow.toFixed(1)} L/h` : '--';
+      if (trustEl) trustEl.textContent = trustScore.toFixed(2);
     }
   }
 

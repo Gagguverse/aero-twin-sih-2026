@@ -7,17 +7,70 @@ require('dotenv').config();
 
 const PORT = 3000;
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.css': 'text/css',
-  '.js': 'text/javascript',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
+  '.svg': 'image/svg+xml; charset=utf-8',
   '.ico': 'image/x-icon',
-  '.py': 'text/plain',
-  '.ino': 'text/plain'
+  '.py': 'text/plain; charset=utf-8',
+  '.ino': 'text/plain; charset=utf-8'
 };
+
+function sanitizeUnicode(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  let s = text;
+  s = s.replace(/\uFFFD+/g, '-');
+  s = s.replace(/âˆ’|â€‘/g, '−');
+  s = s.replace(/â€¯/g, ' ');
+  s = s.replace(/Â°/g, '°');
+  s = s.replace(/[\u202F\u2009\u00A0]/g, ' ');
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, '');
+  s = s.replace(/\u2011/g, '−');
+  return s;
+}
+
+function sendJsonResponse(res, statusCode, obj) {
+  const jsonStr = JSON.stringify(obj);
+  const buf = Buffer.from(jsonStr, 'utf8');
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Content-Length': buf.length
+  });
+  res.end(buf);
+}
+
+function isEngineeringQuery(q) {
+  if (!q || typeof q !== 'string') return false;
+  const qStr = q.toLowerCase();
+  const domainPatterns = [
+    /\b(engine|motor|powertrain|propulsion)\b/,
+    /\b(status|condition|state|health|healthy)\b/,
+    /\b(ehi|rul|residual|residuals)\b/,
+    /\b(sensor|sensors|transducer|probe|quarantine|quarantined)\b/,
+    /\b(trust|reliable|reliability|unreliable)\b/,
+    /\b(fault|faults|anomaly|anomalies|anomalous|defect|failure|issue|problem|abnormal)\b/,
+    /\b(diagnos\w*|isolation\s+forest|random\s+forest)\b/,
+    /\b(degrad\w*|wear|damage|fatigue|life|endurance|hours)\b/,
+    /\b(rpm|speed|tachometer|rotation|rotational)\b/,
+    /\b(egt|cht|exhaust|cylinder|head|combustion)\b/,
+    /\b(temp|temperature|thermal|heat|hot|overheat|overheating|runaway|cooling|coolant)\b/,
+    /\b(oil|pressure|psi|lubricat\w*)\b/,
+    /\b(fuel|flow|consumption|injector)\b/,
+    /\b(map|manifold|inhg|boost|throttle|load)\b/,
+    /\b(vibrat\w*|vibe|rms|fft|bearing|knock)\b/,
+    /\b(mission|flight|cruise|climb|takeoff|loiter|landing)\b/,
+    /\b(maintenance|advisory|inspection|repair|borescope)\b/,
+    /\b(piston|conrod|connecting\s+rod|crankshaft|valve)\b/,
+    /\b(twin|digital\s+twin|physics|telemetry|telemetry\s+data)\b/,
+    /\b(scenario|simulation|synthetic|replay)\b/,
+    /\b(parameters?|metrics?|readings?|measurements?)\b/
+  ];
+  return domainPatterns.some(pat => pat.test(qStr));
+}
 
 // In-memory buffer for real engine hardware telemetry
 let latestHardwareTelemetry = null;
@@ -113,6 +166,7 @@ function callGroqAPI(userPrompt, systemPrompt) {
     };
 
     const req = https.request(options, (res) => {
+      res.setEncoding('utf8');
       let data = '';
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
@@ -131,7 +185,7 @@ function callGroqAPI(userPrompt, systemPrompt) {
           const text = json.choices && json.choices[0] && json.choices[0].message
             ? json.choices[0].message.content
             : '';
-          resolve(text);
+          resolve(sanitizeUnicode(text));
         } catch (e) {
           reject(new Error(`Failed to parse Groq response: ${e.message} (HTTP ${res.statusCode})`));
         }
@@ -309,8 +363,7 @@ async function handleGrokRequest(body, res) {
   try {
     parsed = typeof body === 'object' ? body : JSON.parse(body || '{}');
   } catch (e) {
-    res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload.' }));
+    sendJsonResponse(res, 400, { error: 'invalid_json', message: 'Malformed JSON payload.' });
     return;
   }
 
@@ -318,36 +371,44 @@ async function handleGrokRequest(body, res) {
   const rawState = parsed.appState || parsed.context || parsed.snapshot || {};
 
   if (!query) {
-    res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ error: 'missing_fields', message: 'Query or message string is required.' }));
+    sendJsonResponse(res, 400, { error: 'missing_fields', message: 'Query or message string is required.' });
     return;
   }
 
   const qLower = query.trim().toLowerCase();
+  const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
 
-  // Category A: GREETING (Fast-path: no telemetry sent to Groq)
+  // Category 1: GREETING (Fast-path: no telemetry sent to Groq)
   const isGreeting = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25;
   if (isGreeting) {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
+    sendJsonResponse(res, 200, {
       source: 'grok',
       response: "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?"
-    }));
+    });
     return;
   }
 
-  // Category B: IDENTITY / MODEL (Fast-path: no telemetry sent to Groq)
-  const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
+  // Category 2: GROK SPECIFIC QUERY (Fast-path)
+  if (/^grok\??$/i.test(qClean) || /^(are\s+(you|u)|is\s+this)\s+grok\??$/i.test(qClean)) {
+    sendJsonResponse(res, 200, {
+      source: 'grok',
+      response: "I’m the AERO TWIN Decision-Support Assistant. Groq Cloud powers the natural-language explanation layer."
+    });
+    return;
+  }
+
+  // Category 2: IDENTITY / MODEL (Fast-path: no telemetry sent to Groq)
   const isIdentityOrModel = 
     /\b(your|what's|whats|what is|tell me( your)?)\s+(the\s+)?model(\s+name)?\b/i.test(qClean) ||
     /\bmodel\s+name\b/i.test(qClean) ||
     /\b(which|what|tell me)\s+(about\s+)?(your\s+|the\s+)?(ai\s+)?model\b/i.test(qClean) ||
-    /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this)\b/i.test(qClean) ||
-    /\b(which|what)\s+ai\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this|are\s+you\s+using)\b/i.test(qClean) ||
-    /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qClean) ||
+    /\b(which|what)\s+model\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this)\b/i.test(qClean) ||
+    /\b(which|what)\s+ai\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this|are\s+(you|u)\s+using)\b/i.test(qClean) ||
+    /^(who|what)\s+(are\s+(you|u)|can\s+(you|u)\s+do)\b/i.test(qClean) ||
     /^introduce\s+yourself\b/i.test(qClean) ||
     /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qClean) ||
     qClean === 'who are you' ||
+    qClean === 'who r u' ||
     qClean === 'what are you' ||
     qClean === 'what can you do' ||
     qClean === 'your model name' ||
@@ -356,7 +417,11 @@ async function handleGrokRequest(body, res) {
     qClean === 'whats your model name' ||
     qClean === 'tell me your model' ||
     qClean === 'which model are you' ||
+    qClean === 'which model u are' ||
+    qClean === 'which model are u' ||
     qClean === 'what model are you' ||
+    qClean === 'what model u are' ||
+    qClean === 'what model are u' ||
     qClean === 'what ai are you' ||
     qClean === 'what ai model are you' ||
     qClean === 'which ai powers you' ||
@@ -364,11 +429,20 @@ async function handleGrokRequest(body, res) {
     qClean === 'what ai do you use';
 
   if (isIdentityOrModel) {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
+    sendJsonResponse(res, 200, {
       source: 'grok',
       response: "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer."
-    }));
+    });
+    return;
+  }
+
+  // Category 3 Check: Only proceed to Digital Twin / Groq pipeline if engineering query
+  if (!isEngineeringQuery(qLower)) {
+    // Category 4: UNKNOWN / CASUAL / OFF-TOPIC
+    sendJsonResponse(res, 200, {
+      source: 'conversational',
+      response: "Yes, I’m here. Ask me about the engine condition, sensor trust, diagnostics, degradation, or RUL."
+    });
     return;
   }
 
@@ -559,30 +633,27 @@ CRITICAL RULES:
     const text = await callGroqAPI(userPrompt, GROQ_SYSTEM_PROMPT);
 
     if (text) {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ source: 'grok', response: text }));
+      sendJsonResponse(res, 200, { source: 'grok', response: sanitizeUnicode(text) });
       return;
     }
 
     // Graceful fallback if Groq returns empty
     console.warn('[Groq] Empty response from API. Serving grounded local analysis fallback.');
     const localFallback = generateServerLocalAnalysis(query, appState);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
+    sendJsonResponse(res, 200, {
       source: 'local_fallback',
-      response: localFallback,
+      response: sanitizeUnicode(localFallback),
       note: 'Groq returned empty; fulfilled via grounded engine analysis.'
-    }));
+    });
 
   } catch (err) {
     console.error('[Groq] API Error:', err.message);
     const localFallback = generateServerLocalAnalysis(query, appState);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
+    sendJsonResponse(res, 200, {
       source: 'local_fallback',
-      response: localFallback,
+      response: sanitizeUnicode(localFallback),
       note: 'Served via local engine analysis after Groq API exception.'
-    }));
+    });
   }
 }
 
@@ -594,6 +665,7 @@ const server = http.createServer((req, res) => {
 
   // API Endpoint: POST /api/grok or /api/groq (AI Assistant queries)
   if (req.method === 'POST' && (parsedUrl === '/api/grok' || parsedUrl === '/api/groq' || parsedUrl === '/api/gemini')) {
+    req.setEncoding('utf8');
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => { handleGrokRequest(body, res); });
@@ -602,6 +674,7 @@ const server = http.createServer((req, res) => {
 
   // API Endpoint: POST /api/telemetry (From Python / CAN-bus bridge / MATLAB)
   if (req.method === 'POST' && parsedUrl === '/api/telemetry') {
+    req.setEncoding('utf8');
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
@@ -612,11 +685,9 @@ const server = http.createServer((req, res) => {
           receivedAt: Date.now()
         };
         lastHardwarePacketTimestamp = Date.now();
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        res.end(JSON.stringify({ status: 'ok', received: true }));
+        sendJsonResponse(res, 200, { status: 'ok', received: true });
       } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid JSON telemetry payload' }));
+        sendJsonResponse(res, 400, { error: 'Invalid JSON telemetry payload' });
       }
     });
     return;
@@ -624,16 +695,11 @@ const server = http.createServer((req, res) => {
 
   // API Endpoint: GET /api/telemetry (Frontend polls latest hardware data)
   if (req.method === 'GET' && parsedUrl === '/api/telemetry') {
-    res.writeHead(200, { 
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-cache'
-    });
-    res.end(JSON.stringify({
+    sendJsonResponse(res, 200, {
       active: (Date.now() - lastHardwarePacketTimestamp) < 5000,
       timestamp: lastHardwarePacketTimestamp,
       telemetry: latestHardwareTelemetry
-    }));
+    });
     return;
   }
 

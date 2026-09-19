@@ -380,12 +380,70 @@
       });
       this.pickableMeshes.push(mainJournal);
 
+      // Precision Ground Camshaft (runs parallel beneath crankshaft)
+      this.camshaftGroup = new THREE.Group();
+      this.engineGroup.add(this.camshaftGroup);
+
+      const camJournalGeo = new THREE.CylinderGeometry(0.10, 0.10, 2.7, 16);
+      const camJournal = new THREE.Mesh(camJournalGeo, this.matConrod);
+      camJournal.rotation.x = Math.PI / 2;
+      camJournal.position.set(0, -0.42, 0);
+      this.camshaftGroup.add(camJournal);
+
+      // 8 Cam Lobes for 4 cylinders (intake + exhaust per cylinder)
+      for (let z = -0.95; z <= 0.95; z += 0.27) {
+        const lobeGeo = new THREE.BoxGeometry(0.24, 0.14, 0.08);
+        const lobe = new THREE.Mesh(lobeGeo, this.matChrome);
+        lobe.position.set(0.04 * Math.sin(z * 4), -0.42 + 0.04 * Math.cos(z * 4), z);
+        this.camshaftGroup.add(lobe);
+      }
+
+      camJournal.userData = {
+        componentId: 'camshaft',
+        name: 'Precision Ground Camshaft',
+        category: 'TIMING & VALVETRAIN',
+        type: 'camshaft',
+        desc: 'Billet steel camshaft driven at 1:2 crank speed regulating valve timing and lift.'
+      };
+      this.selectableComponents.set('camshaft', {
+        mesh: camJournal,
+        name: 'Precision Ground Camshaft',
+        category: 'TIMING & VALVETRAIN',
+        type: 'camshaft',
+        desc: 'Billet steel camshaft driven at 1:2 crank speed regulating valve timing and lift.'
+      });
+      this.pickableMeshes.push(camJournal);
+
       // Bottom Ribbed Oil Sump
       const sumpGeo = new THREE.BoxGeometry(1.2, 0.55, 2.2);
       const sumpMesh = new THREE.Mesh(sumpGeo, this.matCrankcase);
       sumpMesh.position.set(0, -0.9, 0);
       sumpMesh.castShadow = true;
       this.engineGroup.add(sumpMesh);
+
+      // Positive-Displacement Trochoid Oil Pump Housing
+      const pumpGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.28, 20);
+      const pumpMesh = new THREE.Mesh(pumpGeo, this.matGearbox);
+      pumpMesh.rotation.x = Math.PI / 2;
+      pumpMesh.position.set(0, -0.85, -1.08);
+      pumpMesh.castShadow = true;
+      this.engineGroup.add(pumpMesh);
+
+      pumpMesh.userData = {
+        componentId: 'lubrication_system',
+        name: 'Oil Pump & Lubrication System',
+        category: 'LUBRICATION SYSTEM',
+        type: 'lubrication_system',
+        desc: 'Positive-displacement trochoid oil pump supplying 40-60 PSI to the engine oil gallery.'
+      };
+      this.selectableComponents.set('lubrication_system', {
+        mesh: pumpMesh,
+        name: 'Oil Pump & Lubrication System',
+        category: 'LUBRICATION SYSTEM',
+        type: 'lubrication_system',
+        desc: 'Positive-displacement trochoid oil pump supplying 40-60 PSI to the engine oil gallery.'
+      });
+      this.pickableMeshes.push(pumpMesh);
 
       // Oil Drain Plug (Brass)
       const drainGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.12, 6);
@@ -686,6 +744,78 @@
         plugCeramic.position.set(cfg.side * 1.35, 0.64, 0);
         cylGroup.add(plugCeramic);
 
+        plugHex.userData = {
+          componentId: 'spark_plug',
+          name: 'Aviation Spark Plug ' + cfg.index,
+          category: 'IGNITION SYSTEM',
+          type: 'spark_plug',
+          cylIndex: cfg.index,
+          desc: 'Dual aviation spark plug delivering timed high-voltage arc to initiate combustion.'
+        };
+        if (!this.selectableComponents.has('spark_plug') || cfg.index === 1) {
+          this.selectableComponents.set('spark_plug', {
+            mesh: plugHex,
+            name: 'Aviation Spark Plug',
+            category: 'IGNITION SYSTEM',
+            type: 'spark_plug',
+            cylIndex: cfg.index,
+            desc: 'Dual aviation spark plug delivering timed high-voltage arc to initiate combustion.'
+          });
+        }
+        this.pickableMeshes.push(plugHex);
+
+        // Intake Valve Port & Stem Assembly
+        const inValveGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.22, 12);
+        const inValveMesh = new THREE.Mesh(inValveGeo, this.matChrome);
+        inValveMesh.position.set(cfg.side * 1.46, 0.28, cfg.z < 0 ? -0.16 : 0.16);
+        cylGroup.add(inValveMesh);
+
+        inValveMesh.userData = {
+          componentId: 'intake_valve',
+          name: 'Intake Valve Assembly ' + cfg.index,
+          category: 'VALVETRAIN',
+          type: 'intake_valve',
+          cylIndex: cfg.index,
+          desc: 'Nimonic alloy intake valve admitting stoichiometric air-fuel charge into combustion chamber.'
+        };
+        if (!this.selectableComponents.has('intake_valve') || cfg.index === 1) {
+          this.selectableComponents.set('intake_valve', {
+            mesh: inValveMesh,
+            name: 'Intake Valve Assembly',
+            category: 'VALVETRAIN',
+            type: 'intake_valve',
+            cylIndex: cfg.index,
+            desc: 'Nimonic alloy intake valve admitting stoichiometric air-fuel charge into combustion chamber.'
+          });
+        }
+        this.pickableMeshes.push(inValveMesh);
+
+        // Exhaust Valve Port & Stem Assembly
+        const exValveGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.22, 12);
+        const exValveMesh = new THREE.Mesh(exValveGeo, this.matBrass);
+        exValveMesh.position.set(cfg.side * 1.46, -0.28, cfg.z < 0 ? 0.16 : -0.16);
+        cylGroup.add(exValveMesh);
+
+        exValveMesh.userData = {
+          componentId: 'exhaust_valve',
+          name: 'Sodium-Cooled Exhaust Valve ' + cfg.index,
+          category: 'VALVETRAIN',
+          type: 'exhaust_valve',
+          cylIndex: cfg.index,
+          desc: 'Sodium-filled heat-resistant exhaust valve discharging combustion gases to exhaust headers.'
+        };
+        if (!this.selectableComponents.has('exhaust_valve') || cfg.index === 1) {
+          this.selectableComponents.set('exhaust_valve', {
+            mesh: exValveMesh,
+            name: 'Sodium-Cooled Exhaust Valve',
+            category: 'VALVETRAIN',
+            type: 'exhaust_valve',
+            cylIndex: cfg.index,
+            desc: 'Sodium-filled heat-resistant exhaust valve discharging combustion gases to exhaust headers.'
+          });
+        }
+        this.pickableMeshes.push(exValveMesh);
+
         // HT Ignition Cable (Black lead)
         const wireGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.7, 12);
         const wireMesh = new THREE.Mesh(wireGeo, this.matRubber);
@@ -830,6 +960,35 @@
         this.intakeGroup.add(fuelRail);
       });
 
+      // Electronic Fuel Injectors (4 individual atomization injectors)
+      cylinderConfigs.forEach(cfg => {
+        const injGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.22, 12);
+        const injMesh = new THREE.Mesh(injGeo, this.matBrass);
+        injMesh.position.set(cfg.side * 0.70, 0.82, cfg.z);
+        injMesh.rotation.z = -cfg.side * 0.35;
+        this.intakeGroup.add(injMesh);
+
+        injMesh.userData = {
+          componentId: 'fuel_system',
+          name: 'Electronic Fuel Injector ' + cfg.index,
+          category: 'FUEL SYSTEM',
+          type: 'fuel_system',
+          cylIndex: cfg.index,
+          desc: 'High-pressure electronic fuel injector atomizing metered fuel into the induction stream.'
+        };
+        if (!this.selectableComponents.has('fuel_system') || cfg.index === 1) {
+          this.selectableComponents.set('fuel_system', {
+            mesh: injMesh,
+            name: 'Electronic Fuel Injector & Rail',
+            category: 'FUEL SYSTEM',
+            type: 'fuel_system',
+            cylIndex: cfg.index,
+            desc: 'High-pressure electronic fuel injector atomizing metered fuel into the induction stream.'
+          });
+        }
+        this.pickableMeshes.push(injMesh);
+      });
+
       // ======================================================================
       // 7. OIL PRESSURE TRANSDUCER (CORE DIFFERENTIATOR SENSOR FOCUS)
       // ======================================================================
@@ -892,6 +1051,15 @@
       this.sensorCallout.position.set(0.72, 1.25, 1.25);
       this.sensorCallout.visible = false;
       this.engineGroup.add(this.sensorCallout);
+
+      // Standardize selectable component registry for all 12 core subsystems
+      this.selectableComponents.set('piston', this.selectableComponents.get('piston_1'));
+      this.selectableComponents.set('cylinder', this.selectableComponents.get('cyl_1'));
+      this.selectableComponents.set('conrod', this.selectableComponents.get('conrod_1'));
+      this.selectableComponents.set('intake_manifold', this.selectableComponents.get('intake_system'));
+      this.selectableComponents.set('exhaust_manifold', this.selectableComponents.get('exhaust_system'));
+      this.selectableComponents.set('oil_pump', this.selectableComponents.get('lubrication_system'));
+      this.selectableComponents.set('oil_system', this.selectableComponents.get('lubrication_system'));
 
       // Perform initial kinematic assembly placement
       this._updateKinematics();
@@ -977,6 +1145,19 @@
     }
 
     selectComponent(componentId) {
+      const aliasMap = {
+        'piston': 'piston_1',
+        'cylinder': 'cyl_1',
+        'conrod': 'conrod_1',
+        'head': 'head_1',
+        'intake_manifold': 'intake_system',
+        'exhaust_manifold': 'exhaust_system',
+        'oil_pump': 'lubrication_system',
+        'oil_system': 'lubrication_system'
+      };
+      if (aliasMap[componentId] && !this.selectableComponents.has(componentId)) {
+        componentId = aliasMap[componentId];
+      }
       this.selectedComponentId = componentId;
       const comp = this.selectableComponents.get(componentId);
       if (!comp) return;
@@ -1075,6 +1256,11 @@
         this.crankshaftGroup.rotation.z = this.crankAngle;
       }
 
+      // Rotate camshaft at half crankshaft speed (1:2 4-stroke drive ratio)
+      if (this.camshaftGroup) {
+        this.camshaftGroup.rotation.z = this.crankAngle * 0.5;
+      }
+
       // Drive each slider-crank kinematic chain
       for (let i = 0; i < this.kinematicPistons.length; i++) {
         const item = this.kinematicPistons[i];
@@ -1088,6 +1274,75 @@
         item.conrodGroup.position.set(xPin, yPin, item.cfg.z);
         item.conrodGroup.rotation.z = Math.atan2(-yPin, xPiston - xPin);
       }
+    }
+
+    getComponentAnchor(componentId) {
+      const aliasMap = {
+        'piston': 'piston_1',
+        'cylinder': 'cyl_1',
+        'conrod': 'conrod_1',
+        'head': 'head_1',
+        'intake_manifold': 'intake_system',
+        'exhaust_manifold': 'exhaust_system',
+        'oil_pump': 'lubrication_system',
+        'oil_system': 'lubrication_system'
+      };
+      const resolvedId = aliasMap[componentId] || componentId;
+
+      if (resolvedId === 'piston_1' || resolvedId === 'piston') {
+        const kin = this.kinematicPistons && this.kinematicPistons[0];
+        if (kin && kin.crownMesh) {
+          const p = new THREE.Vector3();
+          kin.crownMesh.getWorldPosition(p);
+          return p;
+        }
+      }
+      if (resolvedId === 'conrod_1' || resolvedId === 'conrod') {
+        const kin = this.kinematicPistons && this.kinematicPistons[0];
+        if (kin && kin.rodBeam) {
+          const p = new THREE.Vector3();
+          kin.rodBeam.getWorldPosition(p);
+          return p;
+        }
+      }
+
+      const comp = this.selectableComponents.get(resolvedId) || this.selectableComponents.get(componentId);
+      if (comp && comp.mesh) {
+        const p = new THREE.Vector3();
+        comp.mesh.getWorldPosition(p);
+        return p;
+      }
+
+      // Calibrated fallbacks in local 3D engine space
+      const fallbackMap = {
+        spark_plug: new THREE.Vector3(-1.35, 0.64, -0.72),
+        cylinder: new THREE.Vector3(-1.35, 0.05, -0.72),
+        piston: new THREE.Vector3(-0.95, 0.05, -0.72),
+        conrod: new THREE.Vector3(-0.45, 0.0, -0.72),
+        crankshaft: new THREE.Vector3(0.0, 0.0, -0.2),
+        camshaft: new THREE.Vector3(0.0, -0.42, -0.2),
+        intake_valve: new THREE.Vector3(-1.46, 0.28, -0.88),
+        exhaust_valve: new THREE.Vector3(-1.46, -0.28, -0.56),
+        lubrication_system: new THREE.Vector3(0.0, -0.85, -1.08),
+        fuel_system: new THREE.Vector3(-0.70, 0.82, -0.72),
+        intake_manifold: new THREE.Vector3(0.0, 0.95, 0.0),
+        exhaust_manifold: new THREE.Vector3(0.0, -1.38, 1.4)
+      };
+      return fallbackMap[componentId] || null;
+    }
+
+    projectToScreen(pos) {
+      if (!this.camera || !this.canvas || !pos) return null;
+      const v = pos.clone();
+      v.project(this.camera);
+      const rect = this.canvas.getBoundingClientRect();
+      const w = rect.width || this.canvas.parentElement?.clientWidth || 600;
+      const h = rect.height || this.canvas.parentElement?.clientHeight || 360;
+      return {
+        x: ((v.x * 0.5) + 0.5) * w,
+        y: (-(v.y * 0.5) + 0.5) * h,
+        inFront: v.z < 1.0
+      };
     }
 
     toggleMotion() {
@@ -1293,6 +1548,9 @@
       }
 
       this.renderer.render(this.scene, this.camera);
+      if (typeof window.update3DCallouts === 'function') {
+        window.update3DCallouts();
+      }
       requestAnimationFrame(this._animate);
     }
   }

@@ -2,10 +2,10 @@
   "name": "aerotwin-uav",
   "version": "1.0.0",
   "description": "[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen?logo=github)](https://github.com) [![DRDO SIH 2026](https://img.shields.io/badge/DRDO%20SIH-Problem%2026054-blue?logo=aerospace)](https://sih.gov.in) [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Avionics%20GCS-00f0ff)](https://github.com) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)",
-  "main": "server.js",
+  "main": "server.local.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.local.js"
   },
   "repository": {
     "type": "git",

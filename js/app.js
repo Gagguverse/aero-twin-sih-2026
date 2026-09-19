@@ -1966,22 +1966,18 @@
     // 3. SHOW TYPING INDICATOR
     const typingId = showTypingIndicator();
 
-    // 4. SEND QUERY TO GROQ WITH THE IMMUTABLE SNAPSHOT (NO SILENT FAKE FALLBACK)
-    tryGrokQuery(cleanQuery, snapshot).then(result => {
+    // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
+    tryGrokQuery(cleanQuery, snapshot).then(grokResult => {
       removeTypingIndicator(typingId);
-      if (result && result.source === 'grok' && result.response) {
-        // Groq succeeded — convert markdown bold to HTML bold
-        let html = result.response.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      if (grokResult) {
+        // Grok succeeded — convert markdown bold to HTML bold
+        let html = grokResult.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
         html = html.replace(/\n/g, '<br>');
         appendAssistantMessage('ai', html, 'grok');
-      } else if (result && (result.error === 'not_configured' || (result.response && result.response.includes('Groq AI not configured')))) {
-        appendAssistantMessage('ai', '⚠️ <strong>Groq AI not configured</strong> — add <code>GROQ_API_KEY</code> to <code>.env</code>', 'system');
-      } else if (result && result.response) {
-        appendAssistantMessage('ai', `⚠️ ${result.response}`, 'system');
-      } else if (result && result.message) {
-        appendAssistantMessage('ai', `⚠️ ${result.message}`, 'system');
       } else {
-        appendAssistantMessage('ai', '⚠️ <strong>Groq AI unreachable</strong> — ensure <code>npm start</code> server is running with a valid <code>GROQ_API_KEY</code>.', 'system');
+        // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+        const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
+        appendAssistantMessage('ai', localResponse, 'local');
       }
     });
   }
@@ -1998,10 +1994,13 @@
           appState: snapshot || getAssistantSnapshot()
         })
       });
+      if (!response.ok) return null;
       const data = await response.json();
-      return data;
+      if (data.error) return null;
+      return data.response || null;
     } catch (err) {
-      return { error: 'network_error', message: err.message };
+      // Network error or server not available
+      return null;
     }
   }
 

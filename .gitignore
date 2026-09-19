@@ -37,8 +37,3 @@ env/
 *.njsproj
 *.sln
 *.sw?
-
-# Test scratch and temp assets
-dev-tools/scratch/
-dev-tools/*.png
-stitch_screen.html

@@ -73,7 +73,8 @@ async function run() {
   });
 
   assert(thermalRes.status === 200, 'HTTP 200 response');
-  assert(thermalRes.source === 'grok' || thermalRes.source === 'local_fallback', `Source is grok or local_fallback (got: ${thermalRes.source})`);
+  assert(thermalRes.source === 'grok', `Source is grok (got: ${thermalRes.source})`);
+  assert(thermalRes.source !== 'local_fallback', 'Source is NOT local_fallback (must use real Groq API)');
   assert(thermalRes.source !== 'gemini', 'Source is NOT gemini');
 
   const tr = (thermalRes.response || '').toLowerCase();

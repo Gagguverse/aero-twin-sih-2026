@@ -3,7 +3,7 @@ title JetEngine - Live Server & Public Tunnel
 echo ========================================================
 echo   Starting JetEngine Local Server (Port 3000)...
 echo ========================================================
-start /b node server.js
+start /b node "%~dp0..\server.js"
 timeout /t 2 >nul
 echo.
 echo ========================================================

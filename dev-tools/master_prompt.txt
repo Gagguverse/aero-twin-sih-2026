@@ -1,0 +1,151 @@
+<USER_REQUEST>
+AERO TWIN — FINAL MASTER PROMPT
+FULL DASHBOARD INTEGRATION + REAL AI/ML + TRAINING + LIVE STATE + MISSION REPLAY
+
+============================================================
+OBJECTIVE
+============================================================
+
+The current Aero Twin dashboard visually works, including the restored Stitch UI and working 3D engine.
+
+However, many dashboard sections are currently disconnected from the actual underlying engine/AI logic.
+
+I now want to turn the EXISTING dashboard into one coherent, genuinely working system.
+
+The goal is NOT another UI redesign.
+
+The goal is:
+
+MAKE EVERY EXISTING DASHBOARD FEATURE FUNCTIONALLY CONNECTED TO ONE REAL RUNTIME DATA PIPELINE.
+
+The final application must have:
+
+Synthetic Telemetry
+        ↓
+Telemetry Engine
+        ↓
+Sensor Trust Layer
+        ↓
+Trusted / Quarantined Telemetry
+        ↓
+REAL ML ANOMALY DETECTION
+        ↓
+REAL ML FAULT CLASSIFICATION
+        ↓
+EHI
+        ↓
+Degradation
+        ↓
+RUL
+        ↓
+WHY / Explainability
+        ↓
+Central Application State
+        ↓
+EVERY DASHBOARD COMPONENT
+
+============================================================
+CRITICAL UI RULE
+============================================================
+
+DO NOT redesign the current dashboard.
+
+DO NOT use Stitch again.
+
+DO NOT change the current restored Stitch visual baseline.
+
+DO NOT change the current layout, colors, typography, cards, spacing, or visual hierarchy unless a tiny functional change is absolutely required.
+
+The current UI is the visual source of truth.
+
+Do not add unnecessary panels or pages.
+
+Do not turn this into a larger dashboard.
+
+Keep the current working 3D Digital Twin and inspection system.
+
+The task is FUNCTIONAL INTEGRATION, not UI redesign.
+
+============================================================
+1. FIRST: INSPECT THE EXISTING REPOSITORY
+============================================================
+
+Before modifying anything, inspect 
+<truncated 22535 bytes>
+
+sensor trust values
+RUL
+degradation
+feature importance
+model confidence
+test results
+
+If something cannot actually be implemented or verified, say so clearly.
+
+Do not hide blockers behind hardcoded demo values.
+
+The project uses synthetic telemetry.
+
+Do not claim:
+
+certification
+real DRDO telemetry
+live UAV telemetry
+validated operational aerospace performance
+certified RUL
+
+============================================================
+30. FINAL EXECUTION RULE
+============================================================
+
+Do not ask me to manually create:
+
+datasets
+models
+folders
+training scripts
+configuration files
+integration code
+
+Create everything required inside the repository.
+
+Run the training pipeline yourself.
+
+Run the application yourself.
+
+Run the tests yourself.
+
+Verify the actual browser behavior yourself.
+
+If an existing API is incompatible:
+
+1. identify the exact incompatibility
+2. reuse what is possible
+3. implement the smallest honest fix
+4. report the limitation
+
+Do not silently fake functionality.
+
+Do not redesign the UI.
+
+Do not modify the working 3D system unnecessarily.
+
+Do not proceed to unrelated features.
+
+Complete this integration first.
+
+STOP after the full end-to-end integration and verification.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-18T20:13:18+05:30.
+
+The user's current state is as follows:
+Active Document: e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\full_system_audit.js (LANGUAGE_JAVASCRIPT)
+Cursor is on line: 1
+Other open documents:
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\verify_stitch_implementation.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\capture_inspection_states.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\js\app.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\test-sensor-trust.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\js\report-generator.js (LANGUAGE_JAVASCRIPT)
+</ADDITIONAL_METADATA>

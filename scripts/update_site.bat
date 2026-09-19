@@ -4,7 +4,7 @@ echo ======================================================================
 echo   AERO-TWIN: Bundling latest code updates for GitHub
 echo ======================================================================
 echo.
-node "%~dp0scratch\bundle.js"
+node "%~dp0bundle.js"
 echo.
 echo ======================================================================
 echo   [DONE] Latest code bundled into index.html!

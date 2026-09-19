@@ -1,0 +1,1064 @@
+/* ==========================================================================
+   TACTICAL MISSION, CONTINGENCY AI & DEFENCE REPORT STYLING (SIH-26054)
+   ========================================================================== */
+
+/* Mission Explainer Banner & 1-Click Simulation Bar */
+.mission-explainer-banner {
+  background: linear-gradient(135deg, rgba(8, 16, 36, 0.95), rgba(16, 28, 56, 0.95));
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: var(--border-radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.mission-guide-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mission-guide-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mission-guide-badge {
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--cyan-hud);
+  font-family: var(--font-hud);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: var(--border-radius-sm);
+  font-weight: 700;
+}
+
+.mission-guide-title {
+  color: #fff;
+  font-family: var(--font-hud);
+  font-size: 13px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.mission-steps-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.m-step-card {
+  background: rgba(4, 9, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.m-step-card:hover {
+  background: rgba(0, 240, 255, 0.08);
+  border-color: rgba(0, 240, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 240, 255, 0.15);
+}
+
+.m-step-card.active-step {
+  border-color: var(--cyan-hud);
+  background: rgba(0, 240, 255, 0.12);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.25), inset 0 0 10px rgba(0, 240, 255, 0.08);
+}
+
+.m-step-card.warning-step:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+}
+
+.m-step-card.warning-step.active-step {
+  border-color: var(--amber-warn);
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.25), inset 0 0 10px rgba(245, 158, 11, 0.08);
+}
+
+.m-step-card.warning-step.active-step .m-step-num {
+  color: var(--amber-warn);
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.m-step-card.divert-step:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
+
+.m-step-card.divert-step.active-step {
+  border-color: var(--emerald-safe);
+  background: rgba(16, 185, 129, 0.12);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.25), inset 0 0 10px rgba(16, 185, 129, 0.08);
+}
+
+.m-step-card.divert-step.active-step .m-step-num {
+  color: var(--emerald-safe);
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.m-step-num {
+  font-family: var(--font-hud);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--cyan-hud);
+  background: rgba(0, 240, 255, 0.12);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.step-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.step-action-tag {
+  font-family: var(--font-hud);
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--cyan-hud);
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  white-space: nowrap;
+}
+
+.step-action-tag.warn {
+  color: var(--amber-warn);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.step-action-tag.safe {
+  color: var(--emerald-safe);
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.m-step-body {
+  flex: 1;
+}
+
+.m-step-body strong {
+  display: block;
+  font-size: 10px;
+  font-family: var(--font-hud);
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.m-step-body p {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* 1-Click Interactive Test Scenarios */
+.mission-test-scenarios {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+}
+
+.scenario-bar-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-hud);
+  font-size: 11px;
+  color: var(--cyan-hud);
+  letter-spacing: 0.5px;
+}
+
+.scenario-pills-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scenario-pill-btn {
+  background: rgba(15, 25, 50, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-family: var(--font-hud);
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-fast);
+}
+
+.scenario-pill-btn:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--cyan-hud);
+  transform: translateY(-1px);
+}
+
+.scenario-pill-btn.active {
+  background: rgba(0, 240, 255, 0.22);
+  border-color: var(--cyan-hud);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.pill-dot.green { background: var(--emerald-safe); box-shadow: 0 0 5px var(--emerald-safe); }
+.pill-dot.amber { background: var(--amber-warn); box-shadow: 0 0 5px var(--amber-warn); }
+.pill-dot.red { background: var(--crimson-crit); box-shadow: 0 0 5px var(--crimson-crit); }
+
+/* Mission Layout Grid */
+.mission-grid-layout {
+  display: grid;
+  grid-template-columns: 1fr 390px;
+  gap: 16px;
+  min-height: calc(100vh - var(--header-height) - var(--statusbar-height) - 48px);
+}
+
+/* Tactical Map Card */
+.tactical-map-card {
+  height: 640px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-ctrl-btn {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--cyan-hud);
+  font-family: var(--font-hud);
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition-fast);
+}
+.map-ctrl-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  border-color: var(--cyan-hud);
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(circle at 40% 40%, #0c1833 0%, #040813 90%);
+  overflow: hidden;
+}
+
+#mission-radar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Map HUD Overlays */
+.map-hud-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+  flex-wrap: wrap;
+}
+
+.map-telemetry-badge {
+  background: rgba(8, 14, 28, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: var(--border-radius-sm);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.map-telemetry-badge .lbl {
+  color: var(--text-muted);
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.map-telemetry-badge .val {
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+}
+.map-telemetry-badge .val.highlight-cyan { color: var(--cyan-hud); }
+.map-telemetry-badge .val.highlight-emerald { color: var(--emerald-safe); }
+.map-telemetry-badge .val.highlight-amber { color: var(--amber-warn); }
+
+/* Map Legend */
+.map-legend {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  background: rgba(8, 14, 28, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legend-header {
+  font-family: var(--font-hud);
+  font-size: 9px;
+  color: var(--cyan-hud);
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.legend-dot.uav { background: var(--cyan-hud); box-shadow: 0 0 6px var(--cyan-hud); }
+.legend-dot.safe { background: var(--emerald-safe); }
+.legend-dot.divert { background: var(--amber-warn); }
+.legend-dot.reach { background: rgba(16, 185, 129, 0.5); border: 1px dashed var(--emerald-safe); }
+.legend-dot.border { background: #eab308; }
+.legend-dot.threat { background: var(--crimson-crit); }
+
+/* Mission Sidebar (Advisory + Airframe + Corridor) */
+.mission-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Tactical Contingency Card */
+.contingency-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 3px solid var(--cyan-hud);
+}
+
+.contingency-card.warning-state {
+  border-left-color: var(--amber-warn);
+  background: rgba(30, 24, 12, 0.7);
+}
+
+.contingency-card.critical-state {
+  border-left-color: var(--crimson-crit);
+  background: rgba(38, 14, 18, 0.8);
+}
+
+.contingency-alert-box {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: var(--border-radius-sm);
+  padding: 10px 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contingency-title {
+  font-family: var(--font-hud);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contingency-title.safe { color: var(--emerald-safe); }
+.contingency-title.warn { color: var(--amber-warn); }
+.contingency-title.crit { color: var(--crimson-crit); }
+
+.contingency-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.contingency-steps {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan-hud);
+}
+
+.contingency-steps li {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contingency-steps li::before {
+  content: '▶';
+  font-size: 7px;
+  color: var(--cyan-hud);
+}
+
+/* Failsafe Execution Banner */
+.failsafe-action-box {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.failsafe-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  border: none;
+  font-family: var(--font-hud);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  padding: 10px 16px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.failsafe-btn:hover {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+  box-shadow: 0 0 20px var(--crimson-glow);
+}
+
+.failsafe-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* DRDO Tapas Airframe Architecture Showcase Card */
+.uav-architecture-card {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 3px solid #00f0ff;
+}
+
+.uav-schematic-visual {
+  background: radial-gradient(circle at center, rgba(0, 240, 255, 0.08) 0%, rgba(4, 9, 20, 0.95) 80%);
+  border: 1px solid rgba(0, 240, 255, 0.2);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.uav-vector-svg {
+  width: 100%;
+  max-height: 120px;
+  display: block;
+}
+
+.uav-specs-mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.uav-spec-item {
+  background: rgba(7, 12, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--border-radius-sm);
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.uav-spec-item .lbl {
+  font-size: 8.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+.uav-spec-item .val {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #fff;
+}
+.uav-spec-item .val.highlight-amber { color: var(--amber-warn); }
+
+/* Strategic Airfield Recovery Network Card */
+.recovery-bases-card {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 3px solid var(--emerald-safe);
+}
+
+.bases-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.base-row-card {
+  background: rgba(8, 14, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: var(--transition-fast);
+}
+
+.base-row-card:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  background: rgba(12, 22, 44, 0.9);
+}
+
+.base-row-card.priority-divert {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(30, 22, 8, 0.5);
+}
+
+.base-row-card.active-target {
+  border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.base-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.base-name {
+  font-family: var(--font-hud);
+  font-size: 10px;
+  color: #fff;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.base-tag {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.base-tag.home {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: var(--emerald-safe);
+}
+
+.base-tag.divert {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: var(--amber-warn);
+}
+
+.base-tag.backup {
+  background: rgba(0, 240, 255, 0.15);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  color: var(--cyan-hud);
+}
+
+.base-row-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.b-metric span {
+  color: var(--text-muted);
+}
+.b-metric strong {
+  color: #fff;
+  margin-left: 2px;
+}
+
+.base-row-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.base-reach-status {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+}
+.base-reach-status.safe { color: var(--emerald-safe); }
+.base-reach-status.warn { color: var(--amber-warn); }
+.base-reach-status.crit { color: var(--crimson-crit); }
+
+.base-divert-btn {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: #fff;
+  font-family: var(--font-hud);
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.base-divert-btn:hover {
+  background: rgba(0, 240, 255, 0.3);
+  border-color: var(--cyan-hud);
+}
+
+.base-divert-btn.primary-btn {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.4), rgba(217, 119, 6, 0.5));
+  border-color: var(--amber-warn);
+  color: #fff;
+  font-weight: 700;
+}
+.base-divert-btn.primary-btn:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.7), rgba(217, 119, 6, 0.8));
+}
+
+/* Flight Parameters Table */
+.flight-params-card {
+  padding: 14px 16px;
+}
+
+.flight-data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.param-box {
+  background: rgba(7, 12, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.param-lbl {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.param-num {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   FAULT SIMULATOR / INJECTION SANDBOX VIEW
+   ========================================================================== */
+
+.sandbox-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sandbox-header-banner {
+  background: linear-gradient(135deg, rgba(13, 22, 42, 0.9), rgba(23, 38, 73, 0.9));
+  border: 1px solid var(--border-active);
+  border-radius: var(--border-radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sandbox-title-wrap h2 {
+  font-family: var(--font-hud);
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sandbox-title-wrap p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.fault-scenario-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.scenario-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.scenario-card:hover {
+  border-color: var(--cyan-hud);
+  transform: translateY(-2px);
+  background: var(--bg-card-hover);
+}
+
+.scenario-card.active {
+  border-color: var(--cyan-hud);
+  background: rgba(0, 240, 255, 0.08);
+  box-shadow: 0 0 16px var(--cyan-glow);
+}
+
+.scenario-card.critical.active {
+  border-color: var(--crimson-crit);
+  background: rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 16px var(--crimson-glow);
+}
+
+.scenario-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scenario-tag {
+  font-family: var(--font-hud);
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.scenario-card h3 {
+  font-family: var(--font-hud);
+  font-size: 13px;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.scenario-card p {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  flex: 1;
+}
+
+.scenario-impact {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan-hud);
+  background: rgba(0, 240, 255, 0.06);
+  padding: 6px 8px;
+  border-radius: var(--border-radius-sm);
+  border: 1px dashed rgba(0, 240, 255, 0.2);
+}
+
+/* Interactive Manual Sliders Group */
+.manual-sliders-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.slider-group-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--border-radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slider-group-title {
+  font-family: var(--font-hud);
+  font-size: 11px;
+  color: var(--cyan-hud);
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 6px;
+}
+
+.tactical-slider-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slider-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.slider-label-row .val {
+  color: #fff;
+  font-weight: 700;
+}
+
+.tactical-range-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+}
+
+.tactical-range-input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cyan-hud);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--cyan-hud);
+  transition: transform 0.1s;
+}
+
+.tactical-range-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--cyan-hud);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--cyan-hud);
+  transition: transform 0.1s;
+}
+
+.tactical-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+/* ==========================================================================
+   PRINTABLE AIRWORTHINESS REPORT (DRDO / CEMILAC DD FORMAT)
+   ========================================================================== */
+
+.report-document {
+  background: #090e1c;
+  border: 1px solid var(--border-active);
+  border-radius: var(--border-radius-md);
+  padding: 28px;
+  color: #e2e8f0;
+  font-family: var(--font-body);
+}
+
+.report-header-crest {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--cyan-hud);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.report-crest-title h2 {
+  font-family: var(--font-hud);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  color: #fff;
+}
+
+.report-crest-title p {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan-hud);
+}
+
+.report-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.report-table th, .report-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.report-table th {
+  color: var(--cyan-hud);
+  font-family: var(--font-hud);
+  font-size: 10px;
+  text-transform: uppercase;
+  background: rgba(0, 240, 255, 0.05);
+}
+
+.report-sign-off {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .modal-backdrop.active .modal-container,
+  .modal-backdrop.active .report-document,
+  .modal-backdrop.active .report-document * {
+    visibility: visible;
+  }
+  .modal-backdrop {
+    position: static;
+    background: white;
+  }
+  .report-document {
+    background: white;
+    color: black;
+    border: none;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE MEDIA QUERIES (MISSION & SANDBOX)
+   ========================================================================== */
+@media (max-width: 1180px) {
+  .mission-grid-layout {
+    grid-template-columns: 1fr;
+  }
+  .tactical-map-card {
+    height: 480px;
+  }
+  .fault-scenario-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .manual-sliders-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  .tactical-map-card {
+    height: 380px;
+  }
+  .fault-scenario-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .manual-sliders-grid {
+    grid-template-columns: 1fr;
+  }
+}

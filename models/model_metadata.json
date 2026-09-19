@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-09-18T20:45:09.524409",
+  "feature_names": [
+    "rpm",
+    "cht_avg",
+    "egt_avg",
+    "oil_press",
+    "oil_temp",
+    "fuel_flow",
+    "map",
+    "load",
+    "vibration_rms"
+  ],
+  "class_names": [
+    "HEALTHY",
+    "THERMAL_DEGRADATION",
+    "LUBRICATION_DEGRADATION",
+    "RPM_INSTABILITY"
+  ],
+  "test_accuracy": 0.99875,
+  "confusion_matrix": [
+    [
+      200,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      200,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      200,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      199
+    ]
+  ],
+  "isolation_forest_separation": 0.13432404606721,
+  "feature_importances": {
+    "rpm": 0.013770762526729319,
+    "cht_avg": 0.13225548607637352,
+    "egt_avg": 0.12687214831024093,
+    "oil_press": 0.21418112006907142,
+    "oil_temp": 0.16588917407153525,
+    "fuel_flow": 0.009279420378954519,
+    "map": 0.025672828727174118,
+    "load": 0.01796038748835835,
+    "vibration_rms": 0.29411867235156264
+  },
+  "top_features_ranked": [
+    [
+      "vibration_rms",
+      0.29411867235156264
+    ],
+    [
+      "oil_press",
+      0.21418112006907142
+    ],
+    [
+      "oil_temp",
+      0.16588917407153525
+    ],
+    [
+      "cht_avg",
+      0.13225548607637352
+    ],
+    [
+      "egt_avg",
+      0.12687214831024093
+    ],
+    [
+      "map",
+      0.025672828727174118
+    ],
+    [
+      "load",
+      0.01796038748835835
+    ],
+    [
+      "rpm",
+      0.013770762526729319
+    ],
+    [
+      "fuel_flow",
+      0.009279420378954519
+    ]
+  ],
+  "disclaimer": "Model performance is demonstrated on synthetic data and is not claimed as certified real-world engine predictive accuracy."
+}

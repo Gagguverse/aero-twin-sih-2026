@@ -1,0 +1,1231 @@
+<USER_REQUEST>
+AERO TWIN — FINAL MASTER PROMPT
+FULL DASHBOARD INTEGRATION + REAL AI/ML + TRAINING + LIVE STATE + MISSION REPLAY
+
+============================================================
+OBJECTIVE
+============================================================
+
+The current Aero Twin dashboard visually works, including the restored Stitch UI and working 3D engine.
+
+However, many dashboard sections are currently disconnected from the actual underlying engine/AI logic.
+
+I now want to turn the EXISTING dashboard into one coherent, genuinely working system.
+
+The goal is NOT another UI redesign.
+
+The goal is:
+
+MAKE EVERY EXISTING DASHBOARD FEATURE FUNCTIONALLY CONNECTED TO ONE REAL RUNTIME DATA PIPELINE.
+
+The final application must have:
+
+Synthetic Telemetry
+        ↓
+Telemetry Engine
+        ↓
+Sensor Trust Layer
+        ↓
+Trusted / Quarantined Telemetry
+        ↓
+REAL ML ANOMALY DETECTION
+        ↓
+REAL ML FAULT CLASSIFICATION
+        ↓
+EHI
+        ↓
+Degradation
+        ↓
+RUL
+        ↓
+WHY / Explainability
+        ↓
+Central Application State
+        ↓
+EVERY DASHBOARD COMPONENT
+
+============================================================
+CRITICAL UI RULE
+============================================================
+
+DO NOT redesign the current dashboard.
+
+DO NOT use Stitch again.
+
+DO NOT change the current restored Stitch visual baseline.
+
+DO NOT change the current layout, colors, typography, cards, spacing, or visual hierarchy unless a tiny functional change is absolutely required.
+
+The current UI is the visual source of truth.
+
+Do not add unnecessary panels or pages.
+
+Do not turn this into a larger dashboard.
+
+Keep the current working 3D Digital Twin and inspection system.
+
+The task is FUNCTIONAL INTEGRATION, not UI redesign.
+
+============================================================
+1. FIRST: INSPECT THE EXISTING REPOSITORY
+============================================================
+
+Before modifying anything, inspect the actual repository.
+
+Inspect:
+
+- index.html
+- css/main.css
+- js/app.js
+- js/telemetry-engine.js
+- js/sensor-trust.js
+- js/ai-diagnostic-net.js
+- js/fault-simulator.js
+- js/engine-3d.js
+- any degradation/RUL implementation
+- any replay/history implementation
+- any training scripts
+- any model files
+- package.json
+- server/bundler files
+- existing verification scripts
+
+Understand the existing APIs before editing.
+
+DO NOT guess method names.
+
+DO NOT create duplicate engines if working implementations already exist.
+
+Reuse existing implementations wherever possible.
+
+Before coding, provide a SHORT implementation map:
+
+1. Existing telemetry implementation
+2. Existing sensor trust implementation
+3. Existing AI/ML implementation
+4. Existing fault simulation
+5. Existing degradation/RUL implementation
+6. Existing replay implementation
+7. Existing 3D integration
+8. Current hardcoded/disconnected areas
+9. Files that will be modified
+10. Files that will be created
+
+Then proceed with implementation.
+
+============================================================
+2. ONE CENTRAL APPLICATION STATE
+============================================================
+
+Create or maintain ONE central runtime state.
+
+Example:
+
+appState = {
+    scenario,
+    telemetry,
+    trustResult,
+    trustedTelemetry,
+    diagnosticResult,
+    ehi,
+    degradation,
+    rul,
+    missionPhase,
+    history,
+    timestamp
+}
+
+Every dashboard section must consume this state.
+
+There must NOT be separate hardcoded values for individual panels.
+
+There must NOT be independent scenario data driving different sections.
+
+============================================================
+3. MASTER RUNTIME PIPELINE
+============================================================
+
+Implement this exact logical flow:
+
+SCENARIO
+   ↓
+TelemetryEngine
+   ↓
+RAW TELEMETRY
+   ↓
+SensorTrustEngine
+   ↓
+TRUSTED / QUARANTINED TELEMETRY
+   ↓
+Isolation Forest
+   ↓
+ANOMALY SCORE
+   ↓
+Random Forest
+   ↓
+FAULT CLASSIFICATION
+   ↓
+EHI
+   ↓
+DEGRADATION
+   ↓
+RUL
+   ↓
+WHY / EXPLANATION
+   ↓
+appState
+   ↓
+ALL UI + 3D + REPLAY + AI ASSISTANT
+
+Scenario buttons must NOT directly populate UI values.
+
+Correct:
+
+Scenario
+→ simulator
+→ telemetry
+→ trust
+→ ML
+→ EHI
+→ degradation
+→ RUL
+→ WHY
+→ UI
+
+Incorrect:
+
+Scenario
+→ hardcoded JSON
+→ UI
+
+============================================================
+4. LIVE TELEMETRY
+============================================================
+
+The LIVE TELEMETRY panel must use the real TelemetryEngine.
+
+Relevant telemetry:
+
+- RPM
+- CHT
+- EGT
+- Oil Temperature
+- Oil Pressure
+- Fuel Flow
+- MAP
+- Engine Load
+- Ambient Temperature
+
+Values must come from runtime telemetry.
+
+Do NOT hardcode displayed output values such as:
+
+4200 RPM
+178°C
+824°C
+44 PSI
+26 L/h
+34 inHg
+72%
+
+These may exist as simulator baseline/configuration values.
+
+But the dashboard output must be generated from the actual telemetry engine.
+
+The values should update as simulation runs.
+
+============================================================
+5. SENSOR TRUST LAYER
+============================================================
+
+Sensor Trust is a SEPARATE deterministic layer.
+
+It is NOT the ML classifier.
+
+SensorTrustEngine must evaluate:
+
+- signal variance
+- freeze/stagnation
+- rate-of-change
+- cross-sensor consistency
+- physically plausible relationships
+
+The purpose is:
+
+"Can I trust this sensor reading?"
+
+It is NOT:
+
+"How healthy is the engine?"
+
+For each sensor show:
+
+- sensor name
+- current telemetry value
+- trust score
+- status
+- short reason
+
+Example:
+
+RPM
+4200 RPM
+0.98
+TRUSTED
+
+Oil Pressure
+44 PSI
+0.25
+UNTRUSTED
+
+Do NOT hardcode trust output.
+
+Wrong:
+
+oilPressureTrust = 0.25
+
+Correct:
+
+SensorTrustEngine calculates it.
+
+============================================================
+6. SENSOR FAULT LOGIC
+============================================================
+
+SENSOR FAULT scenario:
+
+Inject an actual oil-pressure sensor freeze/drift through the existing fault simulation/telemetry mechanism.
+
+Example underlying condition:
+
+RPM changes
+Load changes
+Oil pressure remains almost constant
+
+SensorTrustEngine must detect this.
+
+Expected:
+
+Oil Pressure trust decreases
+Sensor becomes UNTRUSTED / QUARANTINED
+Reason explains why
+
+Example:
+
+"Signal remained nearly constant while RPM and load changed."
+
+IMPORTANT:
+
+BAD SENSOR ≠ BAD ENGINE
+
+A faulty sensor must NOT automatically make the engine appear mechanically failed.
+
+The ML health pipeline must use TRUSTED telemetry where appropriate.
+
+============================================================
+7. THERMAL SENSOR TRUST
+============================================================
+
+For thermal degradation:
+
+CHT ↑
+EGT ↑
+Load ↑
+
+with physically correlated behaviour.
+
+The thermal sensors should remain TRUSTED if their signals are internally consistent.
+
+This is critical to demonstrating:
+
+SENSOR FAULT ≠ ENGINE DEGRADATION
+
+A genuine correlated thermal problem should pass the trust layer and then be detected by the ML diagnostic layer.
+
+============================================================
+8. REAL AI/ML — MANDATORY
+============================================================
+
+The dashboard currently references:
+
+Isolation Forest
+Random Forest
+SHAP
+
+Make the AI/ML claims truthful.
+
+Use the existing AIDiagnosticNet if it already supports these models.
+
+If incomplete, implement the minimum real ML pipeline required.
+
+------------------------------------------------------------
+MODEL 1 — ISOLATION FOREST
+------------------------------------------------------------
+
+Purpose:
+
+ANOMALY DETECTION
+
+Use relevant trusted telemetry / engineered features:
+
+RPM
+CHT
+EGT
+Oil Pressure
+Oil Temperature
+Fuel Flow
+MAP
+Engine Load
+Ambient Temperature
+
+Output:
+
+- anomaly score
+- anomaly flag
+
+Isolation Forest is UNSUPERVISED.
+
+Do not present classifier accuracy for Isolation Forest as if it were supervised classification.
+
+------------------------------------------------------------
+MODEL 2 — RANDOM FOREST CLASSIFIER
+------------------------------------------------------------
+
+Purpose:
+
+FAULT CLASSIFICATION
+
+Classes:
+
+Healthy
+Thermal Degradation
+Lubrication Degradation
+RPM Instability
+
+Output:
+
+- predicted class
+- confidence/probability
+- feature importance / contributing parameters
+
+Do NOT use:
+
+if scenario == thermal:
+    diagnosis = "THERMAL DEGRADATION"
+
+That would be hardcoded classification.
+
+The trained model must produce the classification.
+
+============================================================
+9. REAL MODEL TRAINING
+============================================================
+
+Training is mandatory.
+
+If a proper training script does not exist, create:
+
+scripts/train_models.py
+
+Generate directionally realistic SYNTHETIC engine telemetry.
+
+Create samples for:
+
+1. Healthy
+2. Thermal Degradation
+3. Lubrication Degradation
+4. RPM Instability
+
+Use physically sensible relationships.
+
+Examples:
+
+NORMAL:
+
+Load ↑
+→ Fuel Flow ↑
+→ EGT ↑
+→ CHT ↑ with lag
+
+THERMAL DEGRADATION:
+
+EGT ↑
+CHT ↑
+thermal deviation ↑
+
+LUBRICATION DEGRADATION:
+
+Oil Pressure ↓
+Oil Temperature may ↑
+
+RPM INSTABILITY:
+
+RPM variance/jitter ↑
+
+SENSOR FAULT:
+
+Sensor freezes/drifts while correlated engine variables continue changing.
+
+Use deterministic random seed.
+
+============================================================
+10. TRAINING OUTPUT
+============================================================
+
+Train:
+
+IsolationForest
+RandomForestClassifier
+
+Save trained models in:
+
+models/
+
+Example:
+
+models/isolation_forest.pkl
+models/fault_classifier.pkl
+
+Do not train models every browser frame.
+
+Training is OFFLINE.
+
+Inference is RUNTIME.
+
+If Python/scikit-learn is already part of the project architecture, use it.
+
+If the current application architecture is browser-only, inspect the existing architecture and implement the smallest honest bridge required for runtime inference.
+
+Do not create unnecessary infrastructure.
+
+============================================================
+11. MODEL EVALUATION
+============================================================
+
+For Random Forest, calculate appropriate basic evaluation metrics.
+
+At minimum:
+
+accuracy
+precision/recall or classification report
+confusion matrix if practical
+
+For Isolation Forest, report appropriate unsupervised/anomaly evaluation information rather than pretending it is a supervised classifier.
+
+Use deterministic test data.
+
+Do not manufacture metrics.
+
+============================================================
+12. RUNTIME MODEL LOADING
+============================================================
+
+AIDiagnosticNet must load the trained models.
+
+Runtime:
+
+Telemetry
+→ Sensor Trust
+→ trusted features
+→ Isolation Forest inference
+→ Random Forest inference
+→ diagnostic result
+
+No random predictions.
+
+No hardcoded scenario-based diagnosis.
+
+============================================================
+13. MAKE AI/ML VISIBLE IN THE EXISTING UI
+============================================================
+
+Do not create a huge ML dashboard.
+
+Use the existing AI DIAGNOSTIC ASSESSMENT panel.
+
+Make it clear what is actually being used:
+
+AI / ML
+
+Isolation Forest
+Anomaly Detection
+
+Random Forest
+Fault Classification
+
+Then show:
+
+Current State
+Anomaly Score
+Fault Classification
+Confidence if available
+
+These must be actual model outputs.
+
+============================================================
+14. EHI — ENGINE HEALTH INDEX
+============================================================
+
+EHI must be calculated from the actual diagnostic pipeline.
+
+Do NOT hardcode:
+
+96
+94
+64
+
+Those numbers may naturally occur, but they must be calculated outputs.
+
+EHI should use trusted telemetry and diagnostic information.
+
+A sensor fault must not directly collapse engine health.
+
+============================================================
+15. DEGRADATION
+============================================================
+
+Connect CURRENT DEGRADATION to the actual diagnostic/prognostic state.
+
+Do not hardcode:
+
+4%
+36%
+
+The value must come from the actual degradation calculation.
+
+Maintain historical degradation values for the trend chart.
+
+============================================================
+16. RUL — REMAINING USEFUL LIFE
+============================================================
+
+Connect RUL to the actual degradation/prognostic pipeline.
+
+Do not hardcode:
+
+182 h
+48 h
+
+Use the existing implementation if available.
+
+If the current implementation is incomplete, implement a simple trend-based model.
+
+RUL must be clearly labelled:
+
+MODEL-BASED ESTIMATE • SIMULATION
+
+Do not claim certified real-world RUL accuracy.
+
+============================================================
+17. EXPLAINABILITY / WHY
+============================================================
+
+WHY must be generated from the actual current diagnostic state.
+
+Do not use unrelated hardcoded messages.
+
+NORMAL example:
+
+"Engine operating normally at current mission conditions.
+Sensor confidence is high."
+
+SENSOR FAULT example:
+
+"Oil pressure sensor is unreliable because its signal remained
+nearly constant while RPM and load changed. Other trusted
+parameters do not indicate equivalent engine degradation."
+
+THERMAL example:
+
+"Thermal degradation is detected because EGT and CHT are
+simultaneously elevated while their sensors remain trustworthy."
+
+The explanation must use actual current telemetry/trust/diagnostic values.
+
+============================================================
+18. CONTRIBUTING PARAMETERS
+============================================================
+
+The existing "VIEW CONTRIBUTING PARAMETERS" interaction must work.
+
+Use:
+
+- actual Random Forest feature importance
+- actual parameter deviations
+- sensor trust information
+
+If SHAP is NOT actually implemented:
+
+DO NOT call it SHAP.
+
+Call it:
+
+CONTRIBUTING PARAMETERS
+
+Example:
+
+EGT deviation       HIGH
+CHT deviation       HIGH
+Engine Load         MEDIUM
+RPM stability       LOW
+
+These should be derived from actual diagnostic information.
+
+============================================================
+19. AI ENGINE ASSISTANT
+============================================================
+
+Keep the existing AI ENGINE ASSISTANT.
+
+Do NOT turn it into a generic ChatGPT project.
+
+It must read current appState.
+
+Quick questions:
+
+Why is engine health changing?
+Is this a sensor fault?
+What caused the anomaly?
+How much RUL remains?
+Which sensor is unreliable?
+
+Examples:
+
+"Is this a sensor fault?"
+
+Answer from:
+
+trustResult
+diagnosticResult
+telemetry
+
+"How much RUL remains?"
+
+Answer from current RUL.
+
+"What caused the anomaly?"
+
+Answer from actual anomaly/contributing parameters.
+
+If replaying history, the assistant must use the REPLAYED appState.
+
+Never answer from a static scenario message.
+
+============================================================
+20. MISSION TIMELINE & EVENT REPLAY
+============================================================
+
+THIS MUST BE A REAL REPLAY SYSTEM.
+
+Do NOT implement replay as:
+
+0–50 = Normal
+50–70 = Sensor Fault
+70+ = Thermal
+
+That is NOT replay.
+
+Create an actual history buffer.
+
+Each recorded state should contain:
+
+timestamp
+mission phase
+raw telemetry
+sensor trust
+trusted telemetry
+quarantined sensors
+anomaly score
+fault classification
+EHI
+degradation
+RUL
+WHY/event information
+
+Mission phases:
+
+IDLE
+TAKEOFF
+CLIMB
+CRUISE
+LOITER
+RETURN
+LANDING
+
+As simulation runs, history is recorded.
+
+The timeline slider selects an actual historical state.
+
+When slider moves:
+
+ALL dashboard components must update from that historical state.
+
+That means:
+
+LIVE TELEMETRY
+SENSOR TRUST
+AI DIAGNOSTICS
+EHI
+DEGRADATION
+RUL
+WHY
+3D STATE
+AI ASSISTANT CONTEXT
+
+must all update consistently.
+
+Event markers must correspond to actual recorded events.
+
+Example:
+
+14:32 — Oil pressure sensor anomaly
+14:37 — Thermal degradation detected
+
+Clicking or scrubbing to an event must reproduce the state at that point.
+
+============================================================
+21. 3D DIGITAL TWIN
+============================================================
+
+Keep the current working 3D engine.
+
+Do NOT rebuild it.
+
+Do NOT replace it.
+
+Synchronize its diagnostic state with appState.
+
+NORMAL:
+
+Normal engine visualization.
+
+SENSOR FAULT:
+
+Show sensor-fault/isolation indication where appropriate.
+
+THERMAL DEGRADATION:
+
+Show restrained thermal indication/hotspot.
+
+The mechanical animation should continue during a sensor fault.
+
+============================================================
+22. SCENARIO BUTTONS
+============================================================
+
+NORMAL MISSION:
+
+Starts the actual normal telemetry simulation.
+
+SENSOR FAULT:
+
+Injects actual oil-pressure sensor fault.
+
+THERMAL DEGRADATION:
+
+Injects actual thermal degradation.
+
+Scenario selection must alter simulator state, not directly set UI outputs.
+
+============================================================
+23. REMOVE FAKE STATIC OUTPUTS
+============================================================
+
+Search the active frontend for hardcoded output values involving:
+
+EHI
+trust
+anomaly
+RUL
+degradation
+fault classification
+feature importance
+WHY
+
+Remove them where they should come from runtime calculations.
+
+Keep legitimate simulator configuration values.
+
+============================================================
+24. TRAINING VS RUNTIME DOCUMENTATION
+============================================================
+
+Add a simple README section explaining:
+
+TRAINING:
+
+scripts/train_models.py
+        ↓
+Synthetic telemetry dataset
+        ↓
+Model training
+        ↓
+Saved models
+
+RUNTIME:
+
+Telemetry
+        ↓
+Sensor Trust
+        ↓
+Trained model inference
+        ↓
+Diagnosis
+        ↓
+Dashboard
+
+Clearly state:
+
+"Model performance is demonstrated on synthetic data and is not claimed as certified real-world engine predictive accuracy."
+
+============================================================
+25. DO NOT OVERBUILD
+============================================================
+
+DO NOT add:
+
+CFD
+PINN
+FPGA
+Jetson
+CAN hardware
+ARINC-429
+real UAV flight control
+fleet management
+fake DRDO integration
+fake certification
+deep learning
+unnecessary backend infrastructure
+generic chatbot infrastructure
+extra dashboard pages
+extra visual redesigns
+
+This is an SIH software MVP.
+
+============================================================
+26. COMPLETE END-TO-END VERIFICATION
+============================================================
+
+After implementation:
+
+1. Run model training.
+2. Run model evaluation.
+3. Run existing SensorTrust tests.
+4. Run existing dashboard tests.
+5. Run browser/runtime verification.
+6. Check browser console.
+
+------------------------------------------------------------
+TEST A — NORMAL
+------------------------------------------------------------
+
+Verify:
+
+TelemetryEngine generates live telemetry.
+
+SensorTrustEngine calculates high trust.
+
+Isolation Forest actually executes.
+
+Random Forest actually executes.
+
+Fault classification = model output.
+
+EHI is calculated.
+
+Degradation is calculated.
+
+RUL is calculated.
+
+WHY is generated.
+
+3D is synchronized.
+
+History is recorded.
+
+AI Assistant reads appState.
+
+------------------------------------------------------------
+TEST B — SENSOR FAULT
+------------------------------------------------------------
+
+Verify:
+
+Oil pressure sensor actually freezes/drifts.
+
+SensorTrustEngine detects it.
+
+Oil pressure trust decreases.
+
+Sensor becomes untrusted/quarantined.
+
+Other sensors remain trustworthy.
+
+ML receives trusted data.
+
+Engine is not falsely declared failed simply because the sensor failed.
+
+WHY explains the sensor fault.
+
+EHI remains appropriate.
+
+History records the event.
+
+Replay can return to this state.
+
+------------------------------------------------------------
+TEST C — THERMAL DEGRADATION
+------------------------------------------------------------
+
+Verify:
+
+CHT rises.
+
+EGT rises.
+
+Thermal sensors remain trustworthy if correlated.
+
+Isolation Forest detects anomaly.
+
+Random Forest classifies thermal degradation.
+
+EHI decreases.
+
+Degradation increases.
+
+RUL decreases.
+
+WHY explains the cause.
+
+History records the event.
+
+Replay can return to this state.
+
+------------------------------------------------------------
+TEST D — MISSION REPLAY
+------------------------------------------------------------
+
+Move the timeline through:
+
+NORMAL
+→ SENSOR FAULT
+→ THERMAL DEGRADATION
+
+Verify ALL dashboard sections change consistently.
+
+------------------------------------------------------------
+TEST E — AI ASSISTANT
+------------------------------------------------------------
+
+Ask all existing quick questions.
+
+Verify answers use current live/replayed appState.
+
+------------------------------------------------------------
+TEST F — 3D
+------------------------------------------------------------
+
+Verify:
+
+Normal state
+Sensor fault state
+Thermal degradation state
+
+remain synchronized with diagnostic state.
+
+------------------------------------------------------------
+TEST G — NO ERRORS
+------------------------------------------------------------
+
+No uncaught browser errors.
+
+No broken buttons.
+
+No stale dashboard values.
+
+No duplicate engine instances.
+
+============================================================
+27. IMPORTANT DEFINITION OF DONE
+============================================================
+
+DO NOT declare success because:
+
+- files were created
+- models were saved
+- tests compiled
+- UI displays model names
+- hardcoded scenario values were replaced with another hardcoded object
+
+The system is DONE only when the RUNNING APPLICATION actually demonstrates:
+
+NORMAL:
+
+Telemetry
+→ Sensor Trust
+→ Isolation Forest
+→ Random Forest
+→ EHI
+→ Degradation
+→ RUL
+→ WHY
+→ Dashboard
+
+SENSOR FAULT:
+
+Telemetry fault
+→ Sensor Trust detects fault
+→ Sensor quarantined
+→ Trusted telemetry passed forward
+→ ML diagnosis
+→ EHI
+→ WHY
+→ Dashboard
+→ Replay
+
+THERMAL DEGRADATION:
+
+Thermal telemetry
+→ Sensors remain trustworthy
+→ Isolation Forest anomaly
+→ Random Forest classification
+→ EHI decrease
+→ Degradation increase
+→ RUL decrease
+→ WHY
+→ Dashboard
+→ Replay
+
+AND:
+
+AI Assistant reads the same appState.
+
+3D reads the same diagnostic state.
+
+Mission Replay reads actual recorded history.
+
+There is ONE coherent source of truth.
+
+============================================================
+28. FINAL REPORT
+============================================================
+
+After implementation, provide a concise technical report containing:
+
+1. Files changed
+2. Files created
+3. Training script
+4. Synthetic dataset generation
+5. Dataset size/classes
+6. Isolation Forest training
+7. Random Forest training
+8. Model evaluation metrics
+9. Saved model files
+10. Runtime model-loading mechanism
+11. Runtime inference flow
+12. Central appState structure
+13. Dashboard components connected
+14. Mission replay implementation
+15. AI Assistant integration
+16. 3D synchronization
+17. NORMAL test result
+18. SENSOR FAULT test result
+19. THERMAL DEGRADATION test result
+20. Tests passed/failed
+21. Browser console status
+22. Remaining issues
+
+For each model, explicitly state:
+
+MODEL:
+Training:
+Saved file:
+Runtime loading:
+Runtime inference:
+Evaluation:
+
+============================================================
+29. HONESTY REQUIREMENT
+============================================================
+
+Do not fabricate:
+
+AI predictions
+ML metrics
+training results
+sensor trust values
+RUL
+degradation
+feature importance
+model confidence
+test results
+
+If something cannot actually be implemented or verified, say so clearly.
+
+Do not hide blockers behind hardcoded demo values.
+
+The project uses synthetic telemetry.
+
+Do not claim:
+
+certification
+real DRDO telemetry
+live UAV telemetry
+validated operational aerospace performance
+certified RUL
+
+============================================================
+30. FINAL EXECUTION RULE
+============================================================
+
+Do not ask me to manually create:
+
+datasets
+models
+folders
+training scripts
+configuration files
+integration code
+
+Create everything required inside the repository.
+
+Run the training pipeline yourself.
+
+Run the application yourself.
+
+Run the tests yourself.
+
+Verify the actual browser behavior yourself.
+
+If an existing API is incompatible:
+
+1. identify the exact incompatibility
+2. reuse what is possible
+3. implement the smallest honest fix
+4. report the limitation
+
+Do not silently fake functionality.
+
+Do not redesign the UI.
+
+Do not modify the working 3D system unnecessarily.
+
+Do not proceed to unrelated features.
+
+Complete this integration first.
+
+STOP after the full end-to-end integration and verification.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-18T20:13:18+05:30.
+
+The user's current state is as follows:
+Active Document: e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\full_system_audit.js (LANGUAGE_JAVASCRIPT)
+Cursor is on line: 1
+Other open documents:
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\verify_stitch_implementation.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\capture_inspection_states.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\js\app.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\dev-tools\test-sensor-trust.js (LANGUAGE_JAVASCRIPT)
+- e:\AERO TWIN SIH 2026\aerotwin-uav\js\report-generator.js (LANGUAGE_JAVASCRIPT)
+</ADDITIONAL_METADATA>

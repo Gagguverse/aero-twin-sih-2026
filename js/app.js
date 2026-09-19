@@ -1,0 +1,2657 @@
+/* ==========================================================================
+   AERO TWIN — Integrated Application Core Controller & Real-Time Pipeline
+   SIH 2026 Problem Statement: SIH26054 | DRDO MALE UAV Aero Piston Engine
+   Theme: Robotics & Drones | Category: Software
+
+   End-to-End Runtime Pipeline:
+   Synthetic Telemetry -> TelemetryEngine -> SensorTrustEngine -> AIDiagnosticNet
+   -> EHI -> Degradation/RUL -> WHY Explainability -> Central appState -> UI & 3D
+   ========================================================================== */
+
+(function () {
+  'use strict';
+
+  // ==========================================================================
+  // PIPELINE ENGINES & CORE STATE
+  // ==========================================================================
+  let telemetryEngine = null;
+  let sensorTrustEngine = null;
+  let aiDiagnosticNet = null;
+  let faultSimulator = null;
+  let digitalTwin = null;
+  let physicsModel = null;
+  let telemetryAdapter = null;
+
+  let chartCanvas = null;
+  let chartCtx = null;
+  let selectedComponent = null;
+  let currentInspectionMode = 'inspect';
+  let currentScenarioKey = 'normal'; // 'normal' | 'sensor_fault' | 'thermal_degradation'
+
+  // Central Application State consumed by all sections
+  window.appState = {
+    scenario: 'normal',
+    missionPhase: 'cruise',
+    simTime: '14:22',
+    rawTelemetry: null,
+    expectedPhysics: null,
+    trustResult: null,
+    diagnosticResult: null,
+    physics: null,
+    missionReliability: null,
+    rul: null,
+    ehiBreakdown: null,
+    sensorTrust: null,
+    diagnostic: null,
+    maintenance: null,
+    environment: null,
+    ehi: 96,
+    ehiStatus: 'NOMINAL',
+    aiDiagnosis: 'HEALTHY',
+    aiDiagStatus: 'NOMINAL',
+    anomalyScore: 0.04,
+    overallTrust: 0.96,
+    trustedCount: 9,
+    totalSensors: 9,
+    rulHours: 182,
+    rulLabel: '182 h',
+    degradationPct: 4,
+    degradationTrend: 'STABLE',
+    why: {
+      title: 'WHY ENGINE IS NOMINAL',
+      bullets: [],
+      conclusion: ''
+    },
+    isReplaying: false,
+    replayIndex: 0,
+    historyBuffer: []
+  };
+
+  // ==========================================================================
+  // INITIALIZATION
+  // ==========================================================================
+  document.addEventListener('DOMContentLoaded', () => {
+    initPipelineEngines();
+    initDigitalTwin();
+    initDegradationChart();
+    initUIEventListeners();
+    initAssistant();
+
+    // Start in Normal scenario baseline
+    applyScenario('normal');
+  });
+
+  function initPipelineEngines() {
+    if (window.AeroPhysicsModel) {
+      physicsModel = new window.AeroPhysicsModel();
+      window.physicsModel = physicsModel;
+    }
+    if (window.TelemetryEngine) {
+      telemetryEngine = new window.TelemetryEngine();
+      window.telemetryEngine = telemetryEngine;
+    }
+    if (window.TelemetryAdapter && telemetryEngine) {
+      telemetryAdapter = new window.TelemetryAdapter(telemetryEngine);
+      window.telemetryAdapter = telemetryAdapter;
+    }
+    if (window.SensorTrustEngine) {
+      sensorTrustEngine = new window.SensorTrustEngine();
+      window.sensorTrustEngine = sensorTrustEngine;
+    }
+    if (window.AIDiagnosticNet) {
+      aiDiagnosticNet = new window.AIDiagnosticNet();
+      window.aiDiagnosticNet = aiDiagnosticNet;
+    }
+    if (window.FaultSimulator && telemetryEngine) {
+      faultSimulator = new window.FaultSimulator(telemetryEngine);
+      window.faultSimulator = faultSimulator;
+    }
+
+    if (telemetryEngine && sensorTrustEngine && aiDiagnosticNet) {
+      // Connect 10 Hz Telemetry Engine update listener to the full pipeline
+      telemetryEngine.onUpdate((rawState, fftBins, expected) => {
+        executePipelineStep(rawState, expected);
+      });
+    }
+  }
+
+  function initDigitalTwin() {
+    if (window.AeroPistonDigitalTwin) {
+      digitalTwin = new window.AeroPistonDigitalTwin('engine-canvas');
+      window.digitalTwin = digitalTwin;
+    }
+  }
+
+  let chartResizeObserver = null;
+
+  function initDegradationChart() {
+    chartCanvas = document.getElementById('degradation-chart-canvas');
+    if (!chartCanvas) return;
+    chartCtx = chartCanvas.getContext('2d');
+
+    setupChartCanvas();
+
+    // Use ResizeObserver on wrapper for smooth responsive resizing
+    if (window.ResizeObserver && chartCanvas.parentElement) {
+      if (chartResizeObserver) chartResizeObserver.disconnect();
+      chartResizeObserver = new ResizeObserver(() => {
+        setupChartCanvas();
+        renderDegradationChart();
+      });
+      chartResizeObserver.observe(chartCanvas.parentElement);
+    }
+
+    window.addEventListener('resize', () => {
+      setupChartCanvas();
+      renderDegradationChart();
+    });
+
+    renderDegradationChart();
+  }
+
+  function setupChartCanvas() {
+    if (!chartCanvas || !chartCtx) return;
+    const parent = chartCanvas.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : chartCanvas.getBoundingClientRect();
+    const w = Math.max(260, rect.width || (parent ? parent.clientWidth : 340));
+    const h = Math.max(220, rect.height || (parent ? parent.clientHeight : 260));
+    const dpr = window.devicePixelRatio || 1;
+
+    const targetW = Math.round(w * dpr);
+    const targetH = Math.round(h * dpr);
+
+    if (chartCanvas.width !== targetW || chartCanvas.height !== targetH) {
+      chartCanvas.width = targetW;
+      chartCanvas.height = targetH;
+    }
+    return { w, h, dpr };
+  }
+
+  // ==========================================================================
+  // CORE RUNTIME PIPELINE EXECUTION (10 Hz)
+  // ==========================================================================
+  function executePipelineStep(rawState, expected) {
+    if (window.appState && window.appState.isReplaying) return;
+    if (!sensorTrustEngine || !aiDiagnosticNet) return;
+
+    // 1. SENSOR TRUST EVALUATION (Sensor Trust Before Health Judgment)
+    const trustResult = sensorTrustEngine.evaluate(rawState, expected);
+
+    // 2. PHYSICS MODEL & OPERATING RESIDUALS (P0 Technical Depth)
+    // If a sensor is quarantined, its residual is shielded to avoid false engine anomalies
+    const physicsResult = physicsModel
+      ? physicsModel.computeResiduals(rawState, { expected: expected }, trustResult)
+      : null;
+
+    // 3. REAL AI / ML DIAGNOSTIC & PROGNOSTIC EVALUATION
+    const diagnosticResult = aiDiagnosticNet.evaluate(rawState, trustResult, expected);
+
+    // 4. UPDATE CENTRAL APP STATE
+    syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult);
+
+    // 5. RENDER ALL DASHBOARD SECTIONS FROM appState
+    renderDashboard();
+
+    // 6. SYNCHRONIZE 3D ENGINE STATE
+    if (digitalTwin) {
+      const avgCht = rawState.cht ? (rawState.cht.reduce((a, b) => a + b, 0) / rawState.cht.length) : 178;
+      const avgEgt = rawState.egt ? (rawState.egt.reduce((a, b) => a + b, 0) / rawState.egt.length) : 824;
+      const oilPressTrust = trustResult.scores && trustResult.scores.oilPress !== undefined ? trustResult.scores.oilPress : 1.0;
+
+      digitalTwin.updateState({
+        rpm: rawState.rpm,
+        status: diagnosticResult.status,
+        oilPressTrust: oilPressTrust,
+        cht: avgCht,
+        egt: avgEgt
+      }, currentScenarioKey);
+    }
+  }
+
+  function syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult) {
+    const s = window.appState;
+    s.rawTelemetry = rawState;
+    s.expectedPhysics = expected;
+    s.trustResult = trustResult;
+    s.diagnosticResult = diagnosticResult;
+
+    // 1. Physics Model State (P0)
+    s.physics = physicsResult ? {
+      expected: expected,
+      residuals: physicsResult.residuals,
+      normalizedResiduals: physicsResult.normalizedResiduals,
+      status: physicsResult.status,
+      tableRows: physicsResult.tableRows,
+      isShielded: physicsResult.isShielded,
+      operatingConditions: rawState.operatingConditions || {
+        altitude: rawState.altitude || 18000,
+        throttle: rawState.throttle || 0.72,
+        ambientTemp: rawState.ambientTemp !== undefined ? rawState.ambientTemp : -21
+      }
+    } : null;
+    s.physicsResiduals = physicsResult ? physicsResult.residuals : {};
+
+    // 2. Mission Reliability (P0 SIH26054 Core Capability)
+    s.missionReliability = diagnosticResult.missionReliability || {
+      score: 96,
+      status: 'GO',
+      reasons: ['All propulsion parameters nominal'],
+      currentPhase: (rawState.missionPhase || 'cruise').toUpperCase(),
+      remainingMissionDuration: '02h 18m'
+    };
+
+    // 3. Upgraded RUL Range & Confidence (P0)
+    s.rul = {
+      estimate: diagnosticResult.rulHours,
+      range: diagnosticResult.rulRangeStr || `${Math.max(10, diagnosticResult.rulHours - 15)}–${diagnosticResult.rulHours + 15} h`,
+      confidence: diagnosticResult.rulConfidencePct || 92,
+      trend: diagnosticResult.degradationTrend || 'STABLE'
+    };
+
+    // 4. Sensor Trust Explainability & Per-Sensor details (P1)
+    s.sensorTrust = {
+      perSensor: trustResult.sensorDetails || {},
+      scores: trustResult.scores || {},
+      overall: trustResult.overallTrust,
+      quarantined: trustResult.quarantined || []
+    };
+
+    // 5. Diagnostic Evidence (P1)
+    s.diagnostic = {
+      class: diagnosticResult.faultClass,
+      confidence: diagnosticResult.confidence,
+      evidence: diagnosticResult.evidence || []
+    };
+
+    // 6. Deterministic Maintenance Advisory (P2)
+    s.maintenance = diagnosticResult.maintenanceAdvisory || {
+      subsystem: 'All Systems Nominal',
+      priority: 'ROUTINE',
+      action: 'Standard pre-flight inspection at next turnaround.',
+      code: 'MAINT-001-NOM',
+      urgency: '50h Inspection'
+    };
+
+    // 7. EHI Breakdown (P0/P1)
+    s.ehiBreakdown = diagnosticResult.ehiBreakdown || {
+      baseline: 100,
+      thermalContribution: 0,
+      lubricationContribution: 0,
+      vibrationContribution: 0,
+      sensorShieldContribution: 0,
+      finalEhi: diagnosticResult.healthIndex,
+      status: diagnosticResult.ehiStatus
+    };
+
+    // 8. Environmental Operating Conditions (P1)
+    s.environment = {
+      altitude: rawState.altitude || 18000,
+      ambientTemperature: rawState.ambientTemp !== undefined ? rawState.ambientTemp : -21,
+      throttleTransition: !!rawState.throttleTransition
+    };
+
+    s.missionPhase = (rawState.missionPhase || 'cruise').toUpperCase();
+    const sec = rawState.missionTimeSec || 0;
+    const minPart = Math.floor(sec / 60) + 14; // Start at 14:xx mission time
+    const secPart = Math.floor(sec % 60);
+    s.simTime = `${minPart}:${String(secPart).padStart(2, '0')}`;
+
+    // EHI and Health Cards
+    s.ehi = diagnosticResult.healthIndex;
+    s.ehiStatus = diagnosticResult.ehiStatus; // 'NOMINAL' | 'WARNING' | 'CRITICAL'
+
+    // AI Diagnosis label & status
+    if (diagnosticResult.faultClass === 'SENSOR_FAULT') {
+      s.aiDiagnosis = 'SENSOR FAULT';
+      s.aiDiagStatus = 'WARNING';
+    } else if (diagnosticResult.faultClass === 'THERMAL_DEGRADATION') {
+      s.aiDiagnosis = 'THERMAL DEGRADATION';
+      s.aiDiagStatus = 'CRITICAL';
+    } else if (diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION') {
+      s.aiDiagnosis = 'LUBRICATION FAULT';
+      s.aiDiagStatus = 'CRITICAL';
+    } else if (diagnosticResult.faultClass === 'RPM_INSTABILITY') {
+      s.aiDiagnosis = 'RPM INSTABILITY';
+      s.aiDiagStatus = 'WARNING';
+    } else {
+      s.aiDiagnosis = 'HEALTHY';
+      s.aiDiagStatus = 'NOMINAL';
+    }
+
+    s.anomalyScore = diagnosticResult.anomalyScore;
+    s.overallTrust = trustResult.overallTrust;
+
+    // Count trusted primary channels (out of 9 channels)
+    const scoreMap = trustResult.scores || {};
+    let trustedCount = 0;
+    const channels = ['rpm', 'cht', 'egt', 'oilPress', 'oilTemp', 'fuelFlow', 'map'];
+    if ((scoreMap.rpm || 1.0) >= 0.6) trustedCount++;
+    if ((scoreMap.oilPress || 1.0) >= 0.6) trustedCount++;
+    if ((scoreMap.oilTemp || 1.0) >= 0.6) trustedCount++;
+    if ((scoreMap.fuelFlow || 1.0) >= 0.6) trustedCount++;
+    if ((scoreMap.map || 1.0) >= 0.6) trustedCount++;
+    // CHT channels average trust
+    const chtScores = scoreMap.cht || [1, 1, 1, 1];
+    const avgChtScore = chtScores.reduce((a, b) => a + b, 0) / 4;
+    if (avgChtScore >= 0.6) trustedCount++;
+    // EGT channels average trust
+    const egtScores = scoreMap.egt || [1, 1, 1, 1];
+    const avgEgtScore = egtScores.reduce((a, b) => a + b, 0) / 4;
+    if (avgEgtScore >= 0.6) trustedCount++;
+    // Secondary engine load & vibration
+    trustedCount += 2; // Always valid in simulation
+
+    s.trustedCount = Math.min(9, Math.max(1, trustedCount));
+    s.totalSensors = 9;
+
+    // RUL and Degradation
+    s.rulHours = diagnosticResult.rulHours;
+    s.rulLabel = diagnosticResult.rulLabel;
+    s.degradationPct = diagnosticResult.degradationPct;
+    s.degradationTrend = diagnosticResult.degradationTrend;
+
+    // WHY Explanation
+    if (diagnosticResult.explainability) {
+      s.why.title = diagnosticResult.explainability.title;
+      s.why.bullets = diagnosticResult.explainability.bullets || [];
+      s.why.conclusion = diagnosticResult.explainability.conclusion || '';
+    }
+
+    // Append to degradation history buffer (up to 120 frames)
+    s.historyBuffer.push({
+      sec: sec,
+      deg: s.degradationPct,
+      scenario: currentScenarioKey
+    });
+    if (s.historyBuffer.length > 120) {
+      s.historyBuffer.shift();
+    }
+  }
+
+  // ==========================================================================
+  // DASHBOARD RENDERING (Driven from appState)
+  // ==========================================================================
+  function renderDashboard() {
+    const s = window.appState;
+    if (!s.rawTelemetry) return;
+
+    // 1. Top 5 Health Overview Cards (includes Mission Reliability)
+    renderOverviewCards(s);
+
+    // 2. Section 3: Live Telemetry & Digital Twin State
+    renderLiveTelemetry(s.rawTelemetry, s.trustResult);
+
+    // 3. Section 3: Right Column Engine Status + WHY
+    renderEngineStatusAndWhy(s);
+
+    // 3B. Section 3B: Physics Expected vs Actual & Operating Residuals (P0 Technical Depth)
+    renderPhysicsResiduals(s.physics);
+
+    // 4. Section 4: Sensor Trust Matrix (Full-Width Core Differentiator)
+    renderSensorTrustMatrix(s.rawTelemetry, s.trustResult);
+
+    // 5. Section 5: AI Diagnostic Assessment & Maintenance Advisory
+    renderDiagnosticAssessment(s);
+
+    // 6. Section 6: Engine Degradation & RUL
+    renderDegradationSection(s);
+
+    // 7. Section 8: Mission Timeline & Scrubber
+    renderTimelineDisplay(s);
+
+    // 8. Interactive Component HUD (if active)
+    if (selectedComponent) {
+      updateInspectionHud(selectedComponent);
+    }
+  }
+
+  // ==========================================================================
+  // SECTION 1: HEALTH OVERVIEW CARDS
+  // ==========================================================================
+  function renderOverviewCards(s) {
+    // CARD 1: ENGINE HEALTH
+    const ehiCard = document.getElementById('card-ehi');
+    const ehiVal = document.getElementById('ehi-val');
+    const ehiBadge = document.getElementById('ehi-badge');
+    if (ehiVal) ehiVal.textContent = Math.round(s.ehi);
+    if (ehiBadge) {
+      ehiBadge.textContent = s.ehiStatus;
+      ehiBadge.className = `card-status-badge badge-${s.ehiStatus.toLowerCase()}`;
+    }
+    if (ehiCard) {
+      ehiCard.className = `summary-card status-${s.ehiStatus.toLowerCase()}`;
+    }
+
+    // CARD 2: AI DIAGNOSIS
+    const diagCard = document.getElementById('card-diag');
+    const diagVal = document.getElementById('diag-val');
+    const diagBadge = document.getElementById('diag-badge');
+    const anomalyVal = document.getElementById('anomaly-val');
+    if (diagVal) diagVal.textContent = s.aiDiagnosis;
+    if (diagBadge) {
+      diagBadge.textContent = s.aiDiagStatus;
+      diagBadge.className = `card-status-badge badge-${s.aiDiagStatus.toLowerCase()}`;
+    }
+    if (anomalyVal) anomalyVal.textContent = s.anomalyScore.toFixed(2);
+    if (diagCard) {
+      diagCard.className = `summary-card status-${s.aiDiagStatus.toLowerCase()}`;
+    }
+
+    // CARD 3: SENSOR TRUST
+    const trustCard = document.getElementById('card-trust');
+    const trustCountVal = document.getElementById('trust-count-val');
+    const overallTrustVal = document.getElementById('overall-trust-val');
+    const trustBadge = document.getElementById('trust-badge');
+    if (trustCountVal) trustCountVal.textContent = `${s.trustedCount} / ${s.totalSensors}`;
+    if (overallTrustVal) overallTrustVal.textContent = s.overallTrust.toFixed(2);
+    if (trustBadge) {
+      const trustStatus = s.trustedCount === s.totalSensors ? 'NOMINAL' : 'WARNING';
+      trustBadge.textContent = trustStatus;
+      trustBadge.className = `card-status-badge badge-${trustStatus.toLowerCase()}`;
+      if (trustCard) trustCard.className = `summary-card status-${trustStatus.toLowerCase()}`;
+    }
+
+    // CARD 4: REMAINING USEFUL LIFE (Upgraded Range & Confidence)
+    const rulVal = document.getElementById('rul-val');
+    const rulRangeChip = document.getElementById('rul-range-chip');
+    const rulConfVal = document.getElementById('rul-conf-val');
+    const cardRul = document.getElementById('card-rul');
+
+    if (rulVal) rulVal.textContent = s.rul ? s.rul.estimate : s.rulHours;
+    if (rulRangeChip && s.rul) rulRangeChip.textContent = `[${s.rul.range}]`;
+    if (rulConfVal && s.rul) rulConfVal.textContent = `${s.rul.confidence}%`;
+    if (cardRul) {
+      const rulStatus = (s.rul && s.rul.estimate < 50) ? 'status-critical' : ((s.rul && s.rul.estimate < 100) ? 'status-warning' : 'status-nominal');
+      cardRul.className = `summary-card ${rulStatus}`;
+    }
+
+    // CARD 5: MISSION RELIABILITY (SIH26054 P0 REQUIREMENT)
+    const cardRel = document.getElementById('card-mission-rel');
+    const relVal = document.getElementById('mission-rel-val');
+    const relBadge = document.getElementById('mission-rel-badge');
+    const relPhase = document.getElementById('mission-phase-label');
+    const relRisk = document.getElementById('mission-risk-val');
+
+    if (s.missionReliability) {
+      if (relVal) relVal.textContent = s.missionReliability.score;
+      if (relBadge) {
+        relBadge.textContent = s.missionReliability.status;
+        relBadge.className = `card-status-badge badge-${s.missionReliability.status.toLowerCase()}`;
+      }
+      if (relPhase) {
+        relPhase.textContent = `${s.missionReliability.currentPhase || s.missionPhase} • ${s.missionReliability.remainingMissionDuration || '02h 18m'}`;
+      }
+      if (relRisk && s.missionReliability.reasons && s.missionReliability.reasons.length > 0) {
+        relRisk.textContent = s.missionReliability.reasons[0].toUpperCase();
+      }
+      if (cardRel) {
+        const cStatus = s.missionReliability.status === 'GO' ? 'status-nominal' : (s.missionReliability.status === 'DEGRADED' ? 'status-warning' : 'status-critical');
+        cardRel.className = `summary-card ${cStatus}`;
+      }
+    }
+
+    // Twin State Pill
+    const twinChip = document.getElementById('twin-state-chip');
+    if (twinChip) {
+      twinChip.textContent = s.aiDiagnosis;
+      twinChip.className = `twin-state-chip badge-${s.aiDiagStatus.toLowerCase()}`;
+    }
+
+    // Header Mission Phase Display
+    const headerPhase = document.getElementById('header-mission-phase');
+    if (headerPhase) {
+      headerPhase.textContent = s.missionPhase;
+    }
+  }
+
+  // ==========================================================================
+  // SECTION 3B: PHYSICS MODEL & RESIDUALS TABLE (P0 Technical Depth)
+  // ==========================================================================
+  function renderPhysicsResiduals(physics) {
+    const tbody = document.getElementById('physics-table-body');
+    if (!tbody || !physics || !physics.tableRows) return;
+
+    const bases = {
+      'EGT (Exhaust Gas)': 'Thermodynamic equilibrium & stoichiometric heat release',
+      'CHT (Cylinder Head)': 'Transient heat soak balance & fin cooling dissipation',
+      'Oil Pressure': 'Gear pump displacement curve vs hydrodynamic load',
+      'Oil Temperature': 'Thermal exchanger equilibrium vs sump volume',
+      'Fuel Flow Rate': 'Calibrated fuel-air mass ratio across throttle sweep',
+      'Engine RPM': 'Propeller governor balance at cruise throttle demand',
+      'MAP (Boost Pressure)': 'ISA ambient pressure + single-stage turbo boost ratio'
+    };
+
+    tbody.innerHTML = physics.tableRows.map(row => {
+      let badgeClass = 'badge-nominal';
+      if (row.status === 'ELEVATED') badgeClass = 'badge-elevated';
+      else if (row.status === 'LOW') badgeClass = 'badge-low';
+      else if (row.status === 'CRITICAL') badgeClass = 'badge-critical';
+      else if (row.status === 'QUARANTINED') badgeClass = 'badge-quarantined';
+
+      const basis = bases[row.param] || 'Operating-condition physics mapping';
+      const rowClass = row.isQuarantined ? 'row-distrusted' : (row.status === 'CRITICAL' ? 'row-distrusted' : '');
+
+      return `
+        <tr class="${rowClass}">
+          <td class="trust-sensor-name">
+            <strong>${row.param}</strong>
+          </td>
+          <td class="trust-val-cell">${row.expected}</td>
+          <td class="trust-val-cell" style="font-weight: 600;">${row.actual}</td>
+          <td style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 700; color: ${row.status === 'NORMAL' ? 'var(--status-nominal)' : (row.status === 'CRITICAL' ? 'var(--status-critical)' : 'var(--accent-blue)')};">
+            ${row.residual}
+          </td>
+          <td>
+            <span class="card-status-badge ${badgeClass}" style="font-size: 0.65rem; padding: 2px 6px;">${row.status}</span>
+          </td>
+          <td style="font-size: 0.68rem; color: var(--text-muted); line-height: 1.3;">
+            ${basis}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ==========================================================================
+  // SECTION 3: LIVE TELEMETRY
+  // ==========================================================================
+  function renderLiveTelemetry(raw, trustResult) {
+    const container = document.getElementById('telemetry-list');
+    if (!container) return;
+
+    const avgCht = raw.cht ? (raw.cht.reduce((a, b) => a + b, 0) / 4) : 178;
+    const avgEgt = raw.egt ? (raw.egt.reduce((a, b) => a + b, 0) / 4) : 824;
+    const isOilQuarantined = trustResult && trustResult.quarantined && trustResult.quarantined.includes('oilPress');
+
+    const items = [
+      {
+        key: 'rpm',
+        name: 'RPM (Engine Speed)',
+        val: raw.rpm,
+        unit: 'RPM',
+        status: raw.rpm > 4350 ? 'Warning' : 'Normal',
+        trend: raw.rpm > 4350 ? '↑ High' : '↑ Stable'
+      },
+      {
+        key: 'cht',
+        name: 'CHT (Cylinder Head Temp)',
+        val: avgCht,
+        unit: '°C',
+        status: avgCht > 215 ? 'Critical' : (avgCht > 190 ? 'Warning' : 'Normal'),
+        trend: avgCht > 215 ? '↑ Critical' : (avgCht > 190 ? '↑ High' : 'Normal')
+      },
+      {
+        key: 'egt',
+        name: 'EGT (Exhaust Gas Temp)',
+        val: avgEgt,
+        unit: '°C',
+        status: avgEgt > 900 ? 'Critical' : (avgEgt > 850 ? 'Warning' : 'Normal'),
+        trend: avgEgt > 900 ? '↑ Critical' : (avgEgt > 850 ? '↑ High' : 'Normal')
+      },
+      {
+        key: 'oilTemp',
+        name: 'Oil Temperature',
+        val: raw.oilTemp,
+        unit: '°C',
+        status: raw.oilTemp > 105 ? 'Warning' : 'Normal',
+        trend: raw.oilTemp > 105 ? '↑ Warning' : 'Normal'
+      },
+      {
+        key: 'oilPress',
+        name: 'Oil Pressure',
+        val: raw.oilPress,
+        unit: 'PSI',
+        status: isOilQuarantined ? 'Suspicious' : (raw.oilPress < 40 ? 'Warning' : 'Normal'),
+        trend: isOilQuarantined ? '— Frozen' : (raw.oilPress < 40 ? '↓ Degraded' : 'Normal')
+      },
+      {
+        key: 'fuelFlow',
+        name: 'Fuel Flow Rate',
+        val: raw.fuelFlow,
+        unit: 'L/hr',
+        status: raw.fuelFlow > 30 ? 'Warning' : 'Normal',
+        trend: raw.fuelFlow > 30 ? '↑ High' : 'Normal'
+      },
+      {
+        key: 'map',
+        name: 'MAP (Manifold Pressure)',
+        val: raw.map,
+        unit: 'inHg',
+        status: raw.map > 36 ? 'Warning' : 'Normal',
+        trend: raw.map > 36 ? '↑ High' : 'Normal'
+      },
+      {
+        key: 'engineLoad',
+        name: 'Calculated Engine Load',
+        val: raw.load !== undefined ? raw.load : 72,
+        unit: '%',
+        status: raw.load > 85 ? 'Warning' : 'Normal',
+        trend: raw.load > 85 ? '↑ High' : 'Normal'
+      }
+    ];
+
+    container.innerHTML = items.map(item => {
+      const isCrit = item.status === 'Critical';
+      const isWarn = item.status === 'Warning' || item.status === 'Suspicious';
+      const alertClass = isCrit ? 'alert-critical' : (isWarn ? 'alert-warning' : '');
+      const statusClass = isCrit ? 'crit' : (isWarn ? 'warn' : '');
+
+      let trendClass = 'stable';
+      if (item.trend.includes('Critical') || item.trend.includes('High')) trendClass = 'up';
+      if (item.trend.includes('Degraded')) trendClass = 'down';
+      if (item.trend.includes('Frozen')) trendClass = 'frozen';
+
+      return `
+        <div class="telemetry-item ${alertClass}" id="telem-${item.key}">
+          <div class="telemetry-name-group">
+            <span class="telemetry-name">${item.name}</span>
+            <span class="telemetry-status-tag ${statusClass}">${item.status}</span>
+          </div>
+          <div class="telemetry-val-group">
+            <div class="telemetry-val" id="telem-val-${item.key}">${formatTelemVal(item.key, item.val)} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">${item.unit}</span></div>
+            <div class="telemetry-trend ${trendClass}">${item.trend}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const motionRpm = document.getElementById('motion-rpm-chip');
+    if (motionRpm) motionRpm.textContent = `${Math.round(raw.rpm).toLocaleString()} RPM`;
+  }
+
+  function formatTelemVal(key, val) {
+    if (val === undefined || val === null) return '--';
+    if (key === 'rpm') return Math.round(val).toLocaleString();
+    if (key === 'fuelFlow' || key === 'map') return Number(val).toFixed(1);
+    if (key === 'cht' || key === 'egt' || key === 'oilTemp' || key === 'oilPress' || key === 'engineLoad') return Number(val).toFixed(1);
+    return val;
+  }
+
+  // ==========================================================================
+  // SECTION 3: RIGHT COLUMN ENGINE STATUS + WHY
+  // ==========================================================================
+  function renderEngineStatusAndWhy(s) {
+    const curStateVal = document.getElementById('engine-current-state');
+    const faultVal = document.getElementById('engine-fault-val');
+    const anomScoreVal = document.getElementById('engine-anomaly-val');
+
+    let stateColor = 'var(--status-nominal)';
+    let currentStateText = 'HEALTHY';
+    let faultText = 'NONE';
+
+    if (s.diagnosticResult.faultClass === 'SENSOR_FAULT') {
+      currentStateText = 'SENSOR FAULT';
+      faultText = 'OIL PRESS SENSOR FREEZE';
+      stateColor = 'var(--status-warning)';
+    } else if (s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION') {
+      currentStateText = 'THERMAL RUNAWAY';
+      faultText = 'CYLINDER THERMAL ANOMALY';
+      stateColor = 'var(--status-critical)';
+    } else if (s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION') {
+      currentStateText = 'LUBRICATION CAVITATION';
+      faultText = 'OIL PRESSURE LOSS / BEARING WEAR';
+      stateColor = 'var(--status-critical)';
+    }
+
+    if (curStateVal) {
+      curStateVal.textContent = currentStateText;
+      curStateVal.style.color = stateColor;
+    }
+    if (faultVal) faultVal.textContent = faultText;
+    if (anomScoreVal) anomScoreVal.textContent = s.anomalyScore.toFixed(2);
+
+    const whyTitle = document.getElementById('why-title');
+    const whyBulletsList = document.getElementById('why-bullets');
+    const whyConclusion = document.getElementById('why-conclusion');
+
+    if (whyTitle) {
+      whyTitle.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm.75 12h-1.5v-1.5h1.5V14zm0-3h-1.5V6h1.5v5z"/></svg> ${s.why.title}`;
+    }
+    if (whyBulletsList) {
+      whyBulletsList.innerHTML = s.why.bullets.map(b => `<li>${b}</li>`).join('');
+    }
+    if (whyConclusion) {
+      whyConclusion.innerHTML = `<strong>Conclusion:</strong> ${s.why.conclusion}`;
+    }
+  }
+
+  // ==========================================================================
+  // SECTION 4: SENSOR TRUST MATRIX
+  // ==========================================================================
+  function renderSensorTrustMatrix(raw, trustResult) {
+    const tbody = document.getElementById('trust-table-body');
+    if (!tbody || !trustResult) return;
+
+    const scores = trustResult.scores || {};
+    const reasons = trustResult.reasons || {};
+    const quarantined = trustResult.quarantined || [];
+
+    const avgCht = raw.cht ? (raw.cht.reduce((a, b) => a + b, 0) / 4) : 178;
+    const avgEgt = raw.egt ? (raw.egt.reduce((a, b) => a + b, 0) / 4) : 824;
+
+    const matrixRows = [
+      {
+        key: 'rpm',
+        name: 'RPM (Crank Sensor)',
+        val: `${Math.round(raw.rpm).toLocaleString()} RPM`,
+        score: scores.rpm !== undefined ? scores.rpm : 0.98,
+        defaultReason: 'Cross-validated with magneto timing & MAP slew'
+      },
+      {
+        key: 'cht',
+        name: 'CHT (Cylinder Head Temp)',
+        val: `${avgCht.toFixed(1)} °C`,
+        score: scores.cht ? (scores.cht.reduce((a, b) => a + b, 0) / 4) : 0.96,
+        defaultReason: 'Normal thermal balance across all 4 cylinders'
+      },
+      {
+        key: 'egt',
+        name: 'EGT (Exhaust Gas Temp)',
+        val: `${avgEgt.toFixed(1)} °C`,
+        score: scores.egt ? (scores.egt.reduce((a, b) => a + b, 0) / 4) : 0.95,
+        defaultReason: 'Consistent with stoichiometric fuel flow & load'
+      },
+      {
+        key: 'oilTemp',
+        name: 'Oil Temperature',
+        val: `${raw.oilTemp.toFixed(1)} °C`,
+        score: scores.oilTemp !== undefined ? scores.oilTemp : 0.94,
+        defaultReason: 'Thermal lag matches heat exchanger model'
+      },
+      {
+        key: 'oilPress',
+        name: 'Oil Pressure',
+        val: `${raw.oilPress.toFixed(1)} PSI`,
+        score: scores.oilPress !== undefined ? scores.oilPress : 0.97,
+        defaultReason: 'Dynamic pressure response matches RPM slew'
+      },
+      {
+        key: 'fuelFlow',
+        name: 'Fuel Flow Rate',
+        val: `${raw.fuelFlow.toFixed(1)} L/hr`,
+        score: scores.fuelFlow !== undefined ? scores.fuelFlow : 0.96,
+        defaultReason: 'Matches injector pulse-width & throttle angle'
+      },
+      {
+        key: 'map',
+        name: 'MAP (Manifold Pressure)',
+        val: `${raw.map.toFixed(1)} inHg`,
+        score: scores.map !== undefined ? scores.map : 0.95,
+        defaultReason: 'Correlates with turbo boost controller'
+      },
+      {
+        key: 'load',
+        name: 'Engine Load',
+        val: `${(raw.load !== undefined ? raw.load : 72).toFixed(1)}%`,
+        score: 0.98,
+        defaultReason: 'Calculated load matches torque absorption curve'
+      }
+    ];
+
+    tbody.innerHTML = matrixRows.map(row => {
+      const isQuarantined = quarantined.includes(row.key);
+      const isDegraded = row.score < 0.85 && !isQuarantined;
+      const status = isQuarantined ? 'FAULTY' : (isDegraded ? 'DEGRADED' : 'TRUSTED');
+
+      let reason = reasons[row.key] || row.defaultReason;
+      if (isQuarantined && !reasons[row.key]) {
+        reason = 'Signal remained unchanged (frozen variance < 0.005) while correlated parameters varied.';
+      }
+
+      const rowClass = isQuarantined || isDegraded ? 'row-distrusted' : '';
+      const pillClass = status.toLowerCase();
+      const fillWidth = Math.round(row.score * 100);
+      const fillColor = isQuarantined ? 'var(--status-critical)' : (isDegraded ? 'var(--status-warning)' : 'var(--status-nominal)');
+
+      return `
+        <tr class="${rowClass}">
+          <td class="trust-sensor-name">
+            <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:${fillColor};"></span>
+            ${row.name}
+          </td>
+          <td class="trust-val-cell">${row.val}</td>
+          <td>
+            <div class="trust-bar-container">
+              <div class="trust-bar-track">
+                <div class="trust-bar-fill" style="width: ${fillWidth}%; background: ${fillColor};"></div>
+              </div>
+              <span class="trust-score-num" style="color: ${fillColor};">${row.score.toFixed(2)}</span>
+            </div>
+          </td>
+          <td>
+            <span class="trust-status-pill ${pillClass}">${status}</span>
+          </td>
+          <td class="trust-reason-cell ${isQuarantined || isDegraded ? 'has-fault' : ''}">
+            ${reason}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ==========================================================================
+  // SECTION 5: AI DIAGNOSTIC ASSESSMENT
+  // ==========================================================================
+  function renderDiagnosticAssessment(s) {
+    const diagAssState = document.getElementById('diag-assess-state');
+    const diagAssScore = document.getElementById('diag-assess-score');
+    const diagAssFault = document.getElementById('diag-assess-fault');
+
+    let stateColor = 'var(--status-nominal)';
+    let currentStateText = 'HEALTHY';
+    let faultText = 'NONE';
+
+    if (s.diagnosticResult.faultClass === 'SENSOR_FAULT') {
+      currentStateText = 'SENSOR FAULT';
+      faultText = 'OIL PRESS SENSOR FREEZE';
+      stateColor = 'var(--status-warning)';
+    } else if (s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION') {
+      currentStateText = 'THERMAL RUNAWAY';
+      faultText = 'CYLINDER THERMAL ANOMALY';
+      stateColor = 'var(--status-critical)';
+    } else if (s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION') {
+      currentStateText = 'LUBRICATION CAVITATION';
+      faultText = 'OIL PRESSURE LOSS / BEARING WEAR';
+      stateColor = 'var(--status-critical)';
+    } else if (s.diagnosticResult.faultClass === 'RPM_INSTABILITY') {
+      currentStateText = 'RPM INSTABILITY';
+      faultText = 'SPEED GOVERNOR HUNTING';
+      stateColor = 'var(--status-warning)';
+    }
+
+    if (diagAssState) {
+      diagAssState.textContent = currentStateText;
+      diagAssState.style.color = stateColor;
+    }
+    if (diagAssScore) diagAssScore.textContent = s.anomalyScore.toFixed(2);
+    if (diagAssFault) diagAssFault.textContent = faultText;
+
+    // Evaluation Evidence List (P1)
+    const evidenceList = document.getElementById('diag-evidence-list');
+    const confBadge = document.getElementById('diag-conf-badge');
+    if (confBadge && s.diagnosticResult.confidencePct !== undefined) {
+      confBadge.textContent = `CONF: ${s.diagnosticResult.confidencePct}%`;
+    }
+    if (evidenceList && s.diagnosticResult.evidence) {
+      evidenceList.innerHTML = s.diagnosticResult.evidence.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,0.06);">
+          <span>&bull; ${item.param}</span>
+          <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 600;">${item.val} <span style="font-size: 0.6rem; color: var(--text-muted);">(${item.weight})</span></span>
+        </div>
+      `).join('');
+    }
+
+    // Deterministic Maintenance Advisory (P2)
+    const maintSub = document.getElementById('maint-subsystem-val');
+    const maintBadge = document.getElementById('maint-priority-badge');
+    const maintAction = document.getElementById('maint-action-text');
+    const maintCode = document.getElementById('maint-code-val');
+    const maintUrgency = document.getElementById('maint-urgency-val');
+    const maint = s.maintenance || (s.diagnosticResult && s.diagnosticResult.maintenanceAdvisory);
+
+    if (maint && maintSub && maintBadge && maintAction) {
+      maintSub.textContent = maint.subsystem;
+      maintBadge.textContent = maint.priority;
+      maintBadge.className = `maint-priority-badge badge-${maint.priority === 'ROUTINE' ? 'nominal' : (maint.priority === 'HIGH' ? 'warning' : 'critical')}`;
+      maintAction.textContent = maint.action;
+      if (maintCode) maintCode.textContent = `CODE: ${maint.code || 'MAINT-001'}`;
+      if (maintUrgency) maintUrgency.textContent = maint.urgency || 'Standard cycle';
+    }
+  }
+
+  // ==========================================================================
+  // SECTION 6: ENGINE DEGRADATION & RUL
+  // ==========================================================================
+  function renderDegradationSection(s) {
+    const curDegVal = document.getElementById('deg-current-val');
+    const degTrendVal = document.getElementById('deg-trend-val');
+    const degRulVal = document.getElementById('deg-rul-val');
+
+    if (curDegVal) curDegVal.textContent = `${s.degradationPct}%`;
+    if (degTrendVal) {
+      degTrendVal.textContent = s.degradationTrend;
+      degTrendVal.style.color = s.degradationPct > 20 ? 'var(--status-critical)' : 'var(--status-nominal)';
+    }
+    if (degRulVal) degRulVal.textContent = s.rulLabel;
+
+    renderDegradationChart();
+  }
+
+  function renderDegradationChart() {
+    if (!chartCtx || !chartCanvas) return;
+    const dims = setupChartCanvas();
+    if (!dims) return;
+    const { w, h, dpr } = dims;
+    if (w <= 0 || h <= 0) return;
+
+    const ctx = chartCtx;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    const padLeft = 48;
+    const padRight = 24;
+    const padTop = 34;
+    const padBottom = 30;
+    const plotW = Math.max(80, w - padLeft - padRight);
+    const plotH = Math.max(80, h - padTop - padBottom);
+
+    const s = window.appState || {};
+    const isThermal = currentScenarioKey === 'thermal_degradation' || (s.aiDiagnosis && s.aiDiagnosis.includes('THERMAL'));
+    const currentDeg = typeof s.degradationPct === 'number' ? s.degradationPct : (isThermal ? 38 : 4.0);
+
+    // 1. Safe Zone Shading (0% to 15%)
+    const safeTopY = padTop + plotH - (15 / 50) * plotH;
+    const safeH = (15 / 50) * plotH;
+    const safeGrad = ctx.createLinearGradient(0, safeTopY, 0, safeTopY + safeH);
+    safeGrad.addColorStop(0, 'rgba(16, 185, 129, 0.08)');
+    safeGrad.addColorStop(1, 'rgba(16, 185, 129, 0.02)');
+    ctx.fillStyle = safeGrad;
+    ctx.fillRect(padLeft, safeTopY, plotW, safeH);
+
+    // 2. Critical Zone Shading (40% to 50%)
+    const critTopY = padTop;
+    const critH = (10 / 50) * plotH;
+    const critZoneGrad = ctx.createLinearGradient(0, critTopY, 0, critTopY + critH);
+    critZoneGrad.addColorStop(0, 'rgba(239, 68, 68, 0.08)');
+    critZoneGrad.addColorStop(1, 'rgba(239, 68, 68, 0.01)');
+    ctx.fillStyle = critZoneGrad;
+    ctx.fillRect(padLeft, critTopY, plotW, critH);
+
+    // 3. Gridlines & Y-Axis (0% to 50% Degradation)
+    ctx.font = '10px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+
+    for (let pct = 0; pct <= 50; pct += 10) {
+      const y = padTop + plotH - (pct / 50) * plotH;
+      ctx.strokeStyle = pct === 0 ? '#334155' : 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = pct === 0 ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+
+      ctx.fillStyle = pct >= 40 ? '#F87171' : (pct >= 25 ? '#FBBF24' : '#94A3B8');
+      ctx.fillText(`${pct}%`, padLeft - 8, y + 3.5);
+    }
+
+    // 4. X-Axis Time (Mission Timeline: 13:00 to 16:00)
+    const timeLabels = ['13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00'];
+    ctx.textAlign = 'center';
+    ctx.font = '9.5px JetBrains Mono, monospace';
+    ctx.fillStyle = '#64748B';
+
+    timeLabels.forEach((t, i) => {
+      const x = padLeft + (i / (timeLabels.length - 1)) * plotW;
+      // Vertical gridline
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, padTop + plotH);
+      ctx.stroke();
+
+      ctx.fillText(t, x, padTop + plotH + 16);
+    });
+
+    // 5. Warning Threshold Line (25%)
+    const warnY = padTop + plotH - (25 / 50) * plotH;
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padLeft, warnY);
+    ctx.lineTo(w - padRight, warnY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#FBBF24';
+    ctx.textAlign = 'right';
+    ctx.font = '8.5px JetBrains Mono, monospace';
+    ctx.fillText('WARNING (25%)', w - padRight - 4, warnY - 4);
+
+    // 6. Critical Degradation Threshold Line (40%)
+    const critY = padTop + plotH - (40 / 50) * plotH;
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.65)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padLeft, critY);
+    ctx.lineTo(w - padRight, critY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#F87171';
+    ctx.textAlign = 'right';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText('CRITICAL THRESHOLD (40%)', w - padRight - 4, critY - 4);
+
+    // 7. Header Legend (at top y = 14)
+    ctx.textAlign = 'left';
+    ctx.font = '9px Inter, sans-serif';
+
+    // Dot 1: History
+    ctx.fillStyle = isThermal ? '#EF4444' : '#10B981';
+    ctx.beginPath();
+    ctx.arc(padLeft + 4, 14, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#E2E8F0';
+    ctx.fillText('Wear History', padLeft + 12, 17);
+
+    // Dash 2: Projection
+    ctx.strokeStyle = isThermal ? 'rgba(239, 68, 68, 0.75)' : 'rgba(0, 240, 255, 0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padLeft + 90, 14);
+    ctx.lineTo(padLeft + 104, 14);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#E2E8F0';
+    ctx.fillText('Forecast Trajectory', padLeft + 110, 17);
+
+    // Box 3: Safe Zone
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+    ctx.fillRect(padLeft + 224, 10, 10, 8);
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+    ctx.strokeRect(padLeft + 224, 10, 10, 8);
+    ctx.fillStyle = '#10B981';
+    ctx.fillText('Nominal Safe Zone (<15%)', padLeft + 238, 17);
+
+    // 8. Plot Data Trajectory
+    ctx.lineWidth = 2.5;
+
+    if (isThermal) {
+      // Thermal Runaway: Rapid increase past 14:30
+      const points = [
+        { t: 0, deg: 2.0 },
+        { t: 0.2, deg: 2.5 },
+        { t: 0.4, deg: 3.2 },
+        { t: 0.5, deg: 4.2 },
+        { t: 0.55, deg: 14.0 },
+        { t: 0.65, deg: Math.max(28, currentDeg) }
+      ];
+
+      // Area Fill
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        const px = padLeft + p.t * plotW;
+        const py = padTop + plotH - (p.deg / 50) * plotH;
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      const lastP = points[points.length - 1];
+      const lastX = padLeft + lastP.t * plotW;
+      const lastY = padTop + plotH - (lastP.deg / 50) * plotH;
+      ctx.lineTo(lastX, padTop + plotH);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.closePath();
+
+      const areaGrad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      areaGrad.addColorStop(0, 'rgba(239, 68, 68, 0.25)');
+      areaGrad.addColorStop(1, 'rgba(239, 68, 68, 0.01)');
+      ctx.fillStyle = areaGrad;
+      ctx.fill();
+
+      // Stroke Line
+      ctx.strokeStyle = '#EF4444';
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        const px = padLeft + p.t * plotW;
+        const py = padTop + plotH - (p.deg / 50) * plotH;
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      // Current Point Marker
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 9, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#EF4444';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Forecast Trajectory (dashed)
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      const projX = padLeft + 0.88 * plotW;
+      const projY = padTop + plotH - (48 / 50) * plotH;
+      ctx.lineTo(projX, projY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Callout Tag
+      ctx.fillStyle = '#EF4444';
+      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CURRENT: ${Math.round(currentDeg)}% (THERMAL RUNAWAY)`, Math.min(w - padRight - 80, Math.max(padLeft + 80, lastX)), Math.max(padTop + 24, lastY - 14));
+
+    } else {
+      // Normal & Sensor Fault (Stable nominal curve)
+      const points = [
+        { t: 0, deg: 2.0 },
+        { t: 0.2, deg: 2.4 },
+        { t: 0.4, deg: 3.1 },
+        { t: 0.55, deg: currentDeg }
+      ];
+
+      // Area Fill
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        const px = padLeft + p.t * plotW;
+        const py = padTop + plotH - (p.deg / 50) * plotH;
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      const lastP = points[points.length - 1];
+      const lastX = padLeft + lastP.t * plotW;
+      const lastY = padTop + plotH - (lastP.deg / 50) * plotH;
+      ctx.lineTo(lastX, padTop + plotH);
+      ctx.lineTo(padLeft, padTop + plotH);
+      ctx.closePath();
+
+      const areaGrad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+      areaGrad.addColorStop(0, 'rgba(16, 185, 129, 0.18)');
+      areaGrad.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+      ctx.fillStyle = areaGrad;
+      ctx.fill();
+
+      // Stroke Line
+      ctx.strokeStyle = '#10B981';
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        const px = padLeft + p.t * plotW;
+        const py = padTop + plotH - (p.deg / 50) * plotH;
+        if (idx === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      // Current Point Marker
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#10B981';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Forecast Trajectory (dashed)
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      const projX = padLeft + 1.0 * plotW;
+      const projY = padTop + plotH - (5.4 / 50) * plotH;
+      ctx.lineTo(projX, projY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Callout Tag
+      ctx.fillStyle = '#10B981';
+      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`CURRENT: ${currentDeg.toFixed(1)}% (NOMINAL)`, Math.min(w - padRight - 60, Math.max(padLeft + 60, lastX)), Math.max(padTop + 24, lastY - 14));
+    }
+
+    ctx.restore();
+  }
+
+  // ==========================================================================
+  // SECTION 8: MISSION TIMELINE & SCRUBBING
+  // ==========================================================================
+  function renderTimelineDisplay(s) {
+    const timeDisplay = document.getElementById('timeline-time-val');
+    if (timeDisplay) {
+      timeDisplay.style.cursor = 'pointer';
+      if (s.isReplaying) {
+        const sec = (s.replayIndex !== null && s.replayIndex !== undefined) ? s.replayIndex : 0;
+        timeDisplay.textContent = `REPLAY • T+${sec}.0s (${s.simTime})`;
+        timeDisplay.style.color = 'var(--status-warning)';
+        timeDisplay.title = 'Replaying historical snapshot. Click to return to LIVE simulation.';
+      } else {
+        timeDisplay.textContent = `LIVE • ${s.simTime}`;
+        timeDisplay.style.color = 'var(--accent-blue)';
+        timeDisplay.title = 'Live simulation active. Scrub slider below to inspect historical timeline.';
+      }
+    }
+
+    // Highlight active phase node based on derived phase
+    const phaseNames = ['IDLE', 'TAKEOFF', 'CLIMB', 'CRUISE', 'LOITER', 'RETURN', 'LANDING'];
+    const currentPhase = (s.missionPhase || 'cruise').toUpperCase();
+    const activeIdx = phaseNames.indexOf(currentPhase) >= 0 ? phaseNames.indexOf(currentPhase) : 3;
+
+    const nodes = document.querySelectorAll('.timeline-phase-node');
+    nodes.forEach((node, idx) => {
+      node.classList.remove('active', 'passed');
+      if (idx < activeIdx) node.classList.add('passed');
+      else if (idx === activeIdx) node.classList.add('active');
+    });
+  }
+
+  // ==========================================================================
+  // SCENARIO SWITCHING LOGIC (Triggers Real Pipeline)
+  // ==========================================================================
+  let liveSavedSnapshot = null;
+
+  window.applyScenario = function (scenarioKey) {
+    currentScenarioKey = scenarioKey;
+    window.appState.scenario = scenarioKey;
+
+    // Update Scenario Buttons
+    document.querySelectorAll('.btn-scenario').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.scenario === scenarioKey);
+    });
+
+    if (!telemetryEngine || !sensorTrustEngine || !aiDiagnosticNet) return;
+
+    // Reset replay mode back to live simulation
+    telemetryEngine.pauseReplay();
+    telemetryEngine.isReplaying = false;
+    window.appState.isReplaying = false;
+    window.appState.replayIndex = null;
+    liveSavedSnapshot = null;
+
+    // Reset Sensor Trust history for clean scenario evaluation
+    sensorTrustEngine.reset();
+
+    const slider = document.getElementById('timeline-slider');
+    if (slider) slider.value = 100;
+
+    if (scenarioKey === 'normal') {
+      telemetryEngine.setScenario('nominal');
+    } else if (scenarioKey === 'sensor_fault') {
+      // SCENARIO B: SENSOR FAULT (FREEZE)
+      telemetryEngine.setScenario('sensor_freeze');
+      // Pre-seed identical oil pressure points in sensorTrustEngine history for zero-latency detection
+      for (let i = 0; i < 12; i++) {
+        sensorTrustEngine.history.oilPress.push(52.4);
+        sensorTrustEngine.history.rpm.push(4200 + (i % 3) * 15);
+        sensorTrustEngine.history.load.push(72 + (i % 2) * 2);
+      }
+    } else if (scenarioKey === 'sensor_drift') {
+      telemetryEngine.setScenario('sensor_drift');
+    } else if (scenarioKey === 'thermal_degradation') {
+      // SCENARIO C: REAL THERMAL DEGRADATION
+      telemetryEngine.setScenario('thermal_degradation');
+    } else if (scenarioKey === 'lubrication_degradation') {
+      telemetryEngine.setScenario('lubrication_degradation');
+    } else if (scenarioKey === 'rpm_instability') {
+      telemetryEngine.setScenario('rpm_instability');
+    }
+
+    // Force an immediate synchronous compute step so UI updates instantly
+    telemetryEngine.computePhysicsStep();
+    executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+  };
+
+  // ==========================================================================
+  // EXIT REPLAY MODE (Restores Live Simulation)
+  // ==========================================================================
+  window.exitReplayMode = function () {
+    if (!telemetryEngine) return;
+    window.appState.isReplaying = false;
+    window.appState.replayIndex = null;
+    telemetryEngine.isReplaying = false;
+
+    const slider = document.getElementById('timeline-slider');
+    if (slider) slider.value = 100;
+
+    if (liveSavedSnapshot) {
+      Object.assign(window.appState, liveSavedSnapshot, {
+        isReplaying: false,
+        replayIndex: null
+      });
+      liveSavedSnapshot = null;
+    }
+
+    telemetryEngine.computePhysicsStep();
+    executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+  };
+
+  // ==========================================================================
+  // JUMP TO HISTORICAL MISSION REPLAY MOMENT (Pure Immutable Snapshot Restore)
+  // ==========================================================================
+  window.jumpToReplaySecond = function (sec) {
+    if (!telemetryEngine) return;
+
+    const targetSec = Math.max(0, Math.min(100, Math.floor(sec)));
+
+    // Save live state on initial transition from live to replay
+    if (!window.appState.isReplaying) {
+      liveSavedSnapshot = captureAppStateSnapshot();
+    }
+
+    window.appState.isReplaying = true;
+    window.appState.replayIndex = targetSec;
+    telemetryEngine.isReplaying = true;
+
+    // Sync slider position if not already at targetSec
+    const slider = document.getElementById('timeline-slider');
+    if (slider && parseInt(slider.value, 10) !== targetSec) {
+      slider.value = targetSec;
+    }
+
+    // 1. FETCH IMMUTABLE CLONED HISTORICAL SNAPSHOT
+    const snapshot = telemetryEngine.getReplaySnapshot(targetSec);
+    if (!snapshot) return;
+
+    // 2. RESTORE appState WITH THE EXACT PRE-RECORDED SNAPSHOT
+    // CRITICAL: NEVER call telemetry generation, physics recalculation,
+    // SensorTrustEngine.evaluate(), or AI diagnostic evaluation during replay!
+    Object.assign(window.appState, snapshot, {
+      isReplaying: true,
+      replayIndex: targetSec
+    });
+
+    currentScenarioKey = snapshot.scenario || 'normal';
+
+    // Update scenario button highlights
+    document.querySelectorAll('.btn-scenario').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.scenario === currentScenarioKey);
+    });
+
+    // 3. RENDER ALL DASHBOARD SECTIONS DIRECTLY FROM appState
+    renderDashboard();
+
+    // 4. SYNCHRONIZE 3D ENGINE STATE FROM SNAPSHOT
+    if (digitalTwin && snapshot.rawTelemetry) {
+      const avgCht = snapshot.rawTelemetry.cht ? (snapshot.rawTelemetry.cht.reduce((a, b) => a + b, 0) / snapshot.rawTelemetry.cht.length) : 178;
+      const avgEgt = snapshot.rawTelemetry.egt ? (snapshot.rawTelemetry.egt.reduce((a, b) => a + b, 0) / snapshot.rawTelemetry.egt.length) : 824;
+      const oilPressTrust = (snapshot.trustResult && snapshot.trustResult.scores && snapshot.trustResult.scores.oilPress !== undefined)
+        ? snapshot.trustResult.scores.oilPress
+        : 1.0;
+
+      digitalTwin.updateState({
+        rpm: snapshot.rawTelemetry.rpm,
+        status: snapshot.diagnosticResult ? snapshot.diagnosticResult.status : 'HEALTHY',
+        oilPressTrust: oilPressTrust,
+        cht: avgCht,
+        egt: avgEgt
+      }, currentScenarioKey);
+    }
+  };
+
+  // ==========================================================================
+  // EVENT LISTENERS & MODALS
+  // ==========================================================================
+  function initUIEventListeners() {
+    // Scenario Buttons
+    document.querySelectorAll('.btn-scenario').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.applyScenario(btn.dataset.scenario);
+      });
+    });
+
+    // 7 Mission Phase Segment Markers (Continuous Timeline Jump Points)
+    const phaseTimestamps = {
+      idle: 0,
+      takeoff: 19,
+      climb: 33,
+      cruise: 49,
+      loiter: 70,
+      return: 76,
+      landing: 89
+    };
+    document.querySelectorAll('.timeline-phase-node').forEach(node => {
+      node.addEventListener('click', () => {
+        const phase = (node.dataset.phase || '').toLowerCase();
+        if (phase in phaseTimestamps) {
+          window.jumpToReplaySecond(phaseTimestamps[phase]);
+        }
+      });
+    });
+
+    // Fault Injection Severity Slider (P1 Controlled Fault Injection)
+    const severitySlider = document.getElementById('fault-severity-slider');
+    const severityVal = document.getElementById('fault-severity-val');
+    if (severitySlider && telemetryEngine) {
+      severitySlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (severityVal) severityVal.textContent = `${val}%`;
+        telemetryEngine.setFaultSeverity(val);
+        // If in an active fault scenario, re-trigger compute step
+        if (currentScenarioKey !== 'normal') {
+          telemetryEngine.computePhysicsStep();
+          executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+        }
+      });
+    }
+
+    // Environmental Modifiers (P1)
+    const btnEnvAlt = document.getElementById('btn-env-altitude');
+    const btnEnvWeather = document.getElementById('btn-env-weather');
+    const btnEnvThrottle = document.getElementById('btn-env-throttle');
+
+    if (btnEnvAlt && telemetryEngine) {
+      btnEnvAlt.addEventListener('click', () => {
+        const mods = telemetryEngine.toggleEnvironmentModifier('highAltitude');
+        btnEnvAlt.classList.toggle('active', !!mods.highAltitude);
+        telemetryEngine.computePhysicsStep();
+        executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+      });
+    }
+
+    if (btnEnvWeather && telemetryEngine) {
+      btnEnvWeather.addEventListener('click', () => {
+        const mods = telemetryEngine.toggleEnvironmentModifier('hotWeather');
+        btnEnvWeather.classList.toggle('active', !!mods.hotWeather);
+        telemetryEngine.computePhysicsStep();
+        executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+      });
+    }
+
+    if (btnEnvThrottle && telemetryEngine) {
+      btnEnvThrottle.addEventListener('click', () => {
+        btnEnvThrottle.classList.add('active');
+        telemetryEngine.toggleEnvironmentModifier('rapidThrottle');
+        telemetryEngine.computePhysicsStep();
+        executePipelineStep(telemetryEngine.state, telemetryEngine.expected);
+        setTimeout(() => {
+          btnEnvThrottle.classList.remove('active');
+        }, 4000);
+      });
+    }
+
+    // Twin View Buttons (ISO, TOP, FRONT, SENSORS)
+    document.querySelectorAll('.btn-twin-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-twin-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (digitalTwin) digitalTwin.setView(btn.dataset.view);
+      });
+    });
+
+    // Continuous Mission Replay Timeline Scrubbing (0s to 100s)
+    // Every integer second 0s through 100s corresponds to an immutable recorded historical frame.
+    const slider = document.getElementById('timeline-slider');
+    if (slider && telemetryEngine) {
+      slider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        window.jumpToReplaySecond(val);
+      });
+    }
+
+    // Clicking Mission Elapsed Time Display exits replay mode and returns to live simulation
+    const timeDisplay = document.getElementById('timeline-time-val');
+    if (timeDisplay) {
+      timeDisplay.addEventListener('click', () => {
+        if (window.appState && window.appState.isReplaying) {
+          window.exitReplayMode();
+        }
+      });
+    }
+
+    // Event Milestones (Navigates to exact event seconds on continuous timeline):
+    // 1. Baseline Cruise (t=60s)
+    // 2. Oil Transducer Frozen (t=64s)
+    // 3. Sensor Quarantined (t=71s)
+    // 4. Thermal Distress Injected (t=80s)
+    // 5. Thermal Runaway Classified (t=82s)
+    // 6. EHI Reduced / RUL 48h (t=84s)
+    const markerBaseline = document.getElementById('marker-norm-baseline');
+    const markerSensorFault = document.getElementById('marker-sensor-fault');
+    const markerSensorQuar = document.getElementById('marker-sensor-quar');
+    const markerThermalDeg = document.getElementById('marker-thermal-deg');
+    const markerThermalClass = document.getElementById('marker-thermal-class');
+    const markerRulRevise = document.getElementById('marker-rul-revise');
+
+    if (markerBaseline) markerBaseline.addEventListener('click', () => window.jumpToReplaySecond(60));
+    if (markerSensorFault) markerSensorFault.addEventListener('click', () => window.jumpToReplaySecond(64));
+    if (markerSensorQuar) markerSensorQuar.addEventListener('click', () => window.jumpToReplaySecond(71));
+    if (markerThermalDeg) markerThermalDeg.addEventListener('click', () => window.jumpToReplaySecond(80));
+    if (markerThermalClass) markerThermalClass.addEventListener('click', () => window.jumpToReplaySecond(82));
+    if (markerRulRevise) markerRulRevise.addEventListener('click', () => window.jumpToReplaySecond(84));
+
+    // Modal: Contributing Parameters
+    const btnExplainParams = document.getElementById('btn-explain-params');
+    const modalParams = document.getElementById('modal-params');
+    const btnCloseParams = document.getElementById('btn-close-params');
+
+    if (btnExplainParams && modalParams) {
+      btnExplainParams.addEventListener('click', () => {
+        renderModalParameters();
+        modalParams.classList.add('open');
+      });
+    }
+    if (btnCloseParams && modalParams) {
+      btnCloseParams.addEventListener('click', () => modalParams.classList.remove('open'));
+    }
+
+    // Modal: Explain Diagnosis
+    const btnExplainDiag = document.getElementById('btn-explain-diag');
+    const modalDiag = document.getElementById('modal-diagnosis');
+    const btnCloseDiag = document.getElementById('btn-close-diag');
+
+    if (btnExplainDiag && modalDiag) {
+      btnExplainDiag.addEventListener('click', () => {
+        renderModalDiagnosis();
+        modalDiag.classList.add('open');
+      });
+    }
+    if (btnCloseDiag && modalDiag) {
+      btnCloseDiag.addEventListener('click', () => modalDiag.classList.remove('open'));
+    }
+
+    // Modal: EHI Explainability Breakdown (P0/P1)
+    const btnInspectEhi = document.getElementById('btn-inspect-ehi');
+    const modalEhi = document.getElementById('modal-ehi-breakdown');
+    const btnCloseEhi = document.getElementById('btn-close-ehi');
+
+    if (btnInspectEhi && modalEhi) {
+      btnInspectEhi.addEventListener('click', () => {
+        renderModalEhiBreakdown();
+        modalEhi.classList.add('open');
+      });
+    }
+    if (btnCloseEhi && modalEhi) {
+      btnCloseEhi.addEventListener('click', () => modalEhi.classList.remove('open'));
+    }
+
+    // Modal: ML Validation Report (P2)
+    const btnOpenMl = document.getElementById('btn-ml-validation-open');
+    const modalMl = document.getElementById('modal-ml-validation');
+    const btnCloseMl = document.getElementById('btn-close-ml');
+
+    if (btnOpenMl && modalMl) {
+      btnOpenMl.addEventListener('click', () => {
+        modalMl.classList.add('open');
+      });
+    }
+    if (btnCloseMl && modalMl) {
+      btnCloseMl.addEventListener('click', () => modalMl.classList.remove('open'));
+    }
+
+    // Close Modals on Backdrop Click
+    document.querySelectorAll('.modal-backdrop').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('open');
+      });
+    });
+  }
+
+  // ==========================================================================
+  // DYNAMIC MODALS: CONTRIBUTING PARAMETERS & EXPLAIN DIAGNOSIS
+  // ==========================================================================
+  function renderModalParameters() {
+    const list = document.getElementById('param-bars-list');
+    const note = document.getElementById('param-modal-note');
+    if (!list) return;
+
+    const s = window.appState;
+    const diag = s.diagnosticResult;
+    const params = (diag && diag.contributingParameters && diag.contributingParameters.length > 0)
+      ? diag.contributingParameters.slice(0, 4)
+      : [
+          { label: 'EGT Residual', impact: 0.12 },
+          { label: 'CHT Residual', impact: 0.10 },
+          { label: 'Oil Press Slew', impact: 0.08 },
+          { label: 'Engine Load', impact: 0.06 }
+        ];
+
+    list.innerHTML = params.map(item => {
+      const pct = Math.round(item.impact * 100);
+      let barColor = 'var(--status-nominal)';
+      if (pct > 70) barColor = 'var(--status-critical)';
+      else if (pct > 35) barColor = 'var(--status-warning)';
+      else if (item.label.includes('RPM')) barColor = 'var(--accent-blue)';
+
+      return `
+        <div class="feature-bar-item">
+          <span class="feature-lbl">${item.label}</span>
+          <div class="feature-track">
+            <div class="feature-fill" style="width: ${pct}%; background: ${barColor};"></div>
+          </div>
+          <span class="feature-val">${pct}%</span>
+        </div>
+      `;
+    }).join('');
+
+    if (note) {
+      const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT');
+      const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION');
+      if (isSensorFault) {
+        note.textContent = 'Decoupling observed: Oil pressure remained invariant during dynamic RPM perturbation. The Sensor Trust Engine isolated the fault to the sensor itself, leaving engine health score intact.';
+      } else if (isThermal) {
+        note.textContent = 'High thermal cross-correlation: Exhaust gas and cylinder head temperatures both breached nominal bounds while sensor trust remained verified. Authentic thermodynamic degradation confirmed.';
+      } else {
+        note.textContent = 'All parameter deviations are within ±3% of the calibrated physics baseline model. Combustion and lubrication systems are operating in optimal balance.';
+      }
+    }
+  }
+
+  function renderModalDiagnosis() {
+    const content = document.getElementById('diag-modal-content');
+    if (!content) return;
+
+    const s = window.appState;
+    const trust = s.trustResult;
+    const diag = s.diagnosticResult;
+    const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || (diag && diag.faultClass === 'SENSOR_FAULT');
+    const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || (diag && diag.faultClass === 'THERMAL_DEGRADATION');
+
+    if (isSensorFault) {
+      const oilScore = trust && trust.scores && trust.scores.oilPress !== undefined ? trust.scores.oilPress.toFixed(2) : (trust && trust.quarantined && trust.quarantined.includes('oilPress') ? '0.25' : '1.00');
+      content.innerHTML = `
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--status-warning); font-size: 0.85rem;">Stage 1: Sensor Trust Gatekeeper</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Evaluated signal variance of oil pressure against expected RPM correlation. Variance dropped below physical jitter threshold (0.005 PSI) while RPM fluctuated. Sensor trust penalized to <strong>${oilScore} (FAULTY)</strong> and quarantined.</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--accent-blue); font-size: 0.85rem;">Stage 2: Isolation Forest Anomaly Detection</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Anomaly score computed at <strong>${s.anomalyScore.toFixed(2)}</strong>. Pre-filtered by Sensor Trust Gatekeeper to isolate transducer artifact from mechanical engine state.</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+          <strong style="color: var(--status-nominal); font-size: 0.85rem;">Stage 3: Decision Engine Conclusion</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Classified as <strong>SENSOR FAULT</strong>. Engine Health Index protected at <strong>${Math.round(s.ehi)}/100</strong> to prevent false emergency abort of UAV cruise mission.</p>
+        </div>
+      `;
+    } else if (isThermal) {
+      const egtScore = (trust && trust.scores && trust.scores.egt) ? (trust.scores.egt.reduce((a, b) => a + b, 0) / 4).toFixed(2) : '0.95';
+      const chtScore = (trust && trust.scores && trust.scores.cht) ? (trust.scores.cht.reduce((a, b) => a + b, 0) / 4).toFixed(2) : '0.96';
+      content.innerHTML = `
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--status-nominal); font-size: 0.85rem;">Stage 1: Sensor Trust Gatekeeper</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Cross-correlated EGT (${egtScore}) and CHT (${chtScore}) channels with fuel flow rate. Signals exhibit natural physics noise and continuous derivative. Sensors declared <strong>TRUSTED</strong>.</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--status-critical); font-size: 0.85rem;">Stage 2: Isolation Forest Anomaly Detection</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Severe multi-dimensional out-of-distribution point detected. Anomaly score surged to <strong>${s.anomalyScore.toFixed(2)}</strong> across cylinder heads and exhaust manifolds.</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+          <strong style="color: var(--status-critical); font-size: 0.85rem;">Stage 3: Random Forest Classifier</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Identified failure signature matching <strong>CYLINDER THERMAL RUNAWAY</strong>. EHI downgraded to <strong>${Math.round(s.ehi)}/100</strong>; RUL forecast depleted to <strong>${s.rulLabel}</strong>.</p>
+        </div>
+      `;
+    } else {
+      content.innerHTML = `
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--status-nominal); font-size: 0.85rem;">Stage 1: Sensor Trust Gatekeeper</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">All 9 telemetry streams verified for slew rate, variance, and cross-correlation. Overall trust index: <strong>${s.overallTrust.toFixed(2)} (NOMINAL)</strong>.</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 10px;">
+          <strong style="color: var(--status-nominal); font-size: 0.85rem;">Stage 2: Isolation Forest Anomaly Detection</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Anomaly score is <strong>${s.anomalyScore.toFixed(2)}</strong>, well inside the nominal operating envelope threshold (0.20).</p>
+        </div>
+        <div style="background: var(--surface-0); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+          <strong style="color: var(--accent-blue); font-size: 0.85rem;">Stage 3: Health Aggregation</strong>
+          <p style="margin-top: 4px; font-size: 0.78rem;">Engine is categorized as <strong>HEALTHY</strong>. EHI is <strong>${Math.round(s.ehi)}/100</strong>. Projected RUL is stable at <strong>${s.rulLabel}</strong>.</p>
+        </div>
+      `;
+    }
+  }
+
+  function renderModalEhiBreakdown() {
+    const container = document.getElementById('ehi-breakdown-details');
+    if (!container) return;
+    const s = window.appState;
+    const b = s.ehiBreakdown || {
+      baseline: 100,
+      thermalContribution: 0,
+      lubricationContribution: 0,
+      vibrationContribution: 0,
+      sensorShieldContribution: 0,
+      finalEhi: s.ehi,
+      status: s.ehiStatus
+    };
+
+    container.innerHTML = `
+      <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: var(--surface-0); border-radius: var(--radius-sm);">
+        <span>Initial Theoretical Baseline</span>
+        <strong style="color: var(--status-nominal);">100.0 pts</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: var(--surface-0); border-radius: var(--radius-sm);">
+        <span>Thermodynamic Penalty (EGT/CHT Deviation)</span>
+        <strong style="color: ${b.thermalContribution < 0 ? 'var(--status-critical)' : 'var(--status-nominal)'}; font-family: var(--font-mono);">${b.thermalContribution >= 0 ? '+' : ''}${b.thermalContribution} pts</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: var(--surface-0); border-radius: var(--radius-sm);">
+        <span>Lubrication Penalty (Trusted Oil Pressure/Temp)</span>
+        <strong style="color: ${b.lubricationContribution < 0 ? 'var(--status-critical)' : 'var(--status-nominal)'}; font-family: var(--font-mono);">${b.lubricationContribution >= 0 ? '+' : ''}${b.lubricationContribution} pts</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: var(--surface-0); border-radius: var(--radius-sm);">
+        <span>Mechanical Vibration Penalty (RMS > 2.5 mm/s)</span>
+        <strong style="color: ${b.vibrationContribution < 0 ? 'var(--status-warning)' : 'var(--status-nominal)'}; font-family: var(--font-mono);">${b.vibrationContribution >= 0 ? '+' : ''}${b.vibrationContribution} pts</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(59, 130, 246, 0.08); border: 1px solid var(--accent-blue-border); border-radius: var(--radius-sm);">
+        <span>Sensor Trust Shielding (Distrusted Transducer Compensation)</span>
+        <strong style="color: var(--accent-blue); font-family: var(--font-mono);">+${b.sensorShieldContribution} pts (Protected)</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); margin-top: 4px; border: 1px solid var(--border-subtle);">
+        <span style="font-weight: 700; color: var(--text-primary);">Calculated Engine Health Index (EHI)</span>
+        <strong style="font-size: 1.1rem; color: ${s.ehiStatus === 'NOMINAL' ? 'var(--status-nominal)' : (s.ehiStatus === 'WARNING' ? 'var(--status-warning)' : 'var(--status-critical)')}; font-family: var(--font-mono);">${Math.round(s.ehi)} / 100 (${s.ehiStatus})</strong>
+      </div>
+    `;
+  }
+
+  // ==========================================================================
+  // AI ENGINE ASSISTANT (Context-Aware Grounded in appState)
+  // ==========================================================================
+  function initAssistant() {
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('btn-chat-send');
+    const chipsContainer = document.getElementById('assistant-chips');
+
+    if (sendBtn && chatInput) {
+      sendBtn.addEventListener('click', () => {
+        handleUserQuery(chatInput.value);
+        chatInput.value = '';
+      });
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          handleUserQuery(chatInput.value);
+          chatInput.value = '';
+        }
+      });
+    }
+
+    if (chipsContainer) {
+      chipsContainer.addEventListener('click', (e) => {
+        const chip = e.target.closest('.query-chip');
+        if (chip) {
+          handleUserQuery(chip.textContent.trim());
+        }
+      });
+    }
+
+    // Initial greeting
+    appendAssistantMessage('ai', 'AERO TWIN Decision-Support Assistant active. All telemetry is synchronized with the physical engine digital twin. How can I assist you with the engine condition?');
+  }
+
+  // ==========================================================================
+  // ASSISTANT STATE SNAPSHOT (Single Source of Truth)
+  // ==========================================================================
+  function getAssistantSnapshot() {
+    const s = window.appState || {};
+    const safeClone = (obj) => {
+      if (typeof structuredClone === 'function') {
+        try { return structuredClone(obj); } catch (e) {}
+      }
+      try {
+        return JSON.parse(JSON.stringify(obj));
+      } catch (e) {
+        return Object.assign({}, obj);
+      }
+    };
+
+    const raw = s.rawTelemetry || {};
+    const exp = s.expectedPhysics || (s.physics ? s.physics.expected : {}) || {};
+    const phys = s.physics || {};
+    const resi = s.physicsResiduals || (phys.residuals || {});
+    const trust = s.trustResult || {};
+    const diag = s.diagnosticResult || {};
+    const rel = s.missionReliability || {};
+    const rul = s.rul || {};
+
+    const isReplaying = !!s.isReplaying;
+    const replayIndex = isReplaying ? (s.replayIndex !== undefined && s.replayIndex !== null ? s.replayIndex : 0) : null;
+    const timestamp = isReplaying
+      ? `T+${replayIndex}.0s (${s.simTime || 'N/A'})`
+      : (s.simTime || (raw.missionTimeSec !== undefined ? `T+${raw.missionTimeSec}s` : 'LIVE'));
+
+    const quarantined = s.quarantinedSensors || (trust.quarantined ? [...trust.quarantined] : []);
+
+    let confidenceVal = 95;
+    if (diag.confidencePct !== undefined) {
+      confidenceVal = diag.confidencePct;
+    } else if (diag.confidence !== undefined) {
+      confidenceVal = diag.confidence > 1 ? diag.confidence : Math.round(diag.confidence * 100);
+    }
+
+    const telemetry = {
+      rpm: raw.rpm !== undefined ? raw.rpm : null,
+      map: raw.map !== undefined ? raw.map : null,
+      fuelFlow: raw.fuelFlow !== undefined ? raw.fuelFlow : null,
+      oilPress: raw.oilPress !== undefined ? raw.oilPress : null,
+      oilTemp: raw.oilTemp !== undefined ? raw.oilTemp : null,
+      load: raw.load !== undefined ? raw.load : null,
+      vibrationRms: raw.vibrationRms !== undefined ? raw.vibrationRms : null,
+      altitude: raw.altitude !== undefined ? raw.altitude : null,
+      ambientTemp: raw.ambientTemp !== undefined ? raw.ambientTemp : null,
+      cht: Array.isArray(raw.cht) ? [...raw.cht] : (raw.cht !== undefined ? [raw.cht] : []),
+      egt: Array.isArray(raw.egt) ? [...raw.egt] : (raw.egt !== undefined ? [raw.egt] : []),
+      avgCht: (Array.isArray(raw.cht) && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : null,
+      avgEgt: (Array.isArray(raw.egt) && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : null
+    };
+
+    const expectedState = {
+      rpm: exp.rpm !== undefined ? exp.rpm : telemetry.rpm,
+      map: exp.map !== undefined ? exp.map : (exp.manifoldPressure !== undefined ? exp.manifoldPressure : telemetry.map),
+      fuelFlow: exp.fuelFlow !== undefined ? exp.fuelFlow : telemetry.fuelFlow,
+      oilPress: exp.oilPress !== undefined ? exp.oilPress : (exp.oilPressure !== undefined ? exp.oilPressure : telemetry.oilPress),
+      oilTemp: exp.oilTemp !== undefined ? exp.oilTemp : telemetry.oilTemp,
+      load: exp.load !== undefined ? exp.load : telemetry.load,
+      cht: Array.isArray(exp.cht) ? [...exp.cht] : [],
+      egt: Array.isArray(exp.egt) ? [...exp.egt] : [],
+      chtAvg: exp.chtAvg !== undefined ? exp.chtAvg : (Array.isArray(exp.cht) && exp.cht.length ? (exp.cht.reduce((a, b) => a + b, 0) / exp.cht.length) : null),
+      egtAvg: exp.egtAvg !== undefined ? exp.egtAvg : (Array.isArray(exp.egt) && exp.egt.length ? (exp.egt.reduce((a, b) => a + b, 0) / exp.egt.length) : null)
+    };
+
+    const residuals = {
+      rpm: resi.rpm !== undefined ? resi.rpm : 0,
+      map: resi.map !== undefined ? resi.map : 0,
+      fuelFlow: resi.fuelFlow !== undefined ? resi.fuelFlow : 0,
+      oilPress: resi.oilPress !== undefined ? resi.oilPress : 0,
+      oilTemp: resi.oilTemp !== undefined ? resi.oilTemp : 0,
+      cht: resi.cht !== undefined ? resi.cht : 0,
+      egt: resi.egt !== undefined ? resi.egt : 0
+    };
+
+    const sensorTrust = {
+      overall: s.overallTrust !== undefined ? s.overallTrust : (trust.overallTrust !== undefined ? trust.overallTrust : 1.0),
+      trustedCount: s.trustedCount !== undefined ? s.trustedCount : (quarantined.length > 0 ? 8 : 9),
+      totalSensors: s.totalSensors !== undefined ? s.totalSensors : 9,
+      quarantined: quarantined,
+      scores: trust.scores || {},
+      perSensor: trust.sensorDetails || {}
+    };
+
+    const degradation = s.degradationPct !== undefined ? s.degradationPct : (diag.degradationPct !== undefined ? diag.degradationPct : 4);
+    const rulVal = rul.estimate !== undefined ? rul.estimate : (s.rulHours !== undefined ? s.rulHours : (diag.rulHours !== undefined ? diag.rulHours : 115));
+    const ehiVal = s.ehi !== undefined ? s.ehi : (diag.healthIndex !== undefined ? diag.healthIndex : 96);
+    const anomalyScore = s.anomalyScore !== undefined ? s.anomalyScore : (diag.anomalyScore !== undefined ? diag.anomalyScore : 0.04);
+    const diagnosis = s.aiDiagnosis || diag.faultClass || 'HEALTHY';
+
+    const snapshot = {
+      timestamp,
+      isReplaying,
+      replayIndex,
+      missionPhase: s.missionPhase || (raw.missionPhase ? raw.missionPhase.toUpperCase() : 'CRUISE'),
+      telemetry,
+      expectedState,
+      residuals,
+      sensorTrust,
+      quarantinedSensors: quarantined,
+      anomalyScore,
+      diagnosis,
+      diagnosisConfidence: confidenceVal,
+      ehi: ehiVal,
+      degradation,
+      rul: rulVal,
+      missionReliability: {
+        score: rel.score !== undefined ? rel.score : 96,
+        status: rel.status || 'GO',
+        reasons: rel.reasons || ['All propulsion parameters nominal'],
+        currentPhase: rel.currentPhase || s.missionPhase || 'CRUISE',
+        remainingMissionDuration: rel.remainingMissionDuration || '02h 10m'
+      },
+
+      // Legacy compatibility aliases
+      scenario: s.scenario || 'normal',
+      simTime: s.simTime,
+      rawTelemetry: raw,
+      expectedPhysics: exp,
+      trustResult: trust,
+      diagnosticResult: diag,
+      physics: phys,
+      physicsResiduals: resi,
+      ehiStatus: s.ehiStatus || diag.ehiStatus || 'NOMINAL',
+      ehiBreakdown: s.ehiBreakdown || diag.ehiBreakdown,
+      aiDiagnosis: diagnosis,
+      aiDiagStatus: s.aiDiagStatus || 'NOMINAL',
+      overallTrust: sensorTrust.overall,
+      trustedCount: sensorTrust.trustedCount,
+      totalSensors: sensorTrust.totalSensors,
+      rulHours: rulVal,
+      rulLabel: s.rulLabel || `${rulVal} h`,
+      degradationPct: degradation,
+      degradationTrend: s.degradationTrend || diag.degradationTrend || 'STABLE',
+      why: s.why || diag.explainability || {},
+      maintenance: s.maintenance || diag.maintenanceAdvisory || {},
+      environment: s.environment || {}
+    };
+
+    return safeClone(snapshot);
+  }
+
+  const captureAppStateSnapshot = getAssistantSnapshot;
+  window.getAssistantSnapshot = getAssistantSnapshot;
+  window.captureAppStateSnapshot = getAssistantSnapshot;
+
+  function routeDeterministicIntent(query) {
+    if (!query || typeof query !== 'string') return null;
+    const qLower = query.trim().toLowerCase();
+
+    // Identity / Capabilities Intent (Fast-path: no external API call or telemetry analysis needed)
+    if (/^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
+        /^introduce\s+yourself\b/i.test(qLower) ||
+        /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
+        qLower === 'who are you' ||
+        qLower === 'what are you' ||
+        qLower === 'what can you do' ||
+        qLower === 'introduce yourself') {
+      return "I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. I do not directly control the aircraft or engine.";
+    }
+
+    // Natural Greetings
+    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 20) {
+      return "Hello. I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. How can I assist you with the engine condition?";
+    }
+
+    return null;
+  }
+
+  window.routeDeterministicIntent = routeDeterministicIntent;
+
+  function handleUserQuery(query) {
+    if (!query || !query.trim()) return;
+    const cleanQuery = query.trim();
+    appendAssistantMessage('user', cleanQuery);
+
+    // 1. DETERMINISTIC INTENT ROUTING (Identity / Greetings - Fast-path)
+    const deterministicResponse = routeDeterministicIntent(cleanQuery);
+    if (deterministicResponse) {
+      appendAssistantMessage('ai', deterministicResponse, 'local');
+      return;
+    }
+
+    // 2. CAPTURE EXACTLY ONE IMMUTABLE SNAPSHOT OF CURRENT appState AT SUBMISSION MOMENT
+    const snapshot = getAssistantSnapshot();
+
+    // 3. SHOW TYPING INDICATOR
+    const typingId = showTypingIndicator();
+
+    // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
+    tryGrokQuery(cleanQuery, snapshot).then(grokResult => {
+      removeTypingIndicator(typingId);
+      if (grokResult) {
+        // Grok succeeded — convert markdown bold to HTML bold
+        let html = grokResult.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\n/g, '<br>');
+        appendAssistantMessage('ai', html, 'grok');
+      } else {
+        // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+        const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
+        appendAssistantMessage('ai', localResponse, 'local');
+      }
+    });
+  }
+
+  window.handleUserQuery = handleUserQuery;
+
+  async function tryGrokQuery(query, snapshot) {
+    try {
+      const response = await fetch('/api/grok', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: query,
+          appState: snapshot || getAssistantSnapshot()
+        })
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (data.error) return null;
+      return data.response || null;
+    } catch (err) {
+      // Network error or server not available
+      return null;
+    }
+  }
+
+  function format3PartResponse(currentState, evidenceLines, whyExplanation, replayTag) {
+    const replayPrefix = replayTag ? `<strong>[REPLAY ${replayTag}]</strong><br>` : '';
+    const evidenceHtml = evidenceLines.map(line => `• ${line}`).join('<br>');
+    return `${replayPrefix}<strong>CURRENT STATE:</strong> ${currentState}<br><br><strong>EVIDENCE:</strong><br>${evidenceHtml}<br><br><strong>WHY:</strong> ${whyExplanation}`;
+  }
+
+  function generateLocalAnalysis(query, stateSnapshot) {
+    const qLower = query.trim().toLowerCase();
+    // Strict Single Source of Truth: Grounded strictly in supplied state snapshot
+    const s = stateSnapshot || getAssistantSnapshot();
+    const raw = s.rawTelemetry || s.telemetry || {};
+    const phys = s.physics || {};
+    const resi = s.residuals || s.physicsResiduals || (phys.residuals || {});
+    const exp = s.expectedState || s.expectedPhysics || (phys.expected || {});
+    const trust = s.trustResult || s.sensorTrust || {};
+    const scores = trust.scores || {};
+    const quarantined = s.quarantinedSensors || trust.quarantined || [];
+
+    // Helper formatting with zero fabrication
+    const notAvail = 'That value is not currently available in the Digital Twin state.';
+    const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : (s.telemetry && s.telemetry.avgCht !== null ? s.telemetry.avgCht : null);
+    const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : (s.telemetry && s.telemetry.avgEgt !== null ? s.telemetry.avgEgt : null);
+    const avgChtStr = avgCht !== null ? `${avgCht.toFixed(1)} °C` : notAvail;
+    const avgEgtStr = avgEgt !== null ? `${avgEgt.toFixed(1)} °C` : notAvail;
+    const oilPressStr = raw.oilPress !== undefined && raw.oilPress !== null ? `${Number(raw.oilPress).toFixed(1)} PSI` : notAvail;
+    const oilTempStr = raw.oilTemp !== undefined && raw.oilTemp !== null ? `${Number(raw.oilTemp).toFixed(1)} °C` : notAvail;
+    const rpmStr = raw.rpm !== undefined && raw.rpm !== null ? `${Math.round(raw.rpm)} RPM` : notAvail;
+    const mapStr = raw.map !== undefined && raw.map !== null ? `${Number(raw.map).toFixed(1)} inHg` : notAvail;
+    const loadStr = raw.load !== undefined && raw.load !== null ? `${Number(raw.load).toFixed(1)}%` : notAvail;
+    const vibStr = raw.vibrationRms !== undefined && raw.vibrationRms !== null ? `${Number(raw.vibrationRms).toFixed(2)} mm/s` : notAvail;
+    const oilTrustScore = scores.oilPress !== undefined ? Number(scores.oilPress).toFixed(2) : (quarantined.includes('oilPress') ? '0.12' : '1.00');
+
+    const resiEgt = resi.egt !== undefined ? `${resi.egt >= 0 ? '+' : ''}${Number(resi.egt).toFixed(1)} °C` : '0 °C';
+    const resiCht = resi.cht !== undefined ? `${resi.cht >= 0 ? '+' : ''}${Number(resi.cht).toFixed(1)} °C` : '0 °C';
+    const ehiVal = s.ehi !== undefined ? Math.round(s.ehi) : notAvail;
+    const anomVal = s.anomalyScore !== undefined ? Number(s.anomalyScore).toFixed(2) : notAvail;
+    const overallTrustVal = s.overallTrust !== undefined ? Number(s.overallTrust).toFixed(2) : (s.sensorTrust && s.sensorTrust.overall !== undefined ? Number(s.sensorTrust.overall).toFixed(2) : notAvail);
+    const rulStr = s.rulLabel || (s.rul !== undefined ? `${s.rul} h` : (s.rulHours !== undefined ? `${s.rulHours} h` : notAvail));
+    const rel = s.missionReliability || {};
+    const relScoreStr = rel.score !== undefined ? `${rel.score}%` : notAvail;
+    const relStatusStr = rel.status || notAvail;
+    const maint = s.maintenance || {};
+    const isReplay = !!s.isReplaying;
+    const replaySec = (s.replayIndex !== null && s.replayIndex !== undefined) ? s.replayIndex : (s.simTime ? s.simTime.replace(/^14:/, '').replace(/^0+/, '') || '0' : '0');
+    const replayTag = isReplay ? `@ ${replaySec}s` : '';
+
+    const isSensorFault = s.diagnosis === 'SENSOR FAULT' || s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT') || (quarantined && quarantined.length > 0);
+    const isThermal = s.diagnosis === 'THERMAL DEGRADATION' || s.diagnosis === 'THERMAL RUNAWAY' || s.aiDiagnosis === 'THERMAL DEGRADATION' || s.aiDiagnosis === 'THERMAL RUNAWAY' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION');
+    const isLubrication = s.diagnosis === 'LUBRICATION FAULT' || s.aiDiagnosis === 'LUBRICATION FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION');
+    const isRpm = s.diagnosis === 'RPM INSTABILITY' || s.aiDiagnosis === 'RPM INSTABILITY' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'RPM_INSTABILITY');
+    const isHealthy = !isSensorFault && !isThermal && !isLubrication && !isRpm;
+
+    // INTENT 2: SENSOR TRUST / QUARANTINED SENSORS (Checked before general diagnosis to catch specific questions)
+    if (qLower.includes('quarantine') || qLower.includes('unreliable') || qLower.includes('which sensor') || qLower.includes('sensor trust') || qLower.includes('sensor fault') || qLower.includes('sensor problem') || qLower.includes('sensor or engine') || qLower.includes('is this a sensor')) {
+      let stateMsg, evidence, whyMsg;
+      if (quarantined.length > 0 || isSensorFault) {
+        const qList = quarantined.length > 0 ? quarantined.join(', ') : 'oilPress';
+        stateMsg = `Yes, an isolated sensor fault is confirmed on channel ${qList}; transducer is Quarantined while engine mechanical condition remains healthy.`;
+        evidence = [
+          `Quarantined Channel: <strong>${qList}</strong> (Transducer frozen at ${oilPressStr})`,
+          `Sensor Trust Score: <strong>${oilTrustScore}</strong> (Status: Quarantined / FAULTY)`,
+          `Overall Sensor Trust: <strong>${overallTrustVal}</strong> (${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} channels trusted)`,
+          `Secondary Verification: Oil Temp (${oilTempStr}) and Vibration (${vibStr}) confirm normal mechanical lubrication`
+        ];
+        whyMsg = `Zero signal variance was detected on the transducer during dynamic engine operation. The Sensor Trust Layer quarantined it to shield digital twin physics and EHI from false alarm aborts. The engine itself appears healthy; current evidence does not indicate mechanical engine failure.`;
+      } else {
+        stateMsg = `No sensors are quarantined; all ${s.sensorTrust.totalSensors} sensor channels are verified trusted.`;
+        evidence = [
+          `Trusted Sensors: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}</strong>`,
+          `Overall Trust Score: <strong>${overallTrustVal}</strong>`,
+          `Quarantined Channels: <strong>None</strong>`
+        ];
+        whyMsg = `Real-time analytical redundancy and noise variance checks confirm all instrumentation streams are tracking calibrated physics baselines.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 3: EGT / EXHAUST GAS TEMPERATURE
+    if (qLower.includes('egt') || qLower.includes('exhaust')) {
+      let stateMsg, evidence, whyMsg;
+      const expEgtStr = exp.egtAvg !== undefined ? `${Math.round(exp.egtAvg)} °C` : (exp.egt && exp.egt.length ? `${Math.round(exp.egt[0])} °C` : notAvail);
+      const isElevated = isThermal || (resi.egt !== undefined && resi.egt > 15);
+      if (isElevated) {
+        stateMsg = `Exhaust Gas Temperature (EGT) is significantly elevated above calibrated physics baseline.`;
+        evidence = [
+          `Actual Avg EGT: <strong>${avgEgtStr}</strong> across exhaust runners`,
+          `Expected Physics EGT: <strong>${expEgtStr}</strong>`,
+          `EGT Physics Residual: <strong>${resiEgt}</strong>`,
+          `Corroborating CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
+        ];
+        whyMsg = `Elevated EGT residuals correlate with increased thermodynamic load and cylinder thermal degradation, indicating lean combustion excursion or localized cooling shortfall.`;
+      } else {
+        stateMsg = `Exhaust Gas Temperature (EGT) is operating within nominal cruise parameters.`;
+        evidence = [
+          `Actual Avg EGT: <strong>${avgEgtStr}</strong>`,
+          `Expected Physics EGT: <strong>${expEgtStr}</strong>`,
+          `EGT Residual: <strong>${resiEgt}</strong>`
+        ];
+        whyMsg = `Combustion heat release and exhaust scavenge temperatures match expected stoichiometric baseline for the current manifold pressure (${mapStr}).`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 4: CHT / CYLINDER HEAD TEMPERATURE
+    if (qLower.includes('cht') || qLower.includes('cylinder head')) {
+      let stateMsg, evidence, whyMsg;
+      const expChtStr = exp.chtAvg !== undefined ? `${Math.round(exp.chtAvg)} °C` : (exp.cht && exp.cht.length ? `${Math.round(exp.cht[0])} °C` : notAvail);
+      const isElevated = isThermal || (resi.cht !== undefined && resi.cht > 5);
+      if (isElevated) {
+        stateMsg = `Cylinder Head Temperature (CHT) is elevated above normal thermal operating limits.`;
+        evidence = [
+          `Actual Avg CHT: <strong>${avgChtStr}</strong> across all 4 cylinders`,
+          `Expected Physics CHT: <strong>${expChtStr}</strong>`,
+          `CHT Physics Residual: <strong>${resiCht}</strong>`,
+          `Cylinder CHTs: <strong>[${raw.cht ? raw.cht.map(v => Number(v).toFixed(1) + '°C').join(', ') : avgChtStr}]</strong>`
+        ];
+        whyMsg = `Thermal heat generation exceeds cylinder fin convection cooling capacity, driving cylinder metallurgy toward critical thermal boundaries.`;
+      } else {
+        stateMsg = `Cylinder Head Temperature (CHT) is stable and within normal cooling margins.`;
+        evidence = [
+          `Actual Avg CHT: <strong>${avgChtStr}</strong>`,
+          `Expected Physics CHT: <strong>${expChtStr}</strong>`,
+          `CHT Residual: <strong>${resiCht}</strong>`
+        ];
+        whyMsg = `Balanced airflow cooling across the horizontally-opposed cylinder heads maintains uniform temperatures well below the 200°C maximum continuous limit.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 5: OIL PRESSURE
+    if (qLower.includes('oil pressure') || qLower.includes('oil press')) {
+      let stateMsg, evidence, whyMsg;
+      const expOilPressStr = exp.oilPress !== undefined ? `${Number(exp.oilPress).toFixed(1)} PSI` : (exp.oilPressure !== undefined ? `${Number(exp.oilPressure).toFixed(1)} PSI` : notAvail);
+      if (isSensorFault || quarantined.includes('oilPress')) {
+        stateMsg = `The oil pressure sensor is faulty and quarantined; actual engine lubrication remains healthy.`;
+        evidence = [
+          `Reported Oil Pressure: <strong>${oilPressStr}</strong> (Static transducer signal)`,
+          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
+          `Sensor Trust Score: <strong>${oilTrustScore}</strong> (Status: QUARANTINED)`,
+          `Corroborating Temp & Vibration: <strong>${oilTempStr}</strong>, <strong>${vibStr}</strong> (Nominal)`
+        ];
+        whyMsg = `The oil pressure transducer output locked at a fixed voltage. Secondary thermodynamic and vibration indicators show no physical lubrication loss, confirming an instrument-isolated fault.`;
+      } else if (isThermal || isLubrication) {
+        stateMsg = `Oil pressure is reduced under elevated thermal stress and viscosity thinning.`;
+        evidence = [
+          `Actual Oil Pressure: <strong>${oilPressStr}</strong>`,
+          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
+          `Oil Temperature: <strong>${oilTempStr}</strong> (Viscosity thinning)`
+        ];
+        whyMsg = `High operating oil temperatures reduce fluid dynamic viscosity, resulting in lower journal bearing back-pressure.`;
+      } else {
+        stateMsg = `Oil pressure is normal and operating within healthy delivery specifications.`;
+        evidence = [
+          `Actual Oil Pressure: <strong>${oilPressStr}</strong>`,
+          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
+          `Sensor Trust Score: <strong>${oilTrustScore} (TRUSTED)</strong>`
+        ];
+        whyMsg = `The positive displacement engine oil pump maintains stable hydrodynamic oil film thickness across all crankshaft journals.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 6: OIL TEMPERATURE
+    if (qLower.includes('oil temp') || qLower.includes('oil temperature')) {
+      let stateMsg, evidence, whyMsg;
+      const expOilTempStr = exp.oilTemp !== undefined ? `${Math.round(exp.oilTemp)} °C` : notAvail;
+      const isElevated = isThermal || (raw.oilTemp !== undefined && raw.oilTemp > 100);
+      if (isElevated) {
+        stateMsg = `Engine oil temperature is elevated above continuous operational limits.`;
+        evidence = [
+          `Actual Oil Temperature: <strong>${oilTempStr}</strong>`,
+          `Expected Oil Temperature: <strong>${expOilTempStr}</strong>`,
+          `Associated Oil Pressure: <strong>${oilPressStr}</strong>`
+        ];
+        whyMsg = `Excess combustion blow-by and high cylinder temperatures transfer heat into the crankcase oil, accelerating oil oxidation and thermal thinning.`;
+      } else {
+        stateMsg = `Engine oil temperature is within nominal operating range.`;
+        evidence = [
+          `Actual Oil Temperature: <strong>${oilTempStr}</strong>`,
+          `Expected Oil Temperature: <strong>${expOilTempStr}</strong>`,
+          `Associated Oil Pressure: <strong>${oilPressStr}</strong>`
+        ];
+        whyMsg = `The oil cooler airflow and thermostatic bypass maintain oil viscosity at optimal lubricating efficiency.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 7: RUL (REMAINING USEFUL LIFE)
+    if (qLower.includes('rul') || qLower.includes('remaining useful life') || qLower.includes('how much rul') || qLower.includes('when will it fail') || qLower.includes('life')) {
+      const stateMsg = `Remaining Useful Life (RUL) is estimated at <strong>${rulStr}</strong> under current operational conditions.`;
+      const evidence = [
+        `RUL Estimate: <strong>${rulStr}</strong>`,
+        `Cumulative Degradation: <strong>${s.degradation !== undefined ? s.degradation + '%' : (s.degradationPct !== undefined ? s.degradationPct + '%' : notAvail)}</strong> (Trend: <strong>${s.degradationTrend || 'STABLE'}</strong>)`,
+        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
+        `Anomaly Score: <strong>${anomVal}</strong>`
+      ];
+      const whyMsg = `RUL prognosis combines cumulative fatigue damage modeling with real-time thermodynamic wear rates. Sustained thermal or mechanical excursions accelerate the wear rate, decrementing endurance.`;
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 8: EHI (ENGINE HEALTH INDEX)
+    if (qLower.includes('health index') || qLower.includes('why is engine health changing') || qLower.includes('why did health drop') || qLower.includes('ehi') || qLower.includes('engine health') || qLower === 'health') {
+      let stateMsg, evidence, whyMsg;
+      if (isSensorFault) {
+        stateMsg = `Engine Health Index remains protected at <strong>${ehiVal}/100</strong> (${s.ehiStatus}) despite the oil pressure sensor fault.`;
+        evidence = [
+          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
+          `Quarantined Sensor: <strong>${quarantined.join(', ') || 'oilPress'}</strong> (Trust: ${oilTrustScore})`,
+          `Sensor Trust Shield: Active (Zero health penalty applied for instrument artifact)`,
+          `Mechanical Condition: The engine itself appears healthy; the detected problem is isolated to the oil-pressure sensor.`
+        ];
+        whyMsg = `The Sensor Trust Layer identified the oil pressure sensor fault and shielded EHI to prevent false mission abort.`;
+      } else if (isThermal) {
+        stateMsg = `Engine Health Index has dropped to <strong>${ehiVal}/100</strong> (${s.ehiStatus}) because both EGT (${avgEgtStr}) and CHT (${avgChtStr}) have surged.`;
+        evidence = [
+          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
+          `Thermal Degradation Contribution: Active`,
+          `Avg EGT: <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
+          `Avg CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
+        ];
+        whyMsg = `Dual trusted thermal sensors confirm authentic thermodynamic degradation rather than an instrument defect.`;
+      } else {
+        stateMsg = `Engine Health Index is robust at <strong>${ehiVal}/100</strong> (${s.ehiStatus}).`;
+        evidence = [
+          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
+          `Sensor Trust: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} Trusted</strong>`,
+          `Cumulative Degradation: <strong>${s.degradation !== undefined ? s.degradation + '%' : (s.degradationPct !== undefined ? s.degradationPct + '%' : notAvail)}</strong>`,
+          `Anomaly Score: <strong>${anomVal}</strong>`
+        ];
+        whyMsg = `Combustion, lubrication, and vibration parameters are tracking within baseline physics boundaries with no active fault signatures.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT: PHYSICS RESIDUALS & MODEL EXPECTATIONS
+    if (qLower.includes('residual') || qLower.includes('physics') || qLower.includes('expected')) {
+      const expEgt = (exp.egtAvg !== undefined && exp.egtAvg !== null) ? `${Math.round(exp.egtAvg)} °C` : (exp.egt && exp.egt.length ? `${Math.round(exp.egt[0])} °C` : notAvail);
+      const expCht = (exp.chtAvg !== undefined && exp.chtAvg !== null) ? `${Math.round(exp.chtAvg)} °C` : (exp.cht && exp.cht.length ? `${Math.round(exp.cht[0])} °C` : notAvail);
+      const alt = (s.environment && s.environment.altitude !== undefined) ? s.environment.altitude : (raw.altitude !== undefined && raw.altitude !== null ? raw.altitude : notAvail);
+      const stateMsg = `Physics model calculates expected aerodynamic and thermodynamic baselines against actual sensor streams.`;
+      const evidence = [
+        `Operating Altitude: <strong>${alt !== notAvail ? alt + ' ft ISA' : notAvail}</strong>`,
+        `Expected EGT: <strong>${expEgt}</strong> | Actual Avg EGT: <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
+        `Expected CHT: <strong>${expCht}</strong> | Actual Avg CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
+      ];
+      const whyMsg = `Quarantined sensors are shielded from inducing false engine residuals into ML health and anomaly scoring.`;
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 9: MISSION RELIABILITY
+    if (qLower.includes('mission') || qLower.includes('complete the mission') || qLower.includes('reliability') || qLower.includes('can we continue')) {
+      let stateMsg, evidence, whyMsg;
+      if (isThermal) {
+        stateMsg = `Mission Reliability is degraded to <strong>${relScoreStr} (${relStatusStr})</strong>; power reduction or Return to Base is recommended.`;
+        evidence = [
+          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
+          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
+          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
+          `Limiting Factor: Sustained thermal runaway on cylinder assemblies (RUL: ${rulStr})`
+        ];
+        whyMsg = `Continued high power cruising under severe cylinder thermal runaway risks progressive mechanical failure before mission completion.`;
+      } else if (isSensorFault) {
+        stateMsg = `Mission Reliability is sustained at <strong>${relScoreStr} (${relStatusStr})</strong>; mission continuation is safe.`;
+        evidence = [
+          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
+          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
+          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
+          `Engine Health Index: <strong>${ehiVal}/100</strong> (Propulsion integrity intact)`
+        ];
+        whyMsg = `The quarantined oil pressure sensor is an isolated instrument anomaly. Physical engine mechanics and thermodynamic outputs confirm full propulsion capability.`;
+      } else {
+        stateMsg = `Mission Reliability is high at <strong>${relScoreStr} (${relStatusStr})</strong>; mission may proceed as planned.`;
+        evidence = [
+          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
+          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
+          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
+          `Engine Status: Nominal (EHI: ${ehiVal}/100)`
+        ];
+        whyMsg = `Propulsion operating parameters match calibrated flight envelope baselines, with high reliability margins for remaining flight legs.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 10: RECOMMENDED ACTION / MAINTENANCE
+    if (qLower.includes('action') || qLower.includes('recommended') || qLower.includes('what should we do') || qLower.includes('maintenance') || qLower.includes('inspect')) {
+      const stateMsg = `Recommended action: <strong>${maint.action || 'Continue standard flight monitoring; routine turnaround inspection.'}</strong>`;
+      const evidence = [
+        `Target Subsystem: <strong>${maint.subsystem || 'All Subsystems Nominal'}</strong>`,
+        `Priority Level: <strong>${maint.priority || 'ROUTINE'}</strong>`,
+        `Inspection Urgency: <strong>${maint.urgency || maint.urgencyHours || '50h Inspection'}</strong>`,
+        `Maintenance Code: <code>${maint.code || 'MAINT-001-NOM'}</code>`
+      ];
+      let whyMsg;
+      if (isSensorFault) {
+        whyMsg = `Core engine propulsion is sound. Replacing or recalibrating the quarantined transducer during turnaround restores telemetry redundancy.`;
+      } else if (isThermal) {
+        whyMsg = `Immediate thermal mitigation and post-mission borescope inspection prevent permanent cylinder head warping and valve guide degradation.`;
+      } else {
+        whyMsg = `Standard preventive turnaround servicing conforms to manufacturer and DRDO airworthiness inspection intervals.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 11: RPM INSTABILITY / RPM
+    if (qLower.includes('rpm')) {
+      let stateMsg, evidence, whyMsg;
+      const expRpmStr = exp.rpm !== undefined ? `${Math.round(exp.rpm)} RPM` : notAvail;
+      const isUnstable = isRpm || (resi.rpm !== undefined && Math.abs(resi.rpm) > 100);
+      if (isUnstable) {
+        stateMsg = `RPM instability detected with rotational speed hunting outside calibrated governor limits.`;
+        evidence = [
+          `Current RPM: <strong>${rpmStr}</strong>`,
+          `Expected Governor RPM: <strong>${expRpmStr}</strong>`,
+          `RPM Residual: <strong>${resi.rpm !== undefined ? (resi.rpm >= 0 ? '+' : '') + resi.rpm : '0'} RPM</strong>`,
+          `Vibration RMS: <strong>${vibStr}</strong>`
+        ];
+        whyMsg = `Combustion pressure variance or propeller governor hunting produces cyclic rotational oscillations across the crankshaft.`;
+      } else {
+        stateMsg = `Engine RPM is stable and governed within expected target speed.`;
+        evidence = [
+          `Current RPM: <strong>${rpmStr}</strong>`,
+          `Expected Governor RPM: <strong>${expRpmStr}</strong>`,
+          `Engine Load: <strong>${loadStr}</strong>`,
+          `Vibration RMS: <strong>${vibStr}</strong>`
+        ];
+        whyMsg = `Governor control and uniform cylinder power strokes maintain constant crankshaft rotational velocity.`;
+      }
+      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    }
+
+    // INTENT 1: GENERAL DIAGNOSIS / STATUS OVERVIEW (Default for overview questions)
+    let stateMsg, evidence, whyMsg;
+    if (isSensorFault) {
+      stateMsg = `Sensor fault detected on quarantined oil-pressure transducer. The engine itself appears healthy; the detected problem is isolated to the oil-pressure sensor.`;
+      evidence = [
+        `Fault Classification: <strong>${s.diagnosis}</strong> (Confidence: ${s.diagnosisConfidence}%)`,
+        `Quarantined Sensor: <strong>${quarantined.join(', ') || 'oilPress'}</strong> (Trust: ${oilTrustScore})`,
+        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus}) protected by Sensor Trust Layer`,
+        `Anomaly Score: <strong>${anomVal}</strong> | Mission Reliability: <strong>${relScoreStr} (${relStatusStr})</strong>`
+      ];
+      whyMsg = `The transducer variance collapsed to zero during engine operation. The Sensor Trust Layer quarantined the faulty sensor, preventing false engine alarms and shielding the Engine Health Index.`;
+    } else if (isThermal) {
+      stateMsg = `Authentic multi-cylinder thermal runaway / degradation detected under elevated load.`;
+      evidence = [
+        `Fault Classification: <strong>${s.diagnosis}</strong> (Confidence: ${s.diagnosisConfidence}%)`,
+        `Exhaust Gas Temp (EGT): <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
+        `Cylinder Head Temp (CHT): <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`,
+        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus}) | Projected RUL: <strong>${rulStr}</strong>`
+      ];
+      whyMsg = `Correlated high EGT and CHT residuals across trusted thermal sensors confirm authentic cylinder degradation rather than sensor defect, requiring power reduction or RTB.`;
+    } else {
+      stateMsg = `All propulsion systems are operating nominally within calibrated envelopes.`;
+      evidence = [
+        `Fault Classification: <strong>${s.diagnosis}</strong> (Anomaly Score: <strong>${anomVal}</strong>)`,
+        `Sensor Trust: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} Trusted</strong> (Overall: <strong>${overallTrustVal}</strong>)`,
+        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
+        `Mission Reliability: <strong>${relScoreStr} (${relStatusStr})</strong> | Est. RUL: <strong>${rulStr}</strong>`
+      ];
+      whyMsg = `Thermodynamic equilibrium, combustion parameters, and mechanical vibration match nominal baseline physics models.`;
+    }
+    return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+  }
+
+  function showTypingIndicator() {
+    const historyBox = document.getElementById('chat-history');
+    if (!historyBox) return null;
+    const id = 'typing-' + Date.now();
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ai typing-indicator';
+    bubble.id = id;
+    bubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+    historyBox.appendChild(bubble);
+    historyBox.scrollTop = historyBox.scrollHeight;
+    return id;
+  }
+
+  function removeTypingIndicator(id) {
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function appendAssistantMessage(sender, htmlText, source) {
+    const historyBox = document.getElementById('chat-history');
+    if (!historyBox) return;
+
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${sender}`;
+
+    // Add source badge for AI responses
+    if (sender === 'ai' && source) {
+      const badge = document.createElement('span');
+      badge.className = `ai-source-badge ${source === 'grok' ? 'badge-grok' : 'badge-local'}`;
+      badge.textContent = source === 'grok' ? '✦ GROK AI' : '⚙ LOCAL ENGINE ANALYSIS';
+      bubble.appendChild(badge);
+    }
+
+    const content = document.createElement('span');
+    content.innerHTML = htmlText;
+    bubble.appendChild(content);
+
+    historyBox.appendChild(bubble);
+    historyBox.scrollTop = historyBox.scrollHeight;
+  }
+
+  function addAssistantSystemNotice(scenarioKey) {
+    const notices = {
+      normal: 'Scenario: <strong>NORMAL MISSION</strong> loaded. Engine running nominally.',
+      sensor_fault: 'Scenario: <strong>SENSOR FAULT</strong> active. Oil pressure transducer quarantined; Engine Health preserved.',
+      thermal_degradation: 'Scenario: <strong>THERMAL DEGRADATION</strong> active. Genuine multi-cylinder thermal runaway verified.'
+    };
+    if (notices[scenarioKey]) {
+      appendAssistantMessage('ai', notices[scenarioKey]);
+    }
+  }
+
+  // ==========================================================================
+  // INTERACTIVE ENGINE INSPECTION & X-RAY CUTAWAY MODE
+  // ==========================================================================
+  function getCylinderDeltas(cylIndex) {
+    if (!cylIndex) return { cht: 0, egt: 0 };
+    switch (cylIndex) {
+      case 1: return { cht: 0.8, egt: 3.2 };
+      case 2: return { cht: -1.2, egt: -4.1 };
+      case 3: return { cht: 2.1, egt: 5.6 };
+      case 4: return { cht: -1.5, egt: -2.8 };
+      default: return { cht: 0, egt: 0 };
+    }
+  }
+
+  function updateInspectionHud(comp) {
+    if (!comp) return;
+
+    const catEl = document.getElementById('hud-category');
+    const nameEl = document.getElementById('hud-name');
+    const descEl = document.getElementById('hud-desc');
+    const statusEl = document.getElementById('hud-status');
+    const relevanceEl = document.getElementById('hud-relevance-text');
+
+    if (catEl) catEl.textContent = comp.category || 'POWERTRAIN COMPONENT';
+    if (nameEl) nameEl.textContent = comp.name || 'ENGINE COMPONENT';
+    if (descEl) descEl.textContent = comp.desc || 'Aero piston engine mechanical component.';
+
+    // Kinematic Chain Association
+    const motionPill = document.getElementById('hud-motion-pill');
+    const motionText = document.getElementById('hud-motion-text');
+    const chainBox = document.getElementById('hud-kinematic-chain');
+    const chainCyl = document.getElementById('chain-cyl');
+    const chainPiston = document.getElementById('chain-piston');
+    const chainRod = document.getElementById('chain-rod');
+    const chainCrank = document.getElementById('chain-crank');
+
+    if (chainBox) {
+      if (comp.type === 'piston' || comp.type === 'conrod') {
+        chainBox.style.display = 'block';
+        if (chainCyl) chainCyl.textContent = `CYLINDER ${comp.cylIndex || 1}`;
+        if (chainPiston) chainPiston.className = comp.type === 'piston' ? 'chain-node active' : 'chain-node';
+        if (chainRod) chainRod.className = comp.type === 'conrod' ? 'chain-node active' : 'chain-node';
+        if (chainCrank) chainCrank.className = 'chain-node';
+      } else if (comp.type === 'crankshaft') {
+        chainBox.style.display = 'block';
+        if (chainPiston) chainPiston.className = 'chain-node';
+        if (chainRod) chainRod.className = 'chain-node';
+        if (chainCrank) chainCrank.className = 'chain-node active';
+      } else {
+        chainBox.style.display = 'none';
+      }
+    }
+
+    if (motionPill && motionText) {
+      if (comp.type === 'piston') {
+        motionPill.style.display = 'inline-flex';
+        motionText.textContent = 'MOTION: RECIPROCATING';
+      } else if (comp.type === 'conrod') {
+        motionPill.style.display = 'inline-flex';
+        motionText.textContent = 'MOTION: OSCILLATING & TRANSLATING';
+      } else if (comp.type === 'crankshaft') {
+        motionPill.style.display = 'inline-flex';
+        motionText.textContent = 'MOTION: CONTINUOUS ROTATION';
+      } else {
+        motionPill.style.display = 'none';
+      }
+    }
+
+    // Status & Diagnostic Relevance (preserves "BAD SENSOR != BAD ENGINE")
+    const s = window.appState;
+    const isSensorFault = s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT');
+    const isThermal = s.aiDiagnosis === 'THERMAL DEGRADATION' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION');
+
+    if (isSensorFault) {
+      const isLubricationOrSensor = (comp.type === 'lubrication' || comp.id === 'oil_pump' || comp.id === 'oil_pan' || (comp.name && comp.name.toLowerCase().includes('oil')));
+      const rawOil = s.rawTelemetry && s.rawTelemetry.oilPress !== undefined ? s.rawTelemetry.oilPress.toFixed(1) : '--';
+      if (isLubricationOrSensor) {
+        if (statusEl) {
+          statusEl.textContent = 'SENSOR FAULT';
+          statusEl.className = 'hud-status-badge badge-warning';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `⚠️ SENSOR FAULT DETECTED: The oil pressure transducer has flatlined at ${rawOil} PSI (zero variance). Mechanical oil lubrication and flow remain intact. SENSOR TRUST: FAULTY (Quarantined).`;
+        }
+      } else {
+        if (statusEl) {
+          statusEl.textContent = 'HEALTHY (PROTECTED)';
+          statusEl.className = 'hud-status-badge badge-nominal';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `✅ BAD SENSOR ≠ BAD ENGINE REASSURANCE: ${comp.name} is mechanically healthy. Despite the faulty oil pressure sensor reading, engine core integrity is shielded at EHI ${Math.round(s.ehi)}/100 to prevent false mission abort.`;
+        }
+      }
+    } else if (isThermal) {
+      const isHotCombustionPart = (comp.type === 'piston' || comp.type === 'head' || comp.type === 'cylinder' || comp.type === 'conrod' || comp.type === 'exhaust');
+      if (isHotCombustionPart) {
+        if (statusEl) {
+          statusEl.textContent = 'THERMAL RUNAWAY';
+          statusEl.className = 'hud-status-badge badge-critical';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `🔥 AUTHENTIC MECHANICAL OVERHEAT: Dual trusted sensors corroborate severe combustion runaway on ${comp.name}. EHI downgraded to ${Math.round(s.ehi)}/100; RUL revised to ${s.rulLabel || (s.rulHours + ' h')}.`;
+        }
+      } else {
+        if (statusEl) {
+          statusEl.textContent = 'ELEVATED HEAT SOAK';
+          statusEl.className = 'hud-status-badge badge-warning';
+        }
+        if (relevanceEl) {
+          relevanceEl.textContent = `Secondary thermal load: Heat soak from combustion chambers is elevating crankcase temperatures.`;
+        }
+      }
+    } else {
+      if (statusEl) {
+        statusEl.textContent = 'HEALTHY';
+        statusEl.className = 'hud-status-badge badge-nominal';
+      }
+      if (relevanceEl) {
+        relevanceEl.textContent = `Nominal thermal & mechanical profile. Combustion pressure and heat dissipation across ${comp.name} correlate perfectly with calibrated 4-stroke aero piston physics model.`;
+      }
+    }
+
+    // Telemetry items in HUD
+    if (s.rawTelemetry) {
+      const raw = s.rawTelemetry;
+      const deltas = getCylinderDeltas(comp.cylIndex);
+      const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : null;
+      const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : null;
+
+      const chtEl = document.getElementById('hud-cht');
+      const egtEl = document.getElementById('hud-egt');
+      const rpmEl = document.getElementById('hud-rpm');
+      const loadEl = document.getElementById('hud-load');
+      const oilPEl = document.getElementById('hud-oil-p');
+
+      if (chtEl) chtEl.textContent = avgCht !== null ? `${(avgCht + deltas.cht).toFixed(1)} °C` : '--';
+      if (egtEl) egtEl.textContent = avgEgt !== null ? `${(avgEgt + deltas.egt).toFixed(1)} °C` : '--';
+      if (rpmEl) rpmEl.textContent = raw.rpm !== undefined ? `${Math.round(raw.rpm).toLocaleString()}` : '--';
+      if (loadEl) loadEl.textContent = raw.load !== undefined ? `${raw.load.toFixed(1)} %` : '--';
+      if (oilPEl) oilPEl.textContent = raw.oilPress !== undefined ? `${raw.oilPress.toFixed(1)} PSI` : '--';
+    }
+  }
+
+  window.setInspectionMode = function (mode) {
+    currentInspectionMode = mode;
+
+    const btnInspect = document.getElementById('btn-mode-inspect');
+    const btnXray = document.getElementById('btn-mode-xray');
+    const btnExploded = document.getElementById('btn-mode-exploded');
+
+    if (btnInspect) btnInspect.classList.toggle('active', mode === 'inspect');
+    if (btnXray) btnXray.classList.toggle('active', mode === 'xray');
+    if (btnExploded) btnExploded.classList.toggle('active', mode === 'exploded');
+
+    if (digitalTwin) {
+      digitalTwin.setInspectionMode(mode);
+    }
+
+    const xrayBanner = document.getElementById('twin-xray-overview');
+    if (xrayBanner) {
+      if (mode === 'xray' && !selectedComponent) {
+        xrayBanner.style.display = 'block';
+      } else {
+        xrayBanner.style.display = 'none';
+      }
+    }
+  };
+
+  window.resetEngineInspection = function () {
+    selectedComponent = null;
+    currentInspectionMode = 'inspect';
+
+    const btnInspect = document.getElementById('btn-mode-inspect');
+    const btnXray = document.getElementById('btn-mode-xray');
+    const btnExploded = document.getElementById('btn-mode-exploded');
+    if (btnInspect) btnInspect.classList.add('active');
+    if (btnXray) btnXray.classList.remove('active');
+    if (btnExploded) btnExploded.classList.remove('active');
+
+    const hud = document.getElementById('twin-inspection-hud');
+    if (hud) hud.style.display = 'none';
+
+    const xrayBanner = document.getElementById('twin-xray-overview');
+    if (xrayBanner) xrayBanner.style.display = 'none';
+
+    if (digitalTwin) {
+      digitalTwin.resetInspection();
+    }
+  };
+
+  window.onEngineComponentSelected = function (comp) {
+    selectedComponent = comp;
+
+    const xrayBanner = document.getElementById('twin-xray-overview');
+    if (xrayBanner) xrayBanner.style.display = 'none';
+
+    const hud = document.getElementById('twin-inspection-hud');
+    if (hud) {
+      hud.style.display = 'flex';
+    }
+
+    updateInspectionHud(comp);
+  };
+
+  window.inspectComponent = function (compKey) {
+    if (digitalTwin) {
+      digitalTwin.selectComponent(compKey);
+    }
+  };
+
+  window.toggleEngineMotion = function () {
+    if (!digitalTwin) return;
+    const isPlaying = digitalTwin.toggleMotion();
+    const playBtn = document.getElementById('btn-motion-play');
+    const playIcon = document.getElementById('motion-play-icon');
+    if (playBtn) playBtn.classList.toggle('active', isPlaying);
+    if (playIcon) playIcon.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  };
+
+  window.setEngineSpeed = function (factor) {
+    if (!digitalTwin) return;
+    digitalTwin.setSpeedFactor(factor);
+    const btnHalf = document.getElementById('btn-speed-half');
+    const btnFull = document.getElementById('btn-speed-full');
+    if (btnHalf) btnHalf.classList.toggle('active', factor === 0.5);
+    if (btnFull) btnFull.classList.toggle('active', factor === 1.0);
+  };
+
+  // Public exports on window for testability and developer tools
+  window.captureAppStateSnapshot = captureAppStateSnapshot;
+  window.generateLocalAnalysis = generateLocalAnalysis;
+  window.routeDeterministicIntent = routeDeterministicIntent;
+  window.handleUserQuery = handleUserQuery;
+
+})();

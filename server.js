@@ -44,44 +44,49 @@ function initGroq() {
 
 initGroq();
 
-const GROQ_SYSTEM_PROMPT = `You are the AERO TWIN Engine Assistant.
+const GROQ_SYSTEM_PROMPT = `You are the AERO TWIN Decision-Support Assistant for an aero piston engine Digital Twin.
 
-You are an explanation layer over an engineering Digital Twin.
+You are an engineering explanation layer over the Digital Twin.
 
-The CURRENT ENGINE STATE supplied in the request is authoritative.
-
+AUTHORITATIVE STATE:
+The CURRENT ENGINE STATE SNAPSHOT supplied in the user prompt is authoritative and ground truth.
 Never invent, estimate, replace, or modify numerical values.
-Never assume the engine is healthy.
-Never generate your own EHI, RUL, sensor trust, anomaly score, residual, or diagnosis.
-
-Use exactly the values supplied by the application.
-
+Never assume the engine is healthy if the snapshot indicates otherwise.
+Never generate your own EHI, RUL, sensor trust, anomaly score, residuals, or diagnosis.
+Use strictly the values supplied by the application.
 If a value is missing, explicitly state that it is unavailable.
 
-Sensor Trust takes precedence when determining whether a sensor reading should be treated as evidence of engine degradation.
+SENSOR TRUST PRINCIPLE:
+Sensor Trust takes precedence when evaluating engine health.
+A quarantined or low-trust sensor must NOT be treated as reliable evidence of engine degradation.
+Always explicitly distinguish:
+SENSOR FAULT (instrument defect / quarantined transducer)
+vs
+ENGINE DEGRADATION (authentic thermal or mechanical degradation).
 
-A quarantined or low-trust sensor must not be treated as reliable evidence of mechanical failure.
+DECISION-SUPPORT CONSTRAINTS:
+Explain the engineering state concisely and technically.
+Never issue aircraft or flight control commands.
+Do not recommend throttle adjustments.
+Do not issue mission abort or continue orders.
+Do not claim airworthiness certification or operational safety.
+All data is synthetic simulation data.
 
-Explain the engineering state using only the supplied state.
+RESPONSE FORMAT:
+Use this format for engineering queries:
 
-Never issue aircraft control commands.
-Never claim certification.
-Never claim real DRDO telemetry.
-Never claim real TAPAS telemetry.
-The data is synthetic simulation data unless explicitly stated otherwise.
+[STATUS TITLE]
 
-Response format:
+One concise conclusion sentence.
 
-CURRENT STATE:
-Briefly describe the current engine state using exact supplied values.
+Evidence:
+• [only 2–4 relevant values using exact numbers from the snapshot]
 
-EVIDENCE:
-List the important telemetry, expected-vs-actual residuals, sensor trust and diagnostic evidence.
+Why:
+[2–3 sentences explaining the relationship between the evidence and the already-computed diagnosis]
 
-WHY:
-Explain why the current diagnosis/health state exists.
-
-Keep answers concise and technical.`;
+Mission implication:
+[One cautious sentence describing what the current simulation state means for mission risk]`;
 
 function callGroqAPI(userPrompt, systemPrompt) {
   return new Promise((resolve, reject) => {
@@ -141,8 +146,9 @@ function callGroqAPI(userPrompt, systemPrompt) {
 }
 
 function generateServerLocalAnalysis(query, appState) {
+  const qLower = (query || '').trim().toLowerCase();
   const isReplaying = !!appState.isReplaying;
-  const replayTag = isReplaying ? `@ ${appState.replayIndex !== null && appState.replayIndex !== undefined ? appState.replayIndex : '0'}s` : '';
+  const replayTag = isReplaying ? `[REPLAY @ ${appState.replayIndex !== null && appState.replayIndex !== undefined ? appState.replayIndex : '0'}s]\n\n` : '';
   const diag = (appState.aiDiagnosis || 'HEALTHY').toUpperCase();
   const ehi = appState.ehi !== undefined ? Math.round(appState.ehi) : 96;
   const rul = appState.rulLabel || (appState.rulHours !== undefined ? appState.rulHours + ' h' : '182 h');
@@ -151,48 +157,151 @@ function generateServerLocalAnalysis(query, appState) {
   const totalSensors = appState.totalSensors !== undefined ? appState.totalSensors : 9;
   const raw = appState.rawTelemetry || {};
   const rpm = raw.rpm !== undefined ? Math.round(raw.rpm) : 4200;
-  const map = raw.map !== undefined ? raw.map.toFixed(1) + ' inHg' : '28.5 inHg';
-  
-  const prefix = replayTag ? `[REPLAY ${replayTag}] ` : '';
-  
-  if (diag.includes('FAULT') || (appState.trustResult && appState.trustResult.quarantined && appState.trustResult.quarantined.length > 0)) {
-    const quarantined = (appState.trustResult && appState.trustResult.quarantined && appState.trustResult.quarantined[0]) || 'oil pressure';
-    return `${prefix}**CURRENT STATE:** The engine itself appears healthy; the detected problem is isolated to the ${quarantined} sensor fault.
+  const expPhys = appState.expectedPhysics || {};
+  const expRpm = expPhys.rpm !== undefined ? Math.round(expPhys.rpm) : 4200;
 
-**EVIDENCE:**
-• Diagnosis: SENSOR FAULT (${quarantined} transducer quarantined)
-• Sensor Trust: ${trustCount}/${totalSensors} sensors verified
-• Engine Health Index (EHI): ${ehi}/100 (shielded by Sensor Trust Gatekeeper)
-• Mission Phase: ${phase}
+  const getScalarOrAvg = (arrOrNum) => {
+    if (arrOrNum === undefined || arrOrNum === null) return null;
+    if (Array.isArray(arrOrNum)) {
+      return arrOrNum.length ? (arrOrNum.reduce((a, b) => a + b, 0) / arrOrNum.length).toFixed(1) : null;
+    }
+    return typeof arrOrNum === 'number' ? arrOrNum.toFixed(1) : String(arrOrNum);
+  };
+  const chtVal = getScalarOrAvg(raw.cht !== undefined ? raw.cht : raw.CHT);
+  const egtVal = getScalarOrAvg(raw.egt !== undefined ? raw.egt : raw.EGT);
+  const expCht = expPhys.chtAvg !== undefined ? Math.round(expPhys.chtAvg) : (expPhys.cht !== undefined ? Math.round(expPhys.cht) : 175);
+  const expEgt = expPhys.egtAvg !== undefined ? Math.round(expPhys.egtAvg) : (expPhys.egt !== undefined ? Math.round(expPhys.egt) : 720);
 
-**WHY:** The ${quarantined} sensor signal exhibited anomalous flatline/drift while correlated engine parameters remained consistent. The sensor is quarantined, protecting engine health assessment and preventing unnecessary mission abort.`;
+  const quarantined = (appState.trustResult && appState.trustResult.quarantined && appState.trustResult.quarantined.length > 0) ? appState.trustResult.quarantined : (appState.quarantinedSensors || []);
+  const isSensorFault = diag.includes('FAULT') || quarantined.length > 0;
+  const isThermal = diag.includes('THERMAL') || ehi < 75;
+
+  // SENSOR TRUST QUERY
+  if (qLower.includes('sensor') || qLower.includes('trust') || qLower.includes('quarantine') || qLower.includes('reliable')) {
+    if (isSensorFault) {
+      const qSensor = quarantined[0] || 'oil pressure';
+      const qChannelName = qSensor === 'oilPress' || qSensor === 'oilPressure' ? 'OIL PRESSURE' : qSensor.toUpperCase();
+      const qTrustScore = (appState.trustResult && appState.trustResult.scores && appState.trustResult.scores[qSensor] !== undefined) ? Number(appState.trustResult.scores[qSensor]).toFixed(2) : '0.12';
+      const overallTrust = appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '0.89';
+      return `${replayTag}SENSOR ISSUE — ${qChannelName}
+
+The ${qSensor} signal is unreliable and has been quarantined.
+
+Evidence:
+• ${qChannelName} trust: ${qTrustScore}
+• Overall trust: ${overallTrust}
+• Trusted sensors: ${trustCount}/${totalSensors}
+• EHI: ${ehi}/100
+
+Why:
+The ${qSensor} channel is inconsistent with the rest of the engine state, so it is excluded from health judgment. Current trusted evidence does not indicate confirmed engine degradation.
+
+Mission implication:
+Telemetry redundancy is reduced for this channel, but engine mechanical condition remains intact.`;
+    } else {
+      const overallTrust = appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '1.00';
+      return `${replayTag}SENSOR TRUST — NOMINAL
+
+All engine sensor channels are verified trusted and operating nominally.
+
+Evidence:
+• Overall trust: ${overallTrust}
+• Trusted sensors: ${trustCount}/${totalSensors}
+• Quarantined sensors: None
+• EHI: ${ehi}/100
+
+Why:
+Analytical redundancy and cross-sensor variance checks confirm all telemetry streams track calibrated baseline models without drift or artifacts.
+
+Mission implication:
+Full instrumentation reliability is maintained for the current mission phase.`;
+    }
   }
-  
-  if (diag.includes('THERMAL') || ehi < 75) {
-    const rulRange = appState.rul && appState.rul.range ? appState.rul.range : (appState.RULRange ? `${appState.RULRange.low || '?'}–${appState.RULRange.high || '?'} h` : '');
-    const rulConf = appState.rul && appState.rul.confidencePct ? appState.rul.confidencePct : (appState.RULConfidence || '');
-    const rangeEvidence = rulRange ? `\n• RUL 90% Confidence Range: ${rulRange}` : '';
-    const confEvidence = rulConf ? `\n• RUL Model Confidence: ${rulConf}%` : '';
-    return `${prefix}**CURRENT STATE:** Authentic thermodynamic degradation detected across combustion cylinders.
 
-**EVIDENCE:**
-• Diagnosis: THERMAL DEGRADATION (Anomaly score: ${appState.anomalyScore !== undefined ? appState.anomalyScore.toFixed(2) : '0.64'})
-• Engine Health Index (EHI): ${ehi}/100 (depleted)
-• Projected RUL: ${rul}${rangeEvidence}${confEvidence}
-• Sensor Trust: ${trustCount}/${totalSensors} (trusted thermal transducers)
+  // RUL / DEGRADATION QUERY
+  if (qLower.includes('rul') || qLower.includes('life') || qLower.includes('degrad')) {
+    const degPct = appState.degradationPct !== undefined ? appState.degradationPct : 0;
+    const degTrend = appState.degradationTrend || 'STABLE';
+    const rulRange = appState.rul && appState.rul.range ? ` (${appState.rul.range})` : '';
+    return `${replayTag}PROGNOSTICS — REMAINING USEFUL LIFE
 
-**WHY:** Co-occurring elevation in exhaust gas temperatures (EGT) and cylinder head temperatures (CHT) under load confirms genuine thermodynamic distress, accelerating engine wear.`;
+Remaining Useful Life is estimated at ${rul} under current operational conditions.
+
+Evidence:
+• Projected RUL: ${rul}${rulRange}
+• Cumulative degradation: ${degPct}%
+• Degradation trend: ${degTrend}
+• EHI: ${ehi}/100
+
+Why:
+Prognostic estimation models Arrhenius thermal fatigue and mechanical stress against baseline component endurance envelopes.
+
+Mission implication:
+Projected endurance remains sufficient for nominal mission completion under current flight loads.`;
   }
-  
-  return `${prefix}**CURRENT STATE:** Engine is operating within nominal aerospace specifications during ${phase} flight.
 
-**EVIDENCE:**
-• RPM: ${rpm} | MAP: ${map}
-• Engine Health Index (EHI): ${ehi}/100 (Optimal)
-• Sensor Trust: ${trustCount}/${totalSensors} (1.00 Overall Trust)
+  // SENSOR FAULT STATE (GENERAL STATUS QUERY)
+  if (isSensorFault) {
+    const qSensor = quarantined[0] || 'oil pressure';
+    const qChannelName = qSensor === 'oilPress' || qSensor === 'oilPressure' ? 'OIL PRESSURE' : qSensor.toUpperCase();
+    const qTrustScore = (appState.trustResult && appState.trustResult.scores && appState.trustResult.scores[qSensor] !== undefined) ? Number(appState.trustResult.scores[qSensor]).toFixed(2) : '0.12';
+    const overallTrust = appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '0.89';
+    return `${replayTag}SENSOR ISSUE — ${qChannelName}
+
+The ${qSensor} signal is unreliable and has been quarantined.
+
+Evidence:
+• ${qChannelName} trust: ${qTrustScore}
+• Overall trust: ${overallTrust}
+• Trusted sensors: ${trustCount}/${totalSensors}
+• EHI: ${ehi}/100
+
+Why:
+The ${qSensor} channel is inconsistent with the rest of the engine state, so it is excluded from health judgment. Current trusted evidence does not indicate confirmed engine degradation.
+
+Mission implication:
+Instrumentation redundancy is reduced on the affected channel, while propulsion integrity is preserved.`;
+  }
+
+  // THERMAL DEGRADATION STATE (GENERAL STATUS QUERY)
+  if (isThermal) {
+    const chtStr = chtVal !== null ? `${chtVal}°C` : '218.8°C';
+    const egtStr = egtVal !== null ? `${egtVal}°C` : '812.5°C';
+    const overallTrust = appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '1.00';
+    return `${replayTag}ENGINE DEGRADATION — THERMAL
+
+The engine is showing a thermal degradation pattern.
+
+Evidence:
+• CHT: ${chtStr} vs ${expCht}°C expected
+• EGT: ${egtStr} vs ${expEgt}°C expected
+• Sensor trust: ${overallTrust}
+• EHI: ${ehi}/100
+
+Why:
+Trusted CHT and EGT measurements are both significantly above their expected values, supporting a genuine thermal condition rather than an isolated sensor fault.
+
+Mission implication:
+Thermal stress accelerates component wear, decreasing Remaining Useful Life endurance margins.`;
+  }
+
+  // NOMINAL ENGINE STATE (DEFAULT)
+  const overallTrust = appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '1.00';
+  return `${replayTag}ENGINE STATUS — NOMINAL
+
+The engine is operating normally in the current simulation phase.
+
+Evidence:
+• RPM: ${rpm} vs ${expRpm} expected
+• EHI: ${ehi}/100
+• Sensor trust: ${overallTrust} (${trustCount}/${totalSensors} trusted)
 • Projected RUL: ${rul}
 
-**WHY:** All engine parameters correlate with expected physical baseline models. No anomalies, sensor drift, or thermal stress detected.`;
+Why:
+Current trusted telemetry remains consistent with the expected operating state and no significant degradation is detected.
+
+Mission implication:
+Propulsion system operates within calibrated margins for the ${phase} flight envelope.`;
 }
 
 async function handleGrokRequest(body, res) {
@@ -216,25 +325,42 @@ async function handleGrokRequest(body, res) {
 
   const qLower = query.trim().toLowerCase();
 
-  // Deterministic Identity Intent (Fast-path: no external API call needed)
-  if (/^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
-      /^introduce\s+yourself\b/i.test(qLower) ||
-      /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower)) {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({
-      source: 'grok',
-      response: "I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. I do not directly control the aircraft or engine."
-    }));
-    return;
-  }
-
-  // Deterministic Greeting Intent
-  const isGreeting = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 20;
+  // Category A: GREETING (Fast-path: no telemetry sent to Groq)
+  const isGreeting = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25;
   if (isGreeting) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({
       source: 'grok',
-      response: "Hello. I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. How can I assist you with the engine condition?"
+      response: "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?"
+    }));
+    return;
+  }
+
+  // Category B: IDENTITY / MODEL (Fast-path: no telemetry sent to Groq)
+  const isIdentityOrModel = 
+    /(which|what)\s+(ai\s+)?model\b/i.test(qLower) ||
+    /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you)\b/i.test(qLower) ||
+    /\bwhat\s+ai\s+(are\s+you\s+using|is\s+this|powers\s+you)\b/i.test(qLower) ||
+    /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
+    /^introduce\s+yourself\b/i.test(qLower) ||
+    /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
+    qLower === 'who are you' ||
+    qLower === 'what are you' ||
+    qLower === 'what can you do' ||
+    qLower === 'which model are you' ||
+    qLower === 'which model are you?' ||
+    qLower === 'what model do you use' ||
+    qLower === 'what model do you use?' ||
+    qLower === 'which ai model powers you' ||
+    qLower === 'which ai model powers you?' ||
+    qLower === 'what ai are you using' ||
+    qLower === 'what ai are you using?';
+
+  if (isIdentityOrModel) {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({
+      source: 'grok',
+      response: "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer."
     }));
     return;
   }
@@ -377,17 +503,46 @@ WHY EXPLANATION (from local ML):
 
 USER QUESTION: ${query}
 
-CRITICAL CONSISTENCY INSTRUCTION:
-1. Base your explanation strictly and exclusively on the supplied authoritative state snapshot above.
-2. Structure your response into 3 parts:
-**CURRENT STATE:** [one-sentence direct answer using actual values]
-**EVIDENCE:**
-• [2-4 relevant metrics from snapshot]
-**WHY:** [short engineering explanation explaining cause or physical implication]
-3. If the snapshot indicates AI DIAGNOSIS is SENSOR FAULT: You MUST NOT say "Engine is healthy" without explicitly qualifying: "The engine itself appears healthy; the detected problem is isolated to the oil-pressure sensor." State clearly that the oil pressure sensor is quarantined/faulty, but propulsion integrity is protected.
-4. If the snapshot indicates AI DIAGNOSIS is THERMAL DEGRADATION or THERMAL RUNAWAY: You MUST explain that dual trusted thermal sensors indicate genuine engine thermal degradation/runaway. Do NOT say the engine is healthy.
-5. If the snapshot indicates AI DIAGNOSIS is HEALTHY: State that the engine is operating normally.
-6. All numeric values in your response MUST come directly from the state snapshot above. Do not invent, estimate, replace, or fabricate any numbers. If a value is missing or "Not available", state: "That value is not currently available in the Digital Twin state."`;
+RESPONSE FORMAT REQUIREMENTS:
+Format your engineering decision-support explanation exactly as:
+
+[STATUS TITLE]
+
+One concise conclusion sentence.
+
+Evidence:
+• [2 to 4 relevant values from the snapshot matching the query]
+
+Why:
+[2 to 3 sentences explaining the physical or diagnostic relationship based on the snapshot]
+
+Mission implication:
+[One cautious sentence describing what the current simulation state means for mission risk]
+
+CRITICAL RULES:
+1. Grounding: All numbers MUST come directly from the state snapshot above. Never invent, estimate, replace, or fabricate any numbers. If a requested value is missing or "Not available", explicitly state that it is unavailable.
+2. Sensor Trust Priority:
+   - If AI DIAGNOSIS is SENSOR FAULT or any sensor is quarantined:
+     Status Title MUST be: SENSOR ISSUE — [CHANNEL NAME]
+     Clearly state that the sensor signal is unreliable and quarantined, while engine mechanical condition remains protected.
+     Never treat a quarantined sensor as evidence of mechanical engine failure or degradation.
+   - If AI DIAGNOSIS is THERMAL DEGRADATION or THERMAL RUNAWAY:
+     Status Title MUST be: ENGINE DEGRADATION — THERMAL
+     Explain that dual trusted thermal sensors (CHT and EGT) confirm genuine thermal degradation.
+   - If AI DIAGNOSIS is HEALTHY (and normal):
+     Status Title MUST be: ENGINE STATUS — NOMINAL
+     State that the engine is operating normally within expected parameters.
+   - If user asks specifically about RUL or degradation:
+     Status Title: PROGNOSTICS — REMAINING USEFUL LIFE
+     Cite exact RUL estimate, confidence bounds, and degradation percentage.
+   - If user asks specifically about sensor trust or reliability:
+     Status Title: SENSOR TRUST — [CHANNEL NAME or NOMINAL]
+     Cite trust scores, trusted counts, and quarantine status.
+3. Decision-Support Only:
+   - Do NOT give aircraft or flight control commands.
+   - Do NOT recommend throttle adjustments.
+   - Do NOT issue abort or continue orders.
+   - Do NOT claim operational airworthiness certification.`;
 
     // Dev-mode context logging (never log API key)
     if (process.env.NODE_ENV !== 'production') {

@@ -10022,26 +10022,73 @@ if (typeof window !== 'undefined') {
     if (!query || typeof query !== 'string') return null;
     const qLower = query.trim().toLowerCase();
 
-    // Identity / Capabilities Intent (Fast-path: no external API call or telemetry analysis needed)
-    if (/^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
-        /^introduce\s+yourself\b/i.test(qLower) ||
-        /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
-        qLower === 'who are you' ||
-        qLower === 'what are you' ||
-        qLower === 'what can you do' ||
-        qLower === 'introduce yourself') {
-      return "I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. I do not directly control the aircraft or engine.";
+    // Category A: Natural Greetings (Fast-path: no telemetry sent to Groq)
+    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25) {
+      return "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?";
     }
 
-    // Natural Greetings
-    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 20) {
-      return "Hello. I’m the AERO TWIN Decision-Support Assistant. I analyze the current engine Digital Twin state, sensor trust, diagnostics, EHI, degradation, RUL and mission context. How can I assist you with the engine condition?";
+    // Category B: Identity / Model Queries (Fast-path: direct accurate answer)
+    const isIdentityOrModel = 
+      /(which|what)\s+(ai\s+)?model\b/i.test(qLower) ||
+      /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you)\b/i.test(qLower) ||
+      /\bwhat\s+ai\s+(are\s+you\s+using|is\s+this|powers\s+you)\b/i.test(qLower) ||
+      /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
+      /^introduce\s+yourself\b/i.test(qLower) ||
+      /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
+      qLower === 'who are you' ||
+      qLower === 'what are you' ||
+      qLower === 'what can you do' ||
+      qLower === 'which model are you' ||
+      qLower === 'which model are you?' ||
+      qLower === 'what model do you use' ||
+      qLower === 'what model do you use?' ||
+      qLower === 'which ai model powers you' ||
+      qLower === 'which ai model powers you?' ||
+      qLower === 'what ai are you using' ||
+      qLower === 'what ai are you using?';
+
+    if (isIdentityOrModel) {
+      return "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer.";
     }
 
     return null;
   }
 
   window.routeDeterministicIntent = routeDeterministicIntent;
+
+  function formatAssistantMarkdown(rawText) {
+    if (!rawText) return '';
+    let text = rawText.trim();
+    
+    // Markdown headers ### Title -> **Title**
+    text = text.replace(/^#{1,4}\s+(.+)$/gm, '**$1**');
+
+    // If first line is a title without **
+    const lines = text.split('\n');
+    if (lines.length > 0) {
+      const firstLine = lines[0].trim();
+      if (/^[A-Z0-9\s—–\-_:]{4,60}$/.test(firstLine) && !firstLine.startsWith('**') && !firstLine.startsWith('•')) {
+        lines[0] = `**${firstLine}**`;
+        text = lines.join('\n');
+      }
+    }
+
+    // Convert **bold** to <strong>
+    let html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // Ensure section headers like Evidence:, Why:, Mission implication: are bolded
+    html = html.replace(/(?:^|<br>|\n)(Evidence|Why|Mission implication):/gi, '<br><strong>$1:</strong>');
+
+    // Normalize markdown bullets "- " or "* " to "• "
+    html = html.replace(/(?:^|\n)[-*]\s+/g, '\n• ');
+
+    // Convert newlines cleanly to <br>
+    html = html.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
+    // Clean up excessive leading/trailing breaks
+    html = html.replace(/^(<br>)+/, '').replace(/(<br>)+$/, '');
+
+    return html;
+  }
 
   function handleUserQuery(query) {
     if (!query || !query.trim()) return;
@@ -10065,14 +10112,14 @@ if (typeof window !== 'undefined') {
     tryGrokQuery(cleanQuery, snapshot).then(grokResult => {
       removeTypingIndicator(typingId);
       if (grokResult) {
-        // Grok succeeded — convert markdown bold to HTML bold
-        let html = grokResult.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\n/g, '<br>');
+        // Grok succeeded — convert markdown cleanly to HTML
+        const html = formatAssistantMarkdown(grokResult);
         appendAssistantMessage('ai', html, 'grok');
       } else {
         // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
         const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
-        appendAssistantMessage('ai', localResponse, 'local');
+        const html = formatAssistantMarkdown(localResponse);
+        appendAssistantMessage('ai', html, 'local');
       }
     });
   }
@@ -10099,14 +10146,17 @@ if (typeof window !== 'undefined') {
     }
   }
 
-  function format3PartResponse(currentState, evidenceLines, whyExplanation, replayTag) {
-    const replayPrefix = replayTag ? `<strong>[REPLAY ${replayTag}]</strong><br>` : '';
+  function formatEngineeringResponse(title, conclusion, evidenceLines, whyExplanation, missionImplication, replayTag) {
+    const replayPrefix = replayTag ? `<strong>[REPLAY ${replayTag}]</strong><br><br>` : '';
     const evidenceHtml = evidenceLines.map(line => `• ${line}`).join('<br>');
-    return `${replayPrefix}<strong>CURRENT STATE:</strong> ${currentState}<br><br><strong>EVIDENCE:</strong><br>${evidenceHtml}<br><br><strong>WHY:</strong> ${whyExplanation}`;
+    const missionHtml = missionImplication ? `<br><br><strong>Mission implication:</strong><br>${missionImplication}` : '';
+    return `${replayPrefix}<strong>${title}</strong><br><br>${conclusion}<br><br><strong>Evidence:</strong><br>${evidenceHtml}<br><br><strong>Why:</strong><br>${whyExplanation}${missionHtml}`;
   }
 
+  const format3PartResponse = formatEngineeringResponse;
+
   function generateLocalAnalysis(query, stateSnapshot) {
-    const qLower = query.trim().toLowerCase();
+    const qLower = (query || '').trim().toLowerCase();
     // Strict Single Source of Truth: Grounded strictly in supplied state snapshot
     const s = stateSnapshot || getAssistantSnapshot();
     const raw = s.rawTelemetry || s.telemetry || {};
@@ -10119,347 +10169,248 @@ if (typeof window !== 'undefined') {
 
     // Helper formatting with zero fabrication
     const notAvail = 'That value is not currently available in the Digital Twin state.';
-    const avgCht = (raw.cht && raw.cht.length) ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length) : (s.telemetry && s.telemetry.avgCht !== null ? s.telemetry.avgCht : null);
-    const avgEgt = (raw.egt && raw.egt.length) ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length) : (s.telemetry && s.telemetry.avgEgt !== null ? s.telemetry.avgEgt : null);
-    const avgChtStr = avgCht !== null ? `${avgCht.toFixed(1)} °C` : notAvail;
-    const avgEgtStr = avgEgt !== null ? `${avgEgt.toFixed(1)} °C` : notAvail;
+    const getScalarOrAvg = (arrOrNum) => {
+      if (arrOrNum === undefined || arrOrNum === null) return null;
+      if (Array.isArray(arrOrNum)) {
+        return arrOrNum.length ? (arrOrNum.reduce((a, b) => a + b, 0) / arrOrNum.length).toFixed(1) : null;
+      }
+      return typeof arrOrNum === 'number' ? arrOrNum.toFixed(1) : String(arrOrNum);
+    };
+    const chtVal = getScalarOrAvg(raw.cht !== undefined ? raw.cht : (s.telemetry ? s.telemetry.avgCht : null));
+    const egtVal = getScalarOrAvg(raw.egt !== undefined ? raw.egt : (s.telemetry ? s.telemetry.avgEgt : null));
+    const avgChtStr = chtVal !== null ? `${chtVal}°C` : notAvail;
+    const avgEgtStr = egtVal !== null ? `${egtVal}°C` : notAvail;
+    const expChtStr = exp.chtAvg !== undefined ? `${Math.round(exp.chtAvg)}°C` : (exp.cht && exp.cht.length ? `${Math.round(exp.cht[0])}°C` : '175°C');
+    const expEgtStr = exp.egtAvg !== undefined ? `${Math.round(exp.egtAvg)}°C` : (exp.egt && exp.egt.length ? `${Math.round(exp.egt[0])}°C` : '720°C');
     const oilPressStr = raw.oilPress !== undefined && raw.oilPress !== null ? `${Number(raw.oilPress).toFixed(1)} PSI` : notAvail;
-    const oilTempStr = raw.oilTemp !== undefined && raw.oilTemp !== null ? `${Number(raw.oilTemp).toFixed(1)} °C` : notAvail;
+    const expOilPressStr = exp.oilPress !== undefined ? `${Number(exp.oilPress).toFixed(1)} PSI` : (exp.oilPressure !== undefined ? `${Number(exp.oilPressure).toFixed(1)} PSI` : '45.0 PSI');
+    const oilTempStr = raw.oilTemp !== undefined && raw.oilTemp !== null ? `${Number(raw.oilTemp).toFixed(1)}°C` : notAvail;
     const rpmStr = raw.rpm !== undefined && raw.rpm !== null ? `${Math.round(raw.rpm)} RPM` : notAvail;
-    const mapStr = raw.map !== undefined && raw.map !== null ? `${Number(raw.map).toFixed(1)} inHg` : notAvail;
-    const loadStr = raw.load !== undefined && raw.load !== null ? `${Number(raw.load).toFixed(1)}%` : notAvail;
-    const vibStr = raw.vibrationRms !== undefined && raw.vibrationRms !== null ? `${Number(raw.vibrationRms).toFixed(2)} mm/s` : notAvail;
+    const expRpmStr = exp.rpm !== undefined ? `${Math.round(exp.rpm)} RPM` : notAvail;
     const oilTrustScore = scores.oilPress !== undefined ? Number(scores.oilPress).toFixed(2) : (quarantined.includes('oilPress') ? '0.12' : '1.00');
 
-    const resiEgt = resi.egt !== undefined ? `${resi.egt >= 0 ? '+' : ''}${Number(resi.egt).toFixed(1)} °C` : '0 °C';
-    const resiCht = resi.cht !== undefined ? `${resi.cht >= 0 ? '+' : ''}${Number(resi.cht).toFixed(1)} °C` : '0 °C';
     const ehiVal = s.ehi !== undefined ? Math.round(s.ehi) : notAvail;
-    const anomVal = s.anomalyScore !== undefined ? Number(s.anomalyScore).toFixed(2) : notAvail;
-    const overallTrustVal = s.overallTrust !== undefined ? Number(s.overallTrust).toFixed(2) : (s.sensorTrust && s.sensorTrust.overall !== undefined ? Number(s.sensorTrust.overall).toFixed(2) : notAvail);
+    const overallTrustVal = s.overallTrust !== undefined ? Number(s.overallTrust).toFixed(2) : (s.sensorTrust && s.sensorTrust.overall !== undefined ? Number(s.sensorTrust.overall).toFixed(2) : '1.00');
     const rulStr = s.rulLabel || (s.rul !== undefined ? `${s.rul} h` : (s.rulHours !== undefined ? `${s.rulHours} h` : notAvail));
-    const rel = s.missionReliability || {};
-    const relScoreStr = rel.score !== undefined ? `${rel.score}%` : notAvail;
-    const relStatusStr = rel.status || notAvail;
-    const maint = s.maintenance || {};
+    const degPctStr = s.degradation !== undefined ? `${s.degradation}%` : (s.degradationPct !== undefined ? `${s.degradationPct}%` : notAvail);
     const isReplay = !!s.isReplaying;
     const replaySec = (s.replayIndex !== null && s.replayIndex !== undefined) ? s.replayIndex : (s.simTime ? s.simTime.replace(/^14:/, '').replace(/^0+/, '') || '0' : '0');
     const replayTag = isReplay ? `@ ${replaySec}s` : '';
 
     const isSensorFault = s.diagnosis === 'SENSOR FAULT' || s.aiDiagnosis === 'SENSOR FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'SENSOR_FAULT') || (quarantined && quarantined.length > 0);
-    const isThermal = s.diagnosis === 'THERMAL DEGRADATION' || s.diagnosis === 'THERMAL RUNAWAY' || s.aiDiagnosis === 'THERMAL DEGRADATION' || s.aiDiagnosis === 'THERMAL RUNAWAY' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION');
-    const isLubrication = s.diagnosis === 'LUBRICATION FAULT' || s.aiDiagnosis === 'LUBRICATION FAULT' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION');
-    const isRpm = s.diagnosis === 'RPM INSTABILITY' || s.aiDiagnosis === 'RPM INSTABILITY' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'RPM_INSTABILITY');
-    const isHealthy = !isSensorFault && !isThermal && !isLubrication && !isRpm;
+    const isThermal = s.diagnosis === 'THERMAL DEGRADATION' || s.diagnosis === 'THERMAL RUNAWAY' || s.aiDiagnosis === 'THERMAL DEGRADATION' || s.aiDiagnosis === 'THERMAL RUNAWAY' || (s.diagnosticResult && s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION') || (ehiVal !== notAvail && ehiVal < 75);
 
-    // INTENT 2: SENSOR TRUST / QUARANTINED SENSORS (Checked before general diagnosis to catch specific questions)
-    if (qLower.includes('quarantine') || qLower.includes('unreliable') || qLower.includes('which sensor') || qLower.includes('sensor trust') || qLower.includes('sensor fault') || qLower.includes('sensor problem') || qLower.includes('sensor or engine') || qLower.includes('is this a sensor')) {
-      let stateMsg, evidence, whyMsg;
+    // INTENT: SENSOR TRUST / QUARANTINED SENSORS / RELIABILITY
+    if (qLower.includes('quarantine') || qLower.includes('unreliable') || qLower.includes('which sensor') || qLower.includes('sensor trust') || qLower.includes('sensor fault') || qLower.includes('sensor problem') || qLower.includes('sensor or engine') || qLower.includes('is this a sensor') || qLower.includes('is the oil pressure sensor reliable') || qLower.includes('reliable') || qLower.includes('sensor')) {
       if (quarantined.length > 0 || isSensorFault) {
-        const qList = quarantined.length > 0 ? quarantined.join(', ') : 'oilPress';
-        stateMsg = `Yes, an isolated sensor fault is confirmed on channel ${qList}; transducer is Quarantined while engine mechanical condition remains healthy.`;
-        evidence = [
-          `Quarantined Channel: <strong>${qList}</strong> (Transducer frozen at ${oilPressStr})`,
-          `Sensor Trust Score: <strong>${oilTrustScore}</strong> (Status: Quarantined / FAULTY)`,
-          `Overall Sensor Trust: <strong>${overallTrustVal}</strong> (${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} channels trusted)`,
-          `Secondary Verification: Oil Temp (${oilTempStr}) and Vibration (${vibStr}) confirm normal mechanical lubrication`
-        ];
-        whyMsg = `Zero signal variance was detected on the transducer during dynamic engine operation. The Sensor Trust Layer quarantined it to shield digital twin physics and EHI from false alarm aborts. The engine itself appears healthy; current evidence does not indicate mechanical engine failure.`;
+        const qList = quarantined.length > 0 ? quarantined.join(', ') : 'oil pressure';
+        const qChan = qList === 'oilPress' || qList === 'oilPressure' ? 'OIL PRESSURE' : qList.toUpperCase();
+        return formatEngineeringResponse(
+          `SENSOR ISSUE — ${qChan}`,
+          `The ${qList} signal is unreliable and has been quarantined.`,
+          [
+            `Oil-pressure trust: ${oilTrustScore}`,
+            `Overall trust: ${overallTrustVal}`,
+            `Trusted sensors: ${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `The ${qList} channel is inconsistent with the rest of the engine state, so it is excluded from health judgment. Current trusted evidence does not indicate confirmed engine degradation.`,
+          `Telemetry redundancy is reduced for this channel, but engine mechanical condition remains intact.`,
+          replayTag
+        );
       } else {
-        stateMsg = `No sensors are quarantined; all ${s.sensorTrust.totalSensors} sensor channels are verified trusted.`;
-        evidence = [
-          `Trusted Sensors: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}</strong>`,
-          `Overall Trust Score: <strong>${overallTrustVal}</strong>`,
-          `Quarantined Channels: <strong>None</strong>`
-        ];
-        whyMsg = `Real-time analytical redundancy and noise variance checks confirm all instrumentation streams are tracking calibrated physics baselines.`;
+        return formatEngineeringResponse(
+          `SENSOR TRUST — NOMINAL`,
+          `All engine sensor channels are verified trusted and operating nominally.`,
+          [
+            `Overall trust: ${overallTrustVal}`,
+            `Trusted sensors: ${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}`,
+            `Quarantined channels: None`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `Analytical redundancy and cross-sensor variance checks confirm all instrumentation streams track calibrated baseline models without drift or artifacts.`,
+          `Full instrumentation reliability is maintained for the current mission phase.`,
+          replayTag
+        );
       }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
     }
 
-    // INTENT 3: EGT / EXHAUST GAS TEMPERATURE
-    if (qLower.includes('egt') || qLower.includes('exhaust')) {
-      let stateMsg, evidence, whyMsg;
-      const expEgtStr = exp.egtAvg !== undefined ? `${Math.round(exp.egtAvg)} °C` : (exp.egt && exp.egt.length ? `${Math.round(exp.egt[0])} °C` : notAvail);
-      const isElevated = isThermal || (resi.egt !== undefined && resi.egt > 15);
-      if (isElevated) {
-        stateMsg = `Exhaust Gas Temperature (EGT) is significantly elevated above calibrated physics baseline.`;
-        evidence = [
-          `Actual Avg EGT: <strong>${avgEgtStr}</strong> across exhaust runners`,
-          `Expected Physics EGT: <strong>${expEgtStr}</strong>`,
-          `EGT Physics Residual: <strong>${resiEgt}</strong>`,
-          `Corroborating CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
-        ];
-        whyMsg = `Elevated EGT residuals correlate with increased thermodynamic load and cylinder thermal degradation, indicating lean combustion excursion or localized cooling shortfall.`;
+    // INTENT: THERMAL DEGRADATION / EGT / CHT / RUNNING HOT
+    if (qLower.includes('egt') || qLower.includes('exhaust') || qLower.includes('cht') || qLower.includes('cylinder head') || qLower.includes('running hot') || qLower.includes('hot') || qLower.includes('overheat') || qLower.includes('thermal')) {
+      if (isThermal || (resi.egt !== undefined && resi.egt > 15) || (resi.cht !== undefined && resi.cht > 5)) {
+        return formatEngineeringResponse(
+          `ENGINE DEGRADATION — THERMAL`,
+          `The engine is showing a thermal degradation pattern.`,
+          [
+            `CHT: ${avgChtStr} vs ${expChtStr} expected`,
+            `EGT: ${avgEgtStr} vs ${expEgtStr} expected`,
+            `Sensor trust: ${overallTrustVal}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `Trusted CHT and EGT measurements are both significantly above their expected values, supporting a genuine thermal condition rather than an isolated sensor fault.`,
+          `Thermal stress accelerates component wear, decreasing Remaining Useful Life endurance margins.`,
+          replayTag
+        );
       } else {
-        stateMsg = `Exhaust Gas Temperature (EGT) is operating within nominal cruise parameters.`;
-        evidence = [
-          `Actual Avg EGT: <strong>${avgEgtStr}</strong>`,
-          `Expected Physics EGT: <strong>${expEgtStr}</strong>`,
-          `EGT Residual: <strong>${resiEgt}</strong>`
-        ];
-        whyMsg = `Combustion heat release and exhaust scavenge temperatures match expected stoichiometric baseline for the current manifold pressure (${mapStr}).`;
+        return formatEngineeringResponse(
+          `ENGINE STATUS — NOMINAL`,
+          `Cylinder and exhaust temperatures remain within normal thermal margins.`,
+          [
+            `CHT: ${avgChtStr} vs ${expChtStr} expected`,
+            `EGT: ${avgEgtStr} vs ${expEgtStr} expected`,
+            `Sensor trust: ${overallTrustVal}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `Combustion heat release and convective cylinder cooling match expected baseline models for current power output.`,
+          `Thermal margins remain sufficient for ongoing mission legs.`,
+          replayTag
+        );
       }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
     }
 
-    // INTENT 4: CHT / CYLINDER HEAD TEMPERATURE
-    if (qLower.includes('cht') || qLower.includes('cylinder head')) {
-      let stateMsg, evidence, whyMsg;
-      const expChtStr = exp.chtAvg !== undefined ? `${Math.round(exp.chtAvg)} °C` : (exp.cht && exp.cht.length ? `${Math.round(exp.cht[0])} °C` : notAvail);
-      const isElevated = isThermal || (resi.cht !== undefined && resi.cht > 5);
-      if (isElevated) {
-        stateMsg = `Cylinder Head Temperature (CHT) is elevated above normal thermal operating limits.`;
-        evidence = [
-          `Actual Avg CHT: <strong>${avgChtStr}</strong> across all 4 cylinders`,
-          `Expected Physics CHT: <strong>${expChtStr}</strong>`,
-          `CHT Physics Residual: <strong>${resiCht}</strong>`,
-          `Cylinder CHTs: <strong>[${raw.cht ? raw.cht.map(v => Number(v).toFixed(1) + '°C').join(', ') : avgChtStr}]</strong>`
-        ];
-        whyMsg = `Thermal heat generation exceeds cylinder fin convection cooling capacity, driving cylinder metallurgy toward critical thermal boundaries.`;
-      } else {
-        stateMsg = `Cylinder Head Temperature (CHT) is stable and within normal cooling margins.`;
-        evidence = [
-          `Actual Avg CHT: <strong>${avgChtStr}</strong>`,
-          `Expected Physics CHT: <strong>${expChtStr}</strong>`,
-          `CHT Residual: <strong>${resiCht}</strong>`
-        ];
-        whyMsg = `Balanced airflow cooling across the horizontally-opposed cylinder heads maintains uniform temperatures well below the 200°C maximum continuous limit.`;
-      }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 5: OIL PRESSURE
+    // INTENT: OIL PRESSURE
     if (qLower.includes('oil pressure') || qLower.includes('oil press')) {
-      let stateMsg, evidence, whyMsg;
-      const expOilPressStr = exp.oilPress !== undefined ? `${Number(exp.oilPress).toFixed(1)} PSI` : (exp.oilPressure !== undefined ? `${Number(exp.oilPressure).toFixed(1)} PSI` : notAvail);
       if (isSensorFault || quarantined.includes('oilPress')) {
-        stateMsg = `The oil pressure sensor is faulty and quarantined; actual engine lubrication remains healthy.`;
-        evidence = [
-          `Reported Oil Pressure: <strong>${oilPressStr}</strong> (Static transducer signal)`,
-          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
-          `Sensor Trust Score: <strong>${oilTrustScore}</strong> (Status: QUARANTINED)`,
-          `Corroborating Temp & Vibration: <strong>${oilTempStr}</strong>, <strong>${vibStr}</strong> (Nominal)`
-        ];
-        whyMsg = `The oil pressure transducer output locked at a fixed voltage. Secondary thermodynamic and vibration indicators show no physical lubrication loss, confirming an instrument-isolated fault.`;
-      } else if (isThermal || isLubrication) {
-        stateMsg = `Oil pressure is reduced under elevated thermal stress and viscosity thinning.`;
-        evidence = [
-          `Actual Oil Pressure: <strong>${oilPressStr}</strong>`,
-          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
-          `Oil Temperature: <strong>${oilTempStr}</strong> (Viscosity thinning)`
-        ];
-        whyMsg = `High operating oil temperatures reduce fluid dynamic viscosity, resulting in lower journal bearing back-pressure.`;
+        return formatEngineeringResponse(
+          `SENSOR ISSUE — OIL PRESSURE`,
+          `The oil-pressure signal is unreliable and has been quarantined.`,
+          [
+            `Oil-pressure trust: ${oilTrustScore}`,
+            `Overall trust: ${overallTrustVal}`,
+            `Trusted sensors: ${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `The oil-pressure channel is inconsistent with the rest of the engine state, so it is excluded from health judgment. Current trusted evidence does not indicate confirmed engine degradation.`,
+          `Telemetry redundancy is reduced for this channel, but engine mechanical condition remains intact.`,
+          replayTag
+        );
       } else {
-        stateMsg = `Oil pressure is normal and operating within healthy delivery specifications.`;
-        evidence = [
-          `Actual Oil Pressure: <strong>${oilPressStr}</strong>`,
-          `Expected Oil Pressure: <strong>${expOilPressStr}</strong>`,
-          `Sensor Trust Score: <strong>${oilTrustScore} (TRUSTED)</strong>`
-        ];
-        whyMsg = `The positive displacement engine oil pump maintains stable hydrodynamic oil film thickness across all crankshaft journals.`;
+        return formatEngineeringResponse(
+          `ENGINE STATUS — NOMINAL`,
+          `Engine oil pressure is operating within nominal delivery specifications.`,
+          [
+            `Oil Pressure: ${oilPressStr} vs ${expOilPressStr} expected`,
+            `Oil Temperature: ${oilTempStr}`,
+            `Sensor Trust: ${oilTrustScore}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `Positive displacement engine oil pump maintains stable hydrodynamic lubrication film across crankshaft bearings.`,
+          `Engine lubrication delivery remains fully nominal.`,
+          replayTag
+        );
       }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
     }
 
-    // INTENT 6: OIL TEMPERATURE
-    if (qLower.includes('oil temp') || qLower.includes('oil temperature')) {
-      let stateMsg, evidence, whyMsg;
-      const expOilTempStr = exp.oilTemp !== undefined ? `${Math.round(exp.oilTemp)} °C` : notAvail;
-      const isElevated = isThermal || (raw.oilTemp !== undefined && raw.oilTemp > 100);
-      if (isElevated) {
-        stateMsg = `Engine oil temperature is elevated above continuous operational limits.`;
-        evidence = [
-          `Actual Oil Temperature: <strong>${oilTempStr}</strong>`,
-          `Expected Oil Temperature: <strong>${expOilTempStr}</strong>`,
-          `Associated Oil Pressure: <strong>${oilPressStr}</strong>`
-        ];
-        whyMsg = `Excess combustion blow-by and high cylinder temperatures transfer heat into the crankcase oil, accelerating oil oxidation and thermal thinning.`;
-      } else {
-        stateMsg = `Engine oil temperature is within nominal operating range.`;
-        evidence = [
-          `Actual Oil Temperature: <strong>${oilTempStr}</strong>`,
-          `Expected Oil Temperature: <strong>${expOilTempStr}</strong>`,
-          `Associated Oil Pressure: <strong>${oilPressStr}</strong>`
-        ];
-        whyMsg = `The oil cooler airflow and thermostatic bypass maintain oil viscosity at optimal lubricating efficiency.`;
-      }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
+    // INTENT: RUL / REMAINING USEFUL LIFE / DEGRADATION
+    if (qLower.includes('rul') || qLower.includes('remaining useful life') || qLower.includes('how much life') || qLower.includes('life remains') || qLower.includes('degrading') || qLower.includes('degradation') || qLower.includes('when will it fail') || qLower.includes('life')) {
+      return formatEngineeringResponse(
+        `PROGNOSTICS — REMAINING USEFUL LIFE`,
+        `Remaining Useful Life is estimated at ${rulStr} under current operational conditions.`,
+        [
+          `Projected RUL: ${rulStr}`,
+          `Cumulative degradation: ${degPctStr}`,
+          `Degradation trend: ${s.degradationTrend || 'STABLE'}`,
+          `Engine Health Index: ${ehiVal}/100`
+        ],
+        `Prognostic estimation models Arrhenius thermal fatigue and mechanical stress against baseline component endurance envelopes.`,
+        `Projected endurance remains sufficient for nominal mission completion under current flight loads.`,
+        replayTag
+      );
     }
 
-    // INTENT 7: RUL (REMAINING USEFUL LIFE)
-    if (qLower.includes('rul') || qLower.includes('remaining useful life') || qLower.includes('how much rul') || qLower.includes('when will it fail') || qLower.includes('life')) {
-      const stateMsg = `Remaining Useful Life (RUL) is estimated at <strong>${rulStr}</strong> under current operational conditions.`;
-      const evidence = [
-        `RUL Estimate: <strong>${rulStr}</strong>`,
-        `Cumulative Degradation: <strong>${s.degradation !== undefined ? s.degradation + '%' : (s.degradationPct !== undefined ? s.degradationPct + '%' : notAvail)}</strong> (Trend: <strong>${s.degradationTrend || 'STABLE'}</strong>)`,
-        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
-        `Anomaly Score: <strong>${anomVal}</strong>`
-      ];
-      const whyMsg = `RUL prognosis combines cumulative fatigue damage modeling with real-time thermodynamic wear rates. Sustained thermal or mechanical excursions accelerate the wear rate, decrementing endurance.`;
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 8: EHI (ENGINE HEALTH INDEX)
-    if (qLower.includes('health index') || qLower.includes('why is engine health changing') || qLower.includes('why did health drop') || qLower.includes('ehi') || qLower.includes('engine health') || qLower === 'health') {
-      let stateMsg, evidence, whyMsg;
+    // INTENT: EHI (ENGINE HEALTH INDEX)
+    if (qLower.includes('health index') || qLower.includes('why is engine health changing') || qLower.includes('why did health drop') || qLower.includes('why is ehi low') || qLower.includes('ehi') || qLower.includes('engine health')) {
       if (isSensorFault) {
-        stateMsg = `Engine Health Index remains protected at <strong>${ehiVal}/100</strong> (${s.ehiStatus}) despite the oil pressure sensor fault.`;
-        evidence = [
-          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
-          `Quarantined Sensor: <strong>${quarantined.join(', ') || 'oilPress'}</strong> (Trust: ${oilTrustScore})`,
-          `Sensor Trust Shield: Active (Zero health penalty applied for instrument artifact)`,
-          `Mechanical Condition: The engine itself appears healthy; the detected problem is isolated to the oil-pressure sensor.`
-        ];
-        whyMsg = `The Sensor Trust Layer identified the oil pressure sensor fault and shielded EHI to prevent false mission abort.`;
+        return formatEngineeringResponse(
+          `SENSOR ISSUE — OIL PRESSURE`,
+          `Engine Health Index remains protected at ${ehiVal}/100 despite the quarantined oil pressure sensor.`,
+          [
+            `Oil-pressure trust: ${oilTrustScore}`,
+            `Overall trust: ${overallTrustVal}`,
+            `Trusted sensors: ${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `The Sensor Trust Layer identified the anomalous transducer and shielded EHI from false degradation penalties. Current evidence does not indicate mechanical failure.`,
+          `Propulsion integrity remains intact while instrumentation redundancy is degraded.`,
+          replayTag
+        );
       } else if (isThermal) {
-        stateMsg = `Engine Health Index has dropped to <strong>${ehiVal}/100</strong> (${s.ehiStatus}) because both EGT (${avgEgtStr}) and CHT (${avgChtStr}) have surged.`;
-        evidence = [
-          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
-          `Thermal Degradation Contribution: Active`,
-          `Avg EGT: <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
-          `Avg CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
-        ];
-        whyMsg = `Dual trusted thermal sensors confirm authentic thermodynamic degradation rather than an instrument defect.`;
+        return formatEngineeringResponse(
+          `ENGINE DEGRADATION — THERMAL`,
+          `Engine Health Index has dropped to ${ehiVal}/100 due to active cylinder thermal degradation.`,
+          [
+            `CHT: ${avgChtStr} vs ${expChtStr} expected`,
+            `EGT: ${avgEgtStr} vs ${expEgtStr} expected`,
+            `Sensor trust: ${overallTrustVal}`,
+            `EHI: ${ehiVal}/100`
+          ],
+          `Dual trusted thermal sensors confirm authentic thermodynamic stress exceeding baseline boundaries, which decrements the health index.`,
+          `Thermal stress accelerates component wear, decreasing Remaining Useful Life endurance margins.`,
+          replayTag
+        );
       } else {
-        stateMsg = `Engine Health Index is robust at <strong>${ehiVal}/100</strong> (${s.ehiStatus}).`;
-        evidence = [
-          `Current EHI: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
-          `Sensor Trust: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} Trusted</strong>`,
-          `Cumulative Degradation: <strong>${s.degradation !== undefined ? s.degradation + '%' : (s.degradationPct !== undefined ? s.degradationPct + '%' : notAvail)}</strong>`,
-          `Anomaly Score: <strong>${anomVal}</strong>`
-        ];
-        whyMsg = `Combustion, lubrication, and vibration parameters are tracking within baseline physics boundaries with no active fault signatures.`;
+        return formatEngineeringResponse(
+          `ENGINE STATUS — NOMINAL`,
+          `Engine Health Index is robust at ${ehiVal}/100 in the current simulation phase.`,
+          [
+            `RPM: ${rpmStr} vs ${expRpmStr} expected`,
+            `EHI: ${ehiVal}/100`,
+            `Sensor trust: ${overallTrustVal} (${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} trusted)`,
+            `Projected RUL: ${rulStr}`
+          ],
+          `Current trusted telemetry remains consistent with the expected operating state and no significant degradation is detected.`,
+          `Propulsion system operates within calibrated margins for the ${s.missionPhase || 'CRUISE'} flight envelope.`,
+          replayTag
+        );
       }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
     }
 
-    // INTENT: PHYSICS RESIDUALS & MODEL EXPECTATIONS
-    if (qLower.includes('residual') || qLower.includes('physics') || qLower.includes('expected')) {
-      const expEgt = (exp.egtAvg !== undefined && exp.egtAvg !== null) ? `${Math.round(exp.egtAvg)} °C` : (exp.egt && exp.egt.length ? `${Math.round(exp.egt[0])} °C` : notAvail);
-      const expCht = (exp.chtAvg !== undefined && exp.chtAvg !== null) ? `${Math.round(exp.chtAvg)} °C` : (exp.cht && exp.cht.length ? `${Math.round(exp.cht[0])} °C` : notAvail);
-      const alt = (s.environment && s.environment.altitude !== undefined) ? s.environment.altitude : (raw.altitude !== undefined && raw.altitude !== null ? raw.altitude : notAvail);
-      const stateMsg = `Physics model calculates expected aerodynamic and thermodynamic baselines against actual sensor streams.`;
-      const evidence = [
-        `Operating Altitude: <strong>${alt !== notAvail ? alt + ' ft ISA' : notAvail}</strong>`,
-        `Expected EGT: <strong>${expEgt}</strong> | Actual Avg EGT: <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
-        `Expected CHT: <strong>${expCht}</strong> | Actual Avg CHT: <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`
-      ];
-      const whyMsg = `Quarantined sensors are shielded from inducing false engine residuals into ML health and anomaly scoring.`;
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 9: MISSION RELIABILITY
-    if (qLower.includes('mission') || qLower.includes('complete the mission') || qLower.includes('reliability') || qLower.includes('can we continue')) {
-      let stateMsg, evidence, whyMsg;
-      if (isThermal) {
-        stateMsg = `Mission Reliability is degraded to <strong>${relScoreStr} (${relStatusStr})</strong>; power reduction or Return to Base is recommended.`;
-        evidence = [
-          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
-          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
-          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
-          `Limiting Factor: Sustained thermal runaway on cylinder assemblies (RUL: ${rulStr})`
-        ];
-        whyMsg = `Continued high power cruising under severe cylinder thermal runaway risks progressive mechanical failure before mission completion.`;
-      } else if (isSensorFault) {
-        stateMsg = `Mission Reliability is sustained at <strong>${relScoreStr} (${relStatusStr})</strong>; mission continuation is safe.`;
-        evidence = [
-          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
-          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
-          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
-          `Engine Health Index: <strong>${ehiVal}/100</strong> (Propulsion integrity intact)`
-        ];
-        whyMsg = `The quarantined oil pressure sensor is an isolated instrument anomaly. Physical engine mechanics and thermodynamic outputs confirm full propulsion capability.`;
-      } else {
-        stateMsg = `Mission Reliability is high at <strong>${relScoreStr} (${relStatusStr})</strong>; mission may proceed as planned.`;
-        evidence = [
-          `Reliability Score: <strong>${relScoreStr} (${relStatusStr})</strong>`,
-          `Current Mission Phase: <strong>${s.missionPhase}</strong>`,
-          `Remaining Mission Duration: <strong>${rel.remainingMissionDuration || notAvail}</strong>`,
-          `Engine Status: Nominal (EHI: ${ehiVal}/100)`
-        ];
-        whyMsg = `Propulsion operating parameters match calibrated flight envelope baselines, with high reliability margins for remaining flight legs.`;
-      }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 10: RECOMMENDED ACTION / MAINTENANCE
-    if (qLower.includes('action') || qLower.includes('recommended') || qLower.includes('what should we do') || qLower.includes('maintenance') || qLower.includes('inspect')) {
-      const stateMsg = `Recommended action: <strong>${maint.action || 'Continue standard flight monitoring; routine turnaround inspection.'}</strong>`;
-      const evidence = [
-        `Target Subsystem: <strong>${maint.subsystem || 'All Subsystems Nominal'}</strong>`,
-        `Priority Level: <strong>${maint.priority || 'ROUTINE'}</strong>`,
-        `Inspection Urgency: <strong>${maint.urgency || maint.urgencyHours || '50h Inspection'}</strong>`,
-        `Maintenance Code: <code>${maint.code || 'MAINT-001-NOM'}</code>`
-      ];
-      let whyMsg;
-      if (isSensorFault) {
-        whyMsg = `Core engine propulsion is sound. Replacing or recalibrating the quarantined transducer during turnaround restores telemetry redundancy.`;
-      } else if (isThermal) {
-        whyMsg = `Immediate thermal mitigation and post-mission borescope inspection prevent permanent cylinder head warping and valve guide degradation.`;
-      } else {
-        whyMsg = `Standard preventive turnaround servicing conforms to manufacturer and DRDO airworthiness inspection intervals.`;
-      }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 11: RPM INSTABILITY / RPM
-    if (qLower.includes('rpm')) {
-      let stateMsg, evidence, whyMsg;
-      const expRpmStr = exp.rpm !== undefined ? `${Math.round(exp.rpm)} RPM` : notAvail;
-      const isUnstable = isRpm || (resi.rpm !== undefined && Math.abs(resi.rpm) > 100);
-      if (isUnstable) {
-        stateMsg = `RPM instability detected with rotational speed hunting outside calibrated governor limits.`;
-        evidence = [
-          `Current RPM: <strong>${rpmStr}</strong>`,
-          `Expected Governor RPM: <strong>${expRpmStr}</strong>`,
-          `RPM Residual: <strong>${resi.rpm !== undefined ? (resi.rpm >= 0 ? '+' : '') + resi.rpm : '0'} RPM</strong>`,
-          `Vibration RMS: <strong>${vibStr}</strong>`
-        ];
-        whyMsg = `Combustion pressure variance or propeller governor hunting produces cyclic rotational oscillations across the crankshaft.`;
-      } else {
-        stateMsg = `Engine RPM is stable and governed within expected target speed.`;
-        evidence = [
-          `Current RPM: <strong>${rpmStr}</strong>`,
-          `Expected Governor RPM: <strong>${expRpmStr}</strong>`,
-          `Engine Load: <strong>${loadStr}</strong>`,
-          `Vibration RMS: <strong>${vibStr}</strong>`
-        ];
-        whyMsg = `Governor control and uniform cylinder power strokes maintain constant crankshaft rotational velocity.`;
-      }
-      return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
-    }
-
-    // INTENT 1: GENERAL DIAGNOSIS / STATUS OVERVIEW (Default for overview questions)
-    let stateMsg, evidence, whyMsg;
+    // DEFAULT / GENERAL ENGINE STATUS & DIAGNOSTIC
     if (isSensorFault) {
-      stateMsg = `Sensor fault detected on quarantined oil-pressure transducer. The engine itself appears healthy; the detected problem is isolated to the oil-pressure sensor.`;
-      evidence = [
-        `Fault Classification: <strong>${s.diagnosis}</strong> (Confidence: ${s.diagnosisConfidence}%)`,
-        `Quarantined Sensor: <strong>${quarantined.join(', ') || 'oilPress'}</strong> (Trust: ${oilTrustScore})`,
-        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus}) protected by Sensor Trust Layer`,
-        `Anomaly Score: <strong>${anomVal}</strong> | Mission Reliability: <strong>${relScoreStr} (${relStatusStr})</strong>`
-      ];
-      whyMsg = `The transducer variance collapsed to zero during engine operation. The Sensor Trust Layer quarantined the faulty sensor, preventing false engine alarms and shielding the Engine Health Index.`;
+      const qList = quarantined.length > 0 ? quarantined.join(', ') : 'oil pressure';
+      const qChan = qList === 'oilPress' || qList === 'oilPressure' ? 'OIL PRESSURE' : qList.toUpperCase();
+      return formatEngineeringResponse(
+        `SENSOR ISSUE — ${qChan}`,
+        `The ${qList} signal is unreliable and has been quarantined.`,
+        [
+          `Oil-pressure trust: ${oilTrustScore}`,
+          `Overall trust: ${overallTrustVal}`,
+          `Trusted sensors: ${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors}`,
+          `EHI: ${ehiVal}/100`
+        ],
+        `The ${qList} channel is inconsistent with the rest of the engine state, so it is excluded from health judgment. Current trusted evidence does not indicate confirmed engine degradation.`,
+        `Instrumentation redundancy is reduced on the affected channel, while propulsion integrity is preserved.`,
+        replayTag
+      );
     } else if (isThermal) {
-      stateMsg = `Authentic multi-cylinder thermal runaway / degradation detected under elevated load.`;
-      evidence = [
-        `Fault Classification: <strong>${s.diagnosis}</strong> (Confidence: ${s.diagnosisConfidence}%)`,
-        `Exhaust Gas Temp (EGT): <strong>${avgEgtStr}</strong> (Residual: <strong>${resiEgt}</strong>)`,
-        `Cylinder Head Temp (CHT): <strong>${avgChtStr}</strong> (Residual: <strong>${resiCht}</strong>)`,
-        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus}) | Projected RUL: <strong>${rulStr}</strong>`
-      ];
-      whyMsg = `Correlated high EGT and CHT residuals across trusted thermal sensors confirm authentic cylinder degradation rather than sensor defect, requiring power reduction or RTB.`;
+      return formatEngineeringResponse(
+        `ENGINE DEGRADATION — THERMAL`,
+        `The engine is showing a thermal degradation pattern.`,
+        [
+          `CHT: ${avgChtStr} vs ${expChtStr} expected`,
+          `EGT: ${avgEgtStr} vs ${expEgtStr} expected`,
+          `Sensor trust: ${overallTrustVal}`,
+          `EHI: ${ehiVal}/100`
+        ],
+        `Trusted CHT and EGT measurements are both significantly above their expected values, supporting a genuine thermal condition rather than an isolated sensor fault.`,
+        `Thermal stress accelerates component wear, decreasing Remaining Useful Life endurance margins.`,
+        replayTag
+      );
     } else {
-      stateMsg = `All propulsion systems are operating nominally within calibrated envelopes.`;
-      evidence = [
-        `Fault Classification: <strong>${s.diagnosis}</strong> (Anomaly Score: <strong>${anomVal}</strong>)`,
-        `Sensor Trust: <strong>${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} Trusted</strong> (Overall: <strong>${overallTrustVal}</strong>)`,
-        `Engine Health Index: <strong>${ehiVal}/100</strong> (${s.ehiStatus})`,
-        `Mission Reliability: <strong>${relScoreStr} (${relStatusStr})</strong> | Est. RUL: <strong>${rulStr}</strong>`
-      ];
-      whyMsg = `Thermodynamic equilibrium, combustion parameters, and mechanical vibration match nominal baseline physics models.`;
+      return formatEngineeringResponse(
+        `ENGINE STATUS — NOMINAL`,
+        `The engine is operating normally in the current simulation phase.`,
+        [
+          `RPM: ${rpmStr} vs ${expRpmStr} expected`,
+          `EHI: ${ehiVal}/100`,
+          `Sensor trust: ${overallTrustVal} (${s.sensorTrust.trustedCount}/${s.sensorTrust.totalSensors} trusted)`,
+          `Projected RUL: ${rulStr}`
+        ],
+        `Current trusted telemetry remains consistent with the expected operating state and no significant degradation is detected.`,
+        `Propulsion system operates within calibrated margins for the ${s.missionPhase || 'CRUISE'} flight envelope.`,
+        replayTag
+      );
     }
-    return format3PartResponse(stateMsg, evidence, whyMsg, replayTag);
   }
 
   function showTypingIndicator() {

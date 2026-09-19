@@ -2,7 +2,14 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "includeFiles": "{index.html,index_modular.html,css/**,js/**,models/**,dist/**}"
+      "includeFiles": [
+        "index.html",
+        "index_modular.html",
+        "css/**",
+        "js/**",
+        "models/**",
+        "dist/**"
+      ]
     }
   },
   "rewrites": [

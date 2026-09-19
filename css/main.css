@@ -1642,6 +1642,7 @@ body {
   padding: 10px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -1680,6 +1681,12 @@ body {
   line-height: 1.4;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
+  margin: 0;
+  flex-shrink: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  height: auto;
+  min-height: 0;
 }
 
 .chat-bubble.user {

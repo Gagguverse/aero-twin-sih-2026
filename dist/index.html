@@ -1658,6 +1658,7 @@ body {
   padding: 10px;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -1696,6 +1697,12 @@ body {
   line-height: 1.4;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
+  margin: 0;
+  flex-shrink: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  height: auto;
+  min-height: 0;
 }
 
 .chat-bubble.user {
@@ -10028,24 +10035,31 @@ if (typeof window !== 'undefined') {
     }
 
     // Category B: Identity / Model Queries (Fast-path: direct accurate answer)
+    const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
     const isIdentityOrModel = 
-      /(which|what)\s+(ai\s+)?model\b/i.test(qLower) ||
-      /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you)\b/i.test(qLower) ||
-      /\bwhat\s+ai\s+(are\s+you\s+using|is\s+this|powers\s+you)\b/i.test(qLower) ||
-      /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
-      /^introduce\s+yourself\b/i.test(qLower) ||
-      /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
-      qLower === 'who are you' ||
-      qLower === 'what are you' ||
-      qLower === 'what can you do' ||
-      qLower === 'which model are you' ||
-      qLower === 'which model are you?' ||
-      qLower === 'what model do you use' ||
-      qLower === 'what model do you use?' ||
-      qLower === 'which ai model powers you' ||
-      qLower === 'which ai model powers you?' ||
-      qLower === 'what ai are you using' ||
-      qLower === 'what ai are you using?';
+      /\b(your|what's|whats|what is|tell me( your)?)\s+(the\s+)?model(\s+name)?\b/i.test(qClean) ||
+      /\bmodel\s+name\b/i.test(qClean) ||
+      /\b(which|what|tell me)\s+(about\s+)?(your\s+|the\s+)?(ai\s+)?model\b/i.test(qClean) ||
+      /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this)\b/i.test(qClean) ||
+      /\b(which|what)\s+ai\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this|are\s+you\s+using)\b/i.test(qClean) ||
+      /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qClean) ||
+      /^introduce\s+yourself\b/i.test(qClean) ||
+      /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qClean) ||
+      qClean === 'who are you' ||
+      qClean === 'what are you' ||
+      qClean === 'what can you do' ||
+      qClean === 'your model name' ||
+      qClean === 'what is your model name' ||
+      qClean === "what's your model name" ||
+      qClean === 'whats your model name' ||
+      qClean === 'tell me your model' ||
+      qClean === 'which model are you' ||
+      qClean === 'what model are you' ||
+      qClean === 'what ai are you' ||
+      qClean === 'what ai model are you' ||
+      qClean === 'which ai powers you' ||
+      qClean === 'what model do you use' ||
+      qClean === 'what ai do you use';
 
     if (isIdentityOrModel) {
       return "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer.";
@@ -10083,9 +10097,10 @@ if (typeof window !== 'undefined') {
     html = html.replace(/(?:^|\n)[-*]\s+/g, '\n• ');
 
     // Convert newlines cleanly to <br>
-    html = html.replace(/\n\n+/g, '<br><br>').replace(/\n/g, '<br>');
-    // Clean up excessive leading/trailing breaks
-    html = html.replace(/^(<br>)+/, '').replace(/(<br>)+$/, '');
+    html = html.replace(/\n\n+/g, '<br>').replace(/\n/g, '<br>');
+    // Clean up excessive leading/trailing breaks and consecutive breaks
+    html = html.replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
+    html = html.replace(/^(<br\s*\/?>)+/i, '').replace(/(<br\s*\/?>)+$/i, '');
 
     return html;
   }
@@ -10147,10 +10162,10 @@ if (typeof window !== 'undefined') {
   }
 
   function formatEngineeringResponse(title, conclusion, evidenceLines, whyExplanation, missionImplication, replayTag) {
-    const replayPrefix = replayTag ? `<strong>[REPLAY ${replayTag}]</strong><br><br>` : '';
+    const replayPrefix = replayTag ? `<strong>[REPLAY ${replayTag}]</strong><br>` : '';
     const evidenceHtml = evidenceLines.map(line => `• ${line}`).join('<br>');
-    const missionHtml = missionImplication ? `<br><br><strong>Mission implication:</strong><br>${missionImplication}` : '';
-    return `${replayPrefix}<strong>${title}</strong><br><br>${conclusion}<br><br><strong>Evidence:</strong><br>${evidenceHtml}<br><br><strong>Why:</strong><br>${whyExplanation}${missionHtml}`;
+    const missionHtml = missionImplication ? `<br><strong>Mission implication:</strong><br>${missionImplication}` : '';
+    return `${replayPrefix}<strong>${title}</strong><br>${conclusion}<br><strong>Evidence:</strong><br>${evidenceHtml}<br><strong>Why:</strong><br>${whyExplanation}${missionHtml}`;
   }
 
   const format3PartResponse = formatEngineeringResponse;

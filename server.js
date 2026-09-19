@@ -337,24 +337,31 @@ async function handleGrokRequest(body, res) {
   }
 
   // Category B: IDENTITY / MODEL (Fast-path: no telemetry sent to Groq)
+  const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
   const isIdentityOrModel = 
-    /(which|what)\s+(ai\s+)?model\b/i.test(qLower) ||
-    /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you)\b/i.test(qLower) ||
-    /\bwhat\s+ai\s+(are\s+you\s+using|is\s+this|powers\s+you)\b/i.test(qLower) ||
-    /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qLower) ||
-    /^introduce\s+yourself\b/i.test(qLower) ||
-    /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qLower) ||
-    qLower === 'who are you' ||
-    qLower === 'what are you' ||
-    qLower === 'what can you do' ||
-    qLower === 'which model are you' ||
-    qLower === 'which model are you?' ||
-    qLower === 'what model do you use' ||
-    qLower === 'what model do you use?' ||
-    qLower === 'which ai model powers you' ||
-    qLower === 'which ai model powers you?' ||
-    qLower === 'what ai are you using' ||
-    qLower === 'what ai are you using?';
+    /\b(your|what's|whats|what is|tell me( your)?)\s+(the\s+)?model(\s+name)?\b/i.test(qClean) ||
+    /\bmodel\s+name\b/i.test(qClean) ||
+    /\b(which|what|tell me)\s+(about\s+)?(your\s+|the\s+)?(ai\s+)?model\b/i.test(qClean) ||
+    /\b(which|what)\s+model\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this)\b/i.test(qClean) ||
+    /\b(which|what)\s+ai\s+(are\s+you|do\s+you\s+use|powers\s+you|is\s+this|are\s+you\s+using)\b/i.test(qClean) ||
+    /^(who|what)\s+(are\s+you|can\s+you\s+do)\b/i.test(qClean) ||
+    /^introduce\s+yourself\b/i.test(qClean) ||
+    /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qClean) ||
+    qClean === 'who are you' ||
+    qClean === 'what are you' ||
+    qClean === 'what can you do' ||
+    qClean === 'your model name' ||
+    qClean === 'what is your model name' ||
+    qClean === "what's your model name" ||
+    qClean === 'whats your model name' ||
+    qClean === 'tell me your model' ||
+    qClean === 'which model are you' ||
+    qClean === 'what model are you' ||
+    qClean === 'what ai are you' ||
+    qClean === 'what ai model are you' ||
+    qClean === 'which ai powers you' ||
+    qClean === 'what model do you use' ||
+    qClean === 'what ai do you use';
 
   if (isIdentityOrModel) {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });

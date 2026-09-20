@@ -196,8 +196,12 @@
     // 4. UPDATE CENTRAL APP STATE
     syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult);
 
-    // 5. RENDER ALL DASHBOARD SECTIONS FROM appState
-    renderDashboard();
+    // 5. RENDER ALL DASHBOARD SECTIONS FROM appState (Deferred while Pre-UI is active to eliminate main-thread reflows)
+    if (!document.body || !document.body.classList.contains('brief-active')) {
+      renderDashboard();
+    } else {
+      updateBriefTelemetryStrip(rawState, diagnosticResult);
+    }
 
     // 6. SYNCHRONIZE 3D ENGINE STATE
     if (digitalTwin) {
@@ -386,7 +390,7 @@
     renderOverviewCards(s);
 
     // 2. Section 3: Live Telemetry & Digital Twin State
-    renderLiveTelemetry(s.rawTelemetry, s.trustResult);
+    renderLiveTelemetry(s.rawTelemetry, s.trustResult, s.physics);
 
     // 3. Section 3: Right Column Engine Status + WHY
     renderEngineStatusAndWhy(s);
@@ -568,13 +572,134 @@
   // ==========================================================================
   // SECTION 3: LIVE TELEMETRY
   // ==========================================================================
-  function renderLiveTelemetry(raw, trustResult) {
+  // SECTION 3: LIVE TELEMETRY (Operating-Condition Aware Expected-State Logic)
+  // ==========================================================================
+  function renderLiveTelemetry(raw, trustResult, physics) {
     const container = document.getElementById('telemetry-list');
     if (!container) return;
 
-    const avgCht = raw.cht ? (raw.cht.reduce((a, b) => a + b, 0) / 4) : 178;
-    const avgEgt = raw.egt ? (raw.egt.reduce((a, b) => a + b, 0) / 4) : 824;
+    const s = window.appState || {};
+    const phys = physics || s.physics || {};
+    const exp = phys.expected || {};
+
+    const avgCht = (raw.cht && Array.isArray(raw.cht) && raw.cht.length)
+      ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length)
+      : (typeof raw.cht === 'number' ? raw.cht : (exp.chtAvg || 172));
+    const avgEgt = (raw.egt && Array.isArray(raw.egt) && raw.egt.length)
+      ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length)
+      : (typeof raw.egt === 'number' ? raw.egt : (exp.egtAvg || 805));
     const isOilQuarantined = trustResult && trustResult.quarantined && trustResult.quarantined.includes('oilPress');
+
+    // Operating-condition aware evaluator: compares actual against physics expected state
+    function evalCondition(val, expectedVal, warnDelta, critDelta, options = {}) {
+      if (typeof val !== 'number' || isNaN(val)) {
+        return { status: 'Normal', trend: 'Normal' };
+      }
+      const expVal = (typeof expectedVal === 'number' && !isNaN(expectedVal)) ? expectedVal : val;
+      const diff = val - expVal;
+      const absDiff = Math.abs(diff);
+
+      // 1. Check absolute safety redlines (independent of operating point)
+      if (options.hardCritHigh !== undefined && val >= options.hardCritHigh) {
+        return { status: 'Critical', trend: '↑ High' };
+      }
+      if (options.hardCritLow !== undefined && val <= options.hardCritLow) {
+        return { status: 'Critical', trend: '↓ Low' };
+      }
+      if (options.hardWarnHigh !== undefined && val >= options.hardWarnHigh) {
+        return { status: 'Warning', trend: '↑ High' };
+      }
+      if (options.hardWarnLow !== undefined && val <= options.hardWarnLow) {
+        return { status: 'Warning', trend: '↓ Low' };
+      }
+
+      // 2. Physics-based residual evaluation against current flight phase / operating equilibrium
+      if (absDiff > critDelta) {
+        return { status: 'Critical', trend: diff > 0 ? '↑ High' : '↓ Low' };
+      }
+      if (absDiff > warnDelta) {
+        return { status: 'Warning', trend: diff > 0 ? '↑ High' : '↓ Low' };
+      }
+      return { status: 'Normal', trend: 'Normal' };
+    }
+
+    // RPM: Expected RPM computed dynamically by physics model for current throttle/phase (e.g. ~4392 in cruise, ~5400 in takeoff)
+    // Tolerances from AeroPhysicsModel.nominalRanges.rpm: warn: 250 RPM, crit: 450 RPM
+    const expectedRpm = exp.rpm !== undefined ? exp.rpm : 4392;
+    const rpmCond = evalCondition(raw.rpm, expectedRpm, 250, 450, {
+      hardWarnHigh: 5450,
+      hardCritHigh: 5650,
+      hardWarnLow: 1600,
+      hardCritLow: 1200
+    });
+
+    // CHT: Expected cylinder head temperature (~165–175°C in cruise)
+    // Tolerances from AeroPhysicsModel: warn: 14°C, crit: 24°C
+    const expectedCht = exp.chtAvg !== undefined ? exp.chtAvg : 172;
+    const chtCond = evalCondition(avgCht, expectedCht, 14, 24, {
+      hardWarnHigh: 195,
+      hardCritHigh: 215,
+      hardWarnLow: 90
+    });
+
+    // EGT: Expected exhaust gas temperature (~780–820°C in cruise)
+    // Tolerances from AeroPhysicsModel: warn: 40°C, crit: 70°C
+    const expectedEgt = exp.egtAvg !== undefined ? exp.egtAvg : 805;
+    const egtCond = evalCondition(avgEgt, expectedEgt, 40, 70, {
+      hardWarnHigh: 870,
+      hardCritHigh: 910,
+      hardWarnLow: 500
+    });
+
+    // Oil Temperature: Expected ~85–92°C in cruise
+    // Tolerances from AeroPhysicsModel: warn: 10°C, crit: 18°C
+    const expectedOilTemp = exp.oilTemp !== undefined ? exp.oilTemp : 90;
+    const oilTempCond = evalCondition(raw.oilTemp, expectedOilTemp, 10, 18, {
+      hardWarnHigh: 104,
+      hardCritHigh: 115,
+      hardWarnLow: 55
+    });
+
+    // Oil Pressure: Expected ~50–58 PSI in cruise
+    // Tolerances from AeroPhysicsModel: warn: 8 PSI, crit: 15 PSI
+    // Sensor Trust Priority: If transducer is quarantined, flag as Suspicious / Frozen
+    let oilPressCond;
+    if (isOilQuarantined) {
+      oilPressCond = { status: 'Suspicious', trend: '— Frozen' };
+    } else {
+      const expectedOilPress = exp.oilPress !== undefined ? exp.oilPress : 54;
+      oilPressCond = evalCondition(raw.oilPress, expectedOilPress, 8, 15, {
+        hardWarnLow: 38,
+        hardCritLow: 28,
+        hardWarnHigh: 72,
+        hardCritHigh: 85
+      });
+    }
+
+    // Fuel Flow: Expected ~21–24 L/hr in cruise, ~34 in takeoff
+    // Tolerances from AeroPhysicsModel: warn: 3.5 L/hr, crit: 6.0 L/hr
+    const expectedFuelFlow = exp.fuelFlow !== undefined ? exp.fuelFlow : 23.5;
+    const fuelCond = evalCondition(raw.fuelFlow, expectedFuelFlow, 3.5, 6.0, {
+      hardWarnHigh: 40.0,
+      hardCritHigh: 45.0
+    });
+
+    // MAP: Expected ~24–28 inHg in cruise, ~35–38 in takeoff
+    // Tolerances from AeroPhysicsModel: warn: 3.5 inHg, crit: 6.0 inHg
+    const expectedMap = exp.map !== undefined ? exp.map : 26.5;
+    const mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
+      hardWarnHigh: 38.0,
+      hardCritHigh: 42.0
+    });
+
+    // Engine Load: Expected matches current throttle demand (~72% in cruise, 100% in takeoff)
+    // Tolerances from AeroPhysicsModel: warn: 14%, crit: 22%
+    const actualLoad = raw.load !== undefined ? raw.load : 72;
+    const expectedLoad = exp.load !== undefined ? exp.load : 72;
+    const loadCond = evalCondition(actualLoad, expectedLoad, 14, 22, {
+      hardWarnHigh: 96,
+      hardCritHigh: 102
+    });
 
     const items = [
       {
@@ -582,64 +707,64 @@
         name: 'RPM (Engine Speed)',
         val: raw.rpm,
         unit: 'RPM',
-        status: raw.rpm > 4350 ? 'Warning' : 'Normal',
-        trend: raw.rpm > 4350 ? '↑ High' : '↑ Stable'
+        status: rpmCond.status,
+        trend: rpmCond.trend
       },
       {
         key: 'cht',
         name: 'CHT (Cylinder Head Temp)',
         val: avgCht,
         unit: '°C',
-        status: avgCht > 215 ? 'Critical' : (avgCht > 190 ? 'Warning' : 'Normal'),
-        trend: avgCht > 215 ? '↑ Critical' : (avgCht > 190 ? '↑ High' : 'Normal')
+        status: chtCond.status,
+        trend: chtCond.trend
       },
       {
         key: 'egt',
         name: 'EGT (Exhaust Gas Temp)',
         val: avgEgt,
         unit: '°C',
-        status: avgEgt > 900 ? 'Critical' : (avgEgt > 850 ? 'Warning' : 'Normal'),
-        trend: avgEgt > 900 ? '↑ Critical' : (avgEgt > 850 ? '↑ High' : 'Normal')
+        status: egtCond.status,
+        trend: egtCond.trend
       },
       {
         key: 'oilTemp',
         name: 'Oil Temperature',
         val: raw.oilTemp,
         unit: '°C',
-        status: raw.oilTemp > 105 ? 'Warning' : 'Normal',
-        trend: raw.oilTemp > 105 ? '↑ Warning' : 'Normal'
+        status: oilTempCond.status,
+        trend: oilTempCond.trend
       },
       {
         key: 'oilPress',
         name: 'Oil Pressure',
         val: raw.oilPress,
         unit: 'PSI',
-        status: isOilQuarantined ? 'Suspicious' : (raw.oilPress < 40 ? 'Warning' : 'Normal'),
-        trend: isOilQuarantined ? '— Frozen' : (raw.oilPress < 40 ? '↓ Degraded' : 'Normal')
+        status: oilPressCond.status,
+        trend: oilPressCond.trend
       },
       {
         key: 'fuelFlow',
         name: 'Fuel Flow Rate',
         val: raw.fuelFlow,
         unit: 'L/hr',
-        status: raw.fuelFlow > 30 ? 'Warning' : 'Normal',
-        trend: raw.fuelFlow > 30 ? '↑ High' : 'Normal'
+        status: fuelCond.status,
+        trend: fuelCond.trend
       },
       {
         key: 'map',
         name: 'MAP (Manifold Pressure)',
         val: raw.map,
         unit: 'inHg',
-        status: raw.map > 36 ? 'Warning' : 'Normal',
-        trend: raw.map > 36 ? '↑ High' : 'Normal'
+        status: mapCond.status,
+        trend: mapCond.trend
       },
       {
         key: 'engineLoad',
         name: 'Calculated Engine Load',
-        val: raw.load !== undefined ? raw.load : 72,
+        val: actualLoad,
         unit: '%',
-        status: raw.load > 85 ? 'Warning' : 'Normal',
-        trend: raw.load > 85 ? '↑ High' : 'Normal'
+        status: loadCond.status,
+        trend: loadCond.trend
       }
     ];
 
@@ -650,9 +775,15 @@
       const statusClass = isCrit ? 'crit' : (isWarn ? 'warn' : '');
 
       let trendClass = 'stable';
-      if (item.trend.includes('Critical') || item.trend.includes('High')) trendClass = 'up';
-      if (item.trend.includes('Degraded')) trendClass = 'down';
-      if (item.trend.includes('Frozen')) trendClass = 'frozen';
+      if (item.trend.includes('Frozen')) {
+        trendClass = 'frozen';
+      } else if (item.status === 'Critical') {
+        trendClass = item.trend.includes('Low') ? 'down' : 'up';
+      } else if (item.status === 'Warning') {
+        trendClass = item.trend.includes('Low') ? 'down' : 'warn';
+      } else {
+        trendClass = 'stable';
+      }
 
       return `
         <div class="telemetry-item ${alertClass}" id="telem-${item.key}">
@@ -1401,10 +1532,99 @@
     }
   };
 
+  // Live Telemetry Strip on Mission Brief Screen
+  function updateBriefTelemetryStrip(rawState, diagResult) {
+    if (!rawState) return;
+    const rpmEl = document.getElementById('brief-val-rpm');
+    const chtEl = document.getElementById('brief-val-cht');
+    const egtEl = document.getElementById('brief-val-egt');
+    const oilpEl = document.getElementById('brief-val-oilp');
+    const ehiEl = document.getElementById('brief-val-ehi');
+
+    if (rpmEl) rpmEl.textContent = Math.round(rawState.rpm).toLocaleString();
+    if (chtEl) {
+      const avgCht = Array.isArray(rawState.cht) ? (rawState.cht.reduce((a, b) => a + b, 0) / rawState.cht.length) : (rawState.cht || 166.2);
+      chtEl.textContent = `${avgCht.toFixed(1)}°C`;
+    }
+    if (egtEl) {
+      const avgEgt = Array.isArray(rawState.egt) ? (rawState.egt.reduce((a, b) => a + b, 0) / rawState.egt.length) : (rawState.egt || 781.7);
+      egtEl.textContent = `${avgEgt.toFixed(1)}°C`;
+    }
+    if (oilpEl) {
+      const oilP = rawState.oilPress !== undefined ? rawState.oilPress : 53.3;
+      oilpEl.textContent = `${oilP.toFixed(1)} PSI`;
+    }
+    if (ehiEl) {
+      const ehi = Math.round(diagResult && diagResult.healthIndex !== undefined ? diagResult.healthIndex : 96);
+      ehiEl.textContent = ehi;
+      ehiEl.style.color = ehi >= 85 ? '#10B981' : (ehi >= 60 ? '#F59E0B' : '#EF4444');
+    }
+  }
+
   // ==========================================================================
   // EVENT LISTENERS & MODALS
   // ==========================================================================
   function initUIEventListeners() {
+    // 0. Initial Mission Brief Boot Sequence Progression (~1.4s)
+    const bootOverlay = document.getElementById('brief-boot-sequence');
+    if (bootOverlay) {
+      let isBootFinished = false;
+      const completeBoot = () => {
+        if (isBootFinished) return;
+        isBootFinished = true;
+        bootOverlay.classList.add('boot-complete');
+        setTimeout(() => {
+          bootOverlay.style.display = 'none';
+        }, 400);
+      };
+
+      // Click to skip boot animation immediately
+      bootOverlay.addEventListener('click', completeBoot);
+
+      const l1 = bootOverlay.querySelector('.line-1');
+      const l2 = bootOverlay.querySelector('.line-2');
+      const l3 = bootOverlay.querySelector('.line-3');
+      const l4 = bootOverlay.querySelector('.line-4');
+
+      setTimeout(() => { if (l1 && !isBootFinished) l1.classList.add('active'); }, 180);
+      setTimeout(() => { if (l2 && !isBootFinished) l2.classList.add('active'); }, 520);
+      setTimeout(() => { if (l3 && !isBootFinished) l3.classList.add('active'); }, 840);
+      setTimeout(() => { if (l4 && !isBootFinished) l4.classList.add('active'); }, 1140);
+      setTimeout(() => { completeBoot(); }, 1450);
+    }
+
+    // Mission Brief Pre-UI Landing Transition to Live Dashboard
+    const enterMissionBtn = document.getElementById('btn-enter-mission-control');
+    const briefScreen = document.getElementById('mission-brief-screen');
+    if (enterMissionBtn && briefScreen) {
+      enterMissionBtn.addEventListener('click', () => {
+        document.body.classList.remove('brief-active');
+        briefScreen.classList.add('brief-fade-out');
+        // Render dashboard state immediately as transition starts
+        renderDashboard();
+        setTimeout(() => {
+          briefScreen.style.display = 'none';
+          // Trigger layout recalculations and resizes for 3D and Mapbox
+          window.dispatchEvent(new Event('resize'));
+          if (digitalTwin && typeof digitalTwin.resize === 'function') {
+            digitalTwin.resize();
+          }
+          if (missionMap && missionMap.map && typeof missionMap.map.resize === 'function') {
+            missionMap.map.resize();
+          }
+        }, 380);
+      });
+    }
+
+    window.openMissionBrief = function () {
+      if (briefScreen) {
+        document.body.classList.add('brief-active');
+        briefScreen.style.display = 'flex';
+        void briefScreen.offsetHeight;
+        briefScreen.classList.remove('brief-fade-out');
+      }
+    };
+
     // Scenario Buttons
     document.querySelectorAll('.btn-scenario').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1983,8 +2203,8 @@
     const qLower = query.trim().toLowerCase();
     const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
 
-    // 1. GREETING (Fast-path: direct greeting)
-    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25) {
+    // 1. GREETING (Fast-path: direct greeting only if not asking an engineering question)
+    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25 && !isEngineeringQuery(qLower)) {
       return "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?";
     }
 
@@ -2061,8 +2281,8 @@
     // Convert **bold** to <strong>
     let html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-    // Ensure section headers like Evidence:, Why:, Mission implication: are bolded
-    html = html.replace(/(?:^|<br>|\n)(Evidence|Why|Mission implication):/gi, '<br><strong>$1:</strong>');
+    // Ensure section headers like Conclusion:, Evidence:, Why:, Mission implication: are bolded
+    html = html.replace(/(?:^|<br>|\n)(Conclusion|Evidence|Why|Mission implication):/gi, '<br><strong>$1:</strong>');
 
     // Normalize markdown bullets "- " or "* " to "• "
     html = html.replace(/(?:^|\n)[-*]\s+/g, '\n• ');
@@ -2076,6 +2296,16 @@
     return html;
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   let isAssistantResponding = false;
 
   function handleUserQuery(query) {
@@ -2087,41 +2317,56 @@
 
     appendAssistantMessage('user', cleanQuery);
 
-    // 1. DETERMINISTIC INTENT ROUTING (Identity / Greetings - Fast-path)
-    const deterministicResponse = routeDeterministicIntent(cleanQuery);
-    if (deterministicResponse) {
-      appendAssistantMessage('ai', deterministicResponse, 'local');
-      isAssistantResponding = false;
-      if (sendBtn) sendBtn.disabled = false;
-      return;
-    }
+    const isEng = isEngineeringQuery(cleanQuery);
+    console.log(`[AI ROUTE] Query: "${cleanQuery}"`);
+    console.log(`[AI ROUTE] Engineering query: ${isEng}`);
+    console.log(`[AI ROUTE] Calling Groq: true`);
 
-    // 2. CAPTURE EXACTLY ONE IMMUTABLE SNAPSHOT OF CURRENT appState AT SUBMISSION MOMENT
+    // CAPTURE EXACTLY ONE IMMUTABLE SNAPSHOT OF CURRENT appState AT SUBMISSION MOMENT
     const snapshot = getAssistantSnapshot();
 
-    // 3. SHOW TYPING INDICATOR
+    // SHOW TYPING INDICATOR
     showTypingIndicator();
 
-    // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
+    // DISPATCH TO GROQ (NO SILENT BYPASS OR DETERMINISTIC HIJACKING)
     tryGrokQuery(cleanQuery, snapshot)
       .then(grokResult => {
         removeTypingIndicator();
-        if (grokResult) {
-          // Grok succeeded — convert markdown cleanly to HTML
-          const html = formatAssistantMarkdown(grokResult);
+        const source = grokResult ? (grokResult.source || (grokResult.error ? 'groq_error' : 'unknown')) : 'unknown';
+        console.log(`[AI ROUTE] Response source: ${source}`);
+
+        if (grokResult && grokResult.source === 'grok' && grokResult.response) {
+          // Groq succeeded — convert markdown cleanly to HTML
+          const html = formatAssistantMarkdown(grokResult.response);
           appendAssistantMessage('ai', html, 'grok');
+        } else if (grokResult && (grokResult.error || grokResult.source === 'groq_error' || grokResult.source === 'missing_api_key')) {
+          // Requirement 9: If Groq returns 429/401/403/500/error, show ACTUAL error in UI
+          // Requirement 10: Keep local fallback as emergency fallback without hiding Groq failure
+          const errStatus = grokResult.status === 429 ? 'HTTP 429 (TPM Rate Limit)' : (grokResult.status ? `HTTP ${grokResult.status}` : 'API Error');
+          const errMsg = grokResult.message || 'Groq inference failure';
+          const errBanner = `<div class="ai-error-banner" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; color: #fca5a5; font-size: 0.78rem; line-height: 1.35;"><strong>Groq API Error (${escapeHtml(errStatus)}):</strong> ${escapeHtml(errMsg)}<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Displaying emergency local analysis below:</div></div>`;
+          const fallbackText = grokResult.fallback || generateLocalAnalysis(cleanQuery, snapshot);
+          const fallbackHtml = formatAssistantMarkdown(fallbackText);
+          appendAssistantMessage('ai', errBanner + fallbackHtml, 'groq_error');
+        } else if (grokResult && grokResult.response) {
+          const html = formatAssistantMarkdown(grokResult.response);
+          appendAssistantMessage('ai', html, grokResult.source || 'local');
         } else {
-          // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+          // Emergency Fallback
           const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
           const html = formatAssistantMarkdown(localResponse);
           appendAssistantMessage('ai', html, 'local');
         }
       })
-      .catch(() => {
+      .catch((err) => {
         removeTypingIndicator();
+        console.log(`[AI ROUTE] Response source: client_exception`);
+        console.error('[AI DEBUG] Groq error:', err);
+        const errMsg = err && err.message ? err.message : 'Unknown client exception';
+        const errBanner = `<div class="ai-error-banner" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; color: #fca5a5; font-size: 0.78rem; line-height: 1.35;"><strong>Groq Client Error:</strong> ${escapeHtml(errMsg)}<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Displaying emergency local analysis below:</div></div>`;
         const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
         const html = formatAssistantMarkdown(localResponse);
-        appendAssistantMessage('ai', html, 'local');
+        appendAssistantMessage('ai', errBanner + html, 'groq_error');
       })
       .finally(() => {
         removeTypingIndicator();
@@ -2133,6 +2378,8 @@
   window.handleUserQuery = handleUserQuery;
 
   async function tryGrokQuery(query, snapshot) {
+    console.log('[AI DEBUG] Chat request started');
+    console.log('[AI DEBUG] Endpoint: /api/grok');
     try {
       const response = await fetch('/api/grok', {
         method: 'POST',
@@ -2142,13 +2389,56 @@
           appState: snapshot || getAssistantSnapshot()
         })
       });
-      if (!response.ok) return null;
-      const data = await response.json();
-      if (data.error) return null;
-      return data.response || null;
+      console.log(`[AI ROUTE] Groq response status: ${response.status}`);
+      console.log(`[AI DEBUG] Groq response status: ${response.status}`);
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const errorMsg = (data && (data.groqError || data.error || data.message)) || `HTTP ${response.status} ${response.statusText}`;
+        console.error(`[AI DEBUG] Groq error: ${errorMsg}`);
+        return {
+          error: true,
+          status: response.status,
+          message: errorMsg,
+          fallback: data ? (data.fallback || data.response) : null,
+          source: (data && data.source) ? data.source : 'groq_error'
+        };
+      }
+
+      if (data && data.source === 'groq_error') {
+        return {
+          error: true,
+          status: data.statusCode || 500,
+          message: data.groqError || data.error || 'Groq error occurred',
+          fallback: data.fallback || data.response,
+          source: 'groq_error'
+        };
+      }
+
+      if (data && data.source === 'grok' && data.response) {
+        return { source: 'grok', response: data.response };
+      }
+
+      if (data && data.source === 'local_fallback' && data.response) {
+        console.warn('[AI DEBUG] Groq served via local fallback');
+        return { source: 'local', response: data.response };
+      }
+
+      return (data && data.response) ? { source: 'grok', response: data.response } : null;
     } catch (err) {
-      // Network error or server not available
-      return null;
+      console.error(`[AI DEBUG] Groq network error: ${err.message}`);
+      return {
+        error: true,
+        status: 0,
+        message: err.message || 'Network error communicating with /api/grok',
+        source: 'groq_error'
+      };
     }
   }
 
@@ -2454,8 +2744,20 @@
     // Add source badge for AI responses
     if (sender === 'ai' && source) {
       const badge = document.createElement('span');
-      badge.className = `ai-source-badge ${source === 'grok' ? 'badge-grok' : 'badge-local'}`;
-      badge.textContent = source === 'grok' ? '✦ GROK AI' : '⚙ LOCAL ENGINE ANALYSIS';
+      let badgeClass = 'badge-local';
+      let badgeLabel = '⚙ LOCAL ENGINE ANALYSIS';
+      if (source === 'grok') {
+        badgeClass = 'badge-grok';
+        badgeLabel = '✦ GROK AI';
+      } else if (source === 'groq_error') {
+        badgeClass = 'badge-error';
+        badgeLabel = '⚠ GROQ ERROR / LOCAL FALLBACK';
+      } else if (source === 'local') {
+        badgeClass = 'badge-local';
+        badgeLabel = '⚙ LOCAL ENGINE ANALYSIS';
+      }
+      badge.className = `ai-source-badge ${badgeClass}`;
+      badge.textContent = badgeLabel;
       bubble.appendChild(badge);
     }
 
@@ -2917,6 +3219,12 @@
   function updateInspectionHud(comp) {
     if (!comp) return;
 
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'inline-flex';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = 'none';
+
     const compId = comp.componentId || comp.id || comp.type || 'piston';
     const normId = compId.replace(/_[1-4]$/, ''); // e.g. piston_1 -> piston
     const physComp = PHYSICAL_COMPONENTS.find(p => p.id === compId || p.id === normId || p.type === comp.type);
@@ -3148,6 +3456,12 @@
     if (btnXray) btnXray.classList.remove('active');
     if (btnExploded) btnExploded.classList.remove('active');
 
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'none';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = '';
+
     const hud = document.getElementById('twin-inspection-hud');
     if (hud) hud.style.display = 'none';
 
@@ -3164,6 +3478,12 @@
 
     const xrayBanner = document.getElementById('twin-xray-overview');
     if (xrayBanner) xrayBanner.style.display = 'none';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = 'none';
+
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'inline-flex';
 
     const hud = document.getElementById('twin-inspection-hud');
     if (hud) {
@@ -3202,5 +3522,6 @@
   window.generateLocalAnalysis = generateLocalAnalysis;
   window.routeDeterministicIntent = routeDeterministicIntent;
   window.handleUserQuery = handleUserQuery;
+  window.renderLiveTelemetry = renderLiveTelemetry;
 
 })();

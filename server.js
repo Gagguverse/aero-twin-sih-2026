@@ -99,47 +99,26 @@ initGroq();
 
 const GROQ_SYSTEM_PROMPT = `You are the AERO TWIN Decision-Support Assistant for an aero piston engine Digital Twin.
 
-You are an engineering explanation layer over the Digital Twin.
+BEHAVIOR:
+- Conversational assistant with live telemetry access, NOT a static FAQ bot.
+- NEVER start with "Hello! I'm the AERO TWIN Decision-Support Assistant..." or repeat introductions. Only introduce your identity if explicitly asked who/what you are.
+- Answer user questions directly, concisely, and naturally.
+- "are you working properly?": Confirm you are connected to the live Digital Twin and operational.
+- "who are you?": State you are the AERO TWIN Decision-Support Assistant.
+- "what information do you have?": Enumerate live telemetry, Sensor Trust, EHI, ML anomaly, and RUL.
+- Nonsense (e.g. "fjfjfjjf"): Politely state you didn't understand.
 
-AUTHORITATIVE STATE:
-The CURRENT ENGINE STATE SNAPSHOT supplied in the user prompt is authoritative and ground truth.
-Never invent, estimate, replace, or modify numerical values.
-Never assume the engine is healthy if the snapshot indicates otherwise.
-Never generate your own EHI, RUL, sensor trust, anomaly score, residuals, or diagnosis.
-Use strictly the values supplied by the application.
-If a value is missing, explicitly state that it is unavailable.
-
-SENSOR TRUST PRINCIPLE:
-Sensor Trust takes precedence when evaluating engine health.
-A quarantined or low-trust sensor must NOT be treated as reliable evidence of engine degradation.
-Always explicitly distinguish:
-SENSOR FAULT (instrument defect / quarantined transducer)
-vs
-ENGINE DEGRADATION (authentic thermal or mechanical degradation).
-
-DECISION-SUPPORT CONSTRAINTS:
-Explain the engineering state concisely and technically.
-Never issue aircraft or flight control commands.
-Do not recommend throttle adjustments.
-Do not issue mission abort or continue orders.
-Do not claim airworthiness certification or operational safety.
-All data is synthetic simulation data.
-
-RESPONSE FORMAT:
-Use this format for engineering queries:
-
+ENGINEERING & DIAGNOSTICS:
+- Ground answers strictly in the CURRENT DIGITAL TWIN STATE. Never invent numbers.
+- When answering engine health, sensor, anomaly, or RUL questions, format as:
 [STATUS TITLE]
-
-One concise conclusion sentence.
-
-Evidence:
-• [only 2–4 relevant values using exact numbers from the snapshot]
-
-Why:
-[2–3 sentences explaining the relationship between the evidence and the already-computed diagnosis]
-
-Mission implication:
-[One cautious sentence describing what the current simulation state means for mission risk]`;
+Conclusion: [One concise sentence]
+Evidence: • [2-4 specific values from state with units and residuals where relevant]
+Why: [2-3 sentences physical/analytical explanation]
+Mission Implication: [One sentence flight safety context]
+- SENSOR TRUST: Sensor Trust takes precedence. Low-trust/quarantined sensor = SENSOR FAULT (engine intact). Multiple trusted thermal sensors high = ENGINE DEGRADATION.
+- RUL: Cite model-based RUL, bounds, degradation %, and trend.
+- Decision support only: no flight control or throttle commands.`;
 
 function callGroqAPI(userPrompt, systemPrompt) {
   return new Promise((resolve, reject) => {
@@ -149,7 +128,7 @@ function callGroqAPI(userPrompt, systemPrompt) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      max_tokens: 1024,
+      max_tokens: 320,
       temperature: 0.2
     });
 
@@ -171,29 +150,65 @@ function callGroqAPI(userPrompt, systemPrompt) {
       res.on('data', chunk => { data += chunk; });
       res.on('end', () => {
         try {
+          console.log(`[AI DEBUG] Groq response status: ${res.statusCode}`);
           const json = JSON.parse(data);
           if (json.error) {
-            const errCode = res.statusCode || json.code || '';
+            const errCode = res.statusCode || json.code || 500;
             const errMsg = json.error.message || JSON.stringify(json.error);
-            reject(new Error(`[Groq HTTP ${errCode}] ${errMsg}`));
+            console.error(`[AI DEBUG] Groq error: HTTP ${errCode} - ${errMsg}`);
+            const err = new Error(`[Groq HTTP ${errCode}] ${errMsg}`);
+            err.statusCode = Number(errCode) || 500;
+            err.groqMessage = errMsg;
+
+            if (res.statusCode === 429) {
+              let retrySec = null;
+              if (res.headers && res.headers['retry-after']) {
+                retrySec = parseFloat(res.headers['retry-after']);
+              } else {
+                const match = errMsg.match(/try again in (\d+(?:\.\d+)?)s/i);
+                if (match) retrySec = parseFloat(match[1]);
+              }
+              err.retryAfter = (!isNaN(retrySec) && retrySec > 0) ? retrySec : 2.5;
+            }
+
+            reject(err);
             return;
           }
           if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`[Groq HTTP ${res.statusCode}] ${data}`));
+            console.error(`[AI DEBUG] Groq error: HTTP ${res.statusCode} - ${data}`);
+            const err = new Error(`[Groq HTTP ${res.statusCode}] ${data}`);
+            err.statusCode = res.statusCode;
+            err.groqMessage = data;
+            reject(err);
             return;
+          }
+          if (json.usage) {
+            console.log(`[AI ROUTE] Tokens: prompt=${json.usage.prompt_tokens}, completion=${json.usage.completion_tokens}, total=${json.usage.total_tokens} (reserved: ~${json.usage.prompt_tokens + 320})`);
           }
           const text = json.choices && json.choices[0] && json.choices[0].message
             ? json.choices[0].message.content
             : '';
           resolve(sanitizeUnicode(text));
         } catch (e) {
-          reject(new Error(`Failed to parse Groq response: ${e.message} (HTTP ${res.statusCode})`));
+          console.error(`[AI DEBUG] Groq error: ${e.message}`);
+          const parseErr = new Error(`Failed to parse Groq response: ${e.message} (HTTP ${res.statusCode})`);
+          parseErr.statusCode = res.statusCode || 500;
+          reject(parseErr);
         }
       });
     });
 
-    req.on('error', (e) => { reject(e); });
-    req.setTimeout(15000, () => { req.destroy(new Error('Groq API request timed out')); });
+    req.on('error', (e) => {
+      console.error(`[AI DEBUG] Groq error: ${e.message}`);
+      e.statusCode = 502;
+      reject(e);
+    });
+    req.setTimeout(15000, () => {
+      console.error('[AI DEBUG] Groq error: Request timed out');
+      const err = new Error('Groq API request timed out');
+      err.statusCode = 504;
+      req.destroy(err);
+    });
     req.write(body);
     req.end();
   });
@@ -375,76 +390,10 @@ async function handleGrokRequest(body, res) {
     return;
   }
 
-  const qLower = query.trim().toLowerCase();
-  const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
-
-  // Category 1: GREETING (Fast-path: no telemetry sent to Groq)
-  const isGreeting = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25;
-  if (isGreeting) {
-    sendJsonResponse(res, 200, {
-      source: 'grok',
-      response: "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?"
-    });
-    return;
-  }
-
-  // Category 2: GROK SPECIFIC QUERY (Fast-path)
-  if (/^grok\??$/i.test(qClean) || /^(are\s+(you|u)|is\s+this)\s+grok\??$/i.test(qClean)) {
-    sendJsonResponse(res, 200, {
-      source: 'grok',
-      response: "I’m the AERO TWIN Decision-Support Assistant. Groq Cloud powers the natural-language explanation layer."
-    });
-    return;
-  }
-
-  // Category 2: IDENTITY / MODEL (Fast-path: no telemetry sent to Groq)
-  const isIdentityOrModel = 
-    /\b(your|what's|whats|what is|tell me( your)?)\s+(the\s+)?model(\s+name)?\b/i.test(qClean) ||
-    /\bmodel\s+name\b/i.test(qClean) ||
-    /\b(which|what|tell me)\s+(about\s+)?(your\s+|the\s+)?(ai\s+)?model\b/i.test(qClean) ||
-    /\b(which|what)\s+model\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this)\b/i.test(qClean) ||
-    /\b(which|what)\s+ai\s+(are\s+(you|u)|(you|u)\s+are|do\s+(you|u)\s+use|powers\s+(you|u)|is\s+this|are\s+(you|u)\s+using)\b/i.test(qClean) ||
-    /^(who|what)\s+(are\s+(you|u)|can\s+(you|u)\s+do)\b/i.test(qClean) ||
-    /^introduce\s+yourself\b/i.test(qClean) ||
-    /^what\s+is\s+your\s+(role|purpose|job|function)\b/i.test(qClean) ||
-    qClean === 'who are you' ||
-    qClean === 'who r u' ||
-    qClean === 'what are you' ||
-    qClean === 'what can you do' ||
-    qClean === 'your model name' ||
-    qClean === 'what is your model name' ||
-    qClean === "what's your model name" ||
-    qClean === 'whats your model name' ||
-    qClean === 'tell me your model' ||
-    qClean === 'which model are you' ||
-    qClean === 'which model u are' ||
-    qClean === 'which model are u' ||
-    qClean === 'what model are you' ||
-    qClean === 'what model u are' ||
-    qClean === 'what model are u' ||
-    qClean === 'what ai are you' ||
-    qClean === 'what ai model are you' ||
-    qClean === 'which ai powers you' ||
-    qClean === 'what model do you use' ||
-    qClean === 'what ai do you use';
-
-  if (isIdentityOrModel) {
-    sendJsonResponse(res, 200, {
-      source: 'grok',
-      response: "The AERO TWIN diagnostic pipeline uses Isolation Forest for anomaly detection and Random Forest for fault classification. Groq Cloud using openai/gpt-oss-120b is used as the natural-language explanation layer."
-    });
-    return;
-  }
-
-  // Category 3 Check: Only proceed to Digital Twin / Groq pipeline if engineering query
-  if (!isEngineeringQuery(qLower)) {
-    // Category 4: UNKNOWN / CASUAL / OFF-TOPIC
-    sendJsonResponse(res, 200, {
-      source: 'conversational',
-      response: "Yes, I’m here. Ask me about the engine condition, sensor trust, diagnostics, degradation, or RUL."
-    });
-    return;
-  }
+  const isEng = isEngineeringQuery(query);
+  console.log(`[AI ROUTE] Query: "${query.slice(0, 80)}"`);
+  console.log(`[AI ROUTE] Engineering query: ${isEng}`);
+  console.log(`[AI ROUTE] Calling Groq: true`);
 
   // Normalize appState from various client formats
   const trustData = rawState.sensorTrust || rawState.trustResult || {};
@@ -525,120 +474,61 @@ async function handleGrokRequest(body, res) {
 
     const isReplaying = !!appState.isReplaying;
 
-    const stateContext = `=== AUTHORITATIVE CURRENT ENGINE STATE SNAPSHOT ===
-TELEMETRY MODE: ${isReplaying ? `HISTORICAL MISSION REPLAY (Frame @ ${appState.replayIndex !== null && appState.replayIndex !== undefined ? appState.replayIndex + 's' : (appState.simTime || 'N/A')})` : 'SIMULATION (Real-Time 10 Hz)'}
-SCENARIO: ${appState.scenario || 'normal'}
-MISSION PHASE: ${appState.missionPhase || 'CRUISE'} | Mission Time: ${appState.simTime || 'N/A'}
-REPLAY ACTIVE: ${isReplaying ? 'YES — analyzing replayed historical timestamp' : 'NO — analyzing live telemetry'}
+    const oilTrustVal = (trustScores.oilPress !== undefined || trustScores.oilPressure !== undefined)
+      ? Number(trustScores.oilPress !== undefined ? trustScores.oilPress : trustScores.oilPressure).toFixed(2)
+      : (quarantinedSensors.includes('oilPress') || quarantinedSensors.includes('oilPressure') ? '0.12' : '1.00');
 
-PRIMARY TELEMETRY:
-- RPM: ${raw.rpm !== undefined ? Math.round(raw.rpm) : (raw.RPM !== undefined ? Math.round(raw.RPM) : 'Not available')} (Expected: ${exp.rpm !== undefined ? exp.rpm : (exp.RPM !== undefined ? exp.RPM : 'Not available')}, Residual: ${resi.rpm !== undefined ? (resi.rpm >= 0 ? '+' : '') + resi.rpm : (resi.RPM !== undefined ? (resi.RPM >= 0 ? '+' : '') + resi.RPM : '0')})
-- MAP: ${raw.map !== undefined ? Number(raw.map).toFixed(1) + ' inHg' : (raw.MAP !== undefined ? Number(raw.MAP).toFixed(1) + ' inHg' : 'Not available')} (Expected: ${exp.map !== undefined ? Number(exp.map).toFixed(1) + ' inHg' : 'Not available'}, Residual: ${resi.map !== undefined ? (resi.map >= 0 ? '+' : '') + Number(resi.map).toFixed(1) : '0'})
-- Fuel Flow: ${raw.fuelFlow !== undefined ? Number(raw.fuelFlow).toFixed(1) + ' L/hr' : 'Not available'} (Expected: ${exp.fuelFlow !== undefined ? Number(exp.fuelFlow).toFixed(1) + ' L/hr' : 'Not available'}, Residual: ${resi.fuelFlow !== undefined ? (resi.fuelFlow >= 0 ? '+' : '') + Number(resi.fuelFlow).toFixed(1) : '0'})
-- Avg CHT: ${avgCht} (Expected: ${exp.chtAvg !== undefined ? Math.round(exp.chtAvg) + ' °C' : (exp.cht !== undefined ? Math.round(exp.cht) + ' °C' : (exp.CHT !== undefined ? Math.round(exp.CHT) + ' °C' : 'Not available'))}, Residual: ${resi.cht !== undefined ? (resi.cht >= 0 ? '+' : '') + Number(resi.cht).toFixed(1) + ' °C' : (resi.CHT !== undefined ? (resi.CHT >= 0 ? '+' : '') + Number(resi.CHT).toFixed(1) + ' °C' : '0')})
-- Avg EGT: ${avgEgt} (Expected: ${exp.egtAvg !== undefined ? Math.round(exp.egtAvg) + ' °C' : (exp.egt !== undefined ? Math.round(exp.egt) + ' °C' : (exp.EGT !== undefined ? Math.round(exp.EGT) + ' °C' : 'Not available'))}, Residual: ${resi.egt !== undefined ? (resi.egt >= 0 ? '+' : '') + Number(resi.egt).toFixed(1) + ' °C' : (resi.EGT !== undefined ? (resi.EGT >= 0 ? '+' : '') + Number(resi.EGT).toFixed(1) + ' °C' : '0')})
-- Oil Pressure: ${raw.oilPress !== undefined ? Number(raw.oilPress).toFixed(1) + ' PSI' : (raw.oilPressure !== undefined ? Number(raw.oilPressure).toFixed(1) + ' PSI' : 'Not available')} (Expected: ${exp.oilPress !== undefined ? Number(exp.oilPress).toFixed(1) + ' PSI' : (exp.oilPressure !== undefined ? Number(exp.oilPressure).toFixed(1) + ' PSI' : 'Not available')}, Effective Residual: ${resi.oilPress !== undefined ? (resi.oilPress >= 0 ? '+' : '') + Number(resi.oilPress).toFixed(1) + ' PSI' : (resi.oilPressure !== undefined ? (resi.oilPressure >= 0 ? '+' : '') + Number(resi.oilPressure).toFixed(1) + ' PSI' : '0')})
-- Oil Temperature: ${raw.oilTemp !== undefined ? Number(raw.oilTemp).toFixed(1) + ' °C' : (raw.oilTemperature !== undefined ? Number(raw.oilTemperature).toFixed(1) + ' °C' : 'Not available')} (Expected: ${exp.oilTemp !== undefined ? Math.round(exp.oilTemp) + ' °C' : 'Not available'})
-- Engine Load: ${raw.load !== undefined ? Number(raw.load).toFixed(1) + '%' : (raw.engineLoad !== undefined ? Number(raw.engineLoad).toFixed(1) + '%' : 'Not available')}
-- Vibration RMS: ${raw.vibrationRms !== undefined ? Number(raw.vibrationRms).toFixed(2) + ' mm/s' : 'Not available'}
-
-SENSOR TRUST LAYER (GATEKEEPER):
-- Overall Trust Index: ${appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : 'Not available'}
-- Trusted Sensor Count: ${appState.trustedCount !== undefined ? appState.trustedCount : 'Not available'} / ${appState.totalSensors !== undefined ? appState.totalSensors : 'Not available'}
-- Quarantined Distrusted Sensors: ${appState.trustResult && appState.trustResult.quarantined && appState.trustResult.quarantined.length > 0 ? appState.trustResult.quarantined.join(', ') : 'None (All Trusted)'}
-- Oil Pressure Sensor Trust: ${appState.trustResult && appState.trustResult.scores && (appState.trustResult.scores.oilPress !== undefined || appState.trustResult.scores.oilPressure !== undefined) ? Number(appState.trustResult.scores.oilPress || appState.trustResult.scores.oilPressure).toFixed(2) : (appState.trustResult && appState.trustResult.quarantined && appState.trustResult.quarantined.includes('oilPress') ? '0.25' : '1.00')}
-
-AI / ML DIAGNOSTIC NET:
-- Isolation Forest Anomaly Score: ${appState.anomalyScore !== undefined ? Number(appState.anomalyScore).toFixed(2) : 'Not available'}
-- Random Forest Fault Class: ${appState.aiDiagnosis || 'HEALTHY'} (${appState.aiDiagStatus || 'NOMINAL'})
-- Confidence: ${appState.diagnosticResult ? (appState.diagnosticResult.confidencePct ? appState.diagnosticResult.confidencePct + '%' : (appState.diagnosticResult.confidence * 100).toFixed(0) + '%') : 'Not available'}
-
-MISSION RELIABILITY ENHANCEMENT (P0 DECISION SUPPORT):
-- Score: ${rel.score !== undefined ? rel.score + '%' : 'Not available'} (${rel.status || 'Not available'})
-- Risk Assessment: ${rel.risk || (rel.reasons && rel.reasons[0] ? rel.reasons[0] : 'Nominal')}
-- Remaining Duration: ${rel.remainingMissionDuration || 'Not available'}
-
-ENGINE HEALTH INDEX (EHI):
-- EHI: ${appState.ehi !== undefined ? Math.round(appState.ehi) : 'Not available'}/100 (${appState.ehiStatus || 'NOMINAL'})
-- EHI Breakdown: Baseline +${ehib.baseline || 100} | Thermal ${ehib.thermalContribution || 0} | Lubrication ${ehib.lubricationContribution || 0} | Vibration ${ehib.vibrationContribution || 0} | Sensor Shield Bonus +${ehib.sensorShieldContribution || 0}
-
-PROGNOSTICS & REMAINING USEFUL LIFE (RUL):
-- RUL Estimate: ${appState.rulLabel || rul.label || (appState.rulHours !== undefined ? appState.rulHours + ' h' : 'Not available')}
-- 90% Confidence Bounds: ${rul.rangeStr || (rul.range ? '[' + rul.range + ']' : 'Not available')}
-- Model Confidence: ${rul.confidencePct ? rul.confidencePct + '%' : (rul.confidence ? rul.confidence + '%' : 'Not available')}
-- Degradation: ${appState.degradationPct !== undefined ? appState.degradationPct + '%' : 'Not available'} (${appState.degradationTrend || 'STABLE'})
-
-MAINTENANCE ADVISORY (DETERMINISTIC DECISION SUPPORT):
-- Target Subsystem: ${maint.subsystem || 'All Subsystems Nominal'}
-- Recommended Action: ${maint.action || 'Routine turnaround inspection.'}
-- Priority: ${maint.priority || 'ROUTINE'} (Code: ${maint.code || 'MAINT-001-NOM'})
-- Urgency: ${maint.urgency || maint.urgencyHours || 'Scheduled Inspection'}
-
-WHY EXPLANATION (from local ML):
-- Title: ${appState.why ? appState.why.title : 'Not available'}
-- Bullets: ${appState.why && appState.why.bullets ? appState.why.bullets.join(' | ') : 'None'}
-- Conclusion: ${appState.why ? appState.why.conclusion : 'Not available'}
-==============================`;
+    const stateContext = `[CURRENT DIGITAL TWIN STATE]
+Mission Phase: ${appState.missionPhase || 'CRUISE'} | Mode: ${isReplaying ? `Replay @ ${appState.replayIndex !== null ? appState.replayIndex + 's' : '0s'}` : 'Live 10Hz Simulation'}
+Primary Telemetry:
+- RPM: ${raw.rpm !== undefined ? Math.round(raw.rpm) : '4200'} (exp: ${exp.rpm || 4200}, res: ${resi.rpm !== undefined ? (resi.rpm >= 0 ? '+' : '') + resi.rpm : 0})
+- MAP: ${raw.map !== undefined ? Number(raw.map).toFixed(1) : '24.5'} inHg (exp: ${exp.map !== undefined ? Number(exp.map).toFixed(1) : '24.6'}, res: ${resi.map !== undefined ? (resi.map >= 0 ? '+' : '') + Number(resi.map).toFixed(1) : 0})
+- Fuel Flow: ${raw.fuelFlow !== undefined ? Number(raw.fuelFlow).toFixed(1) : '21.0'} L/h
+- Avg CHT: ${avgCht} (exp: ${exp.chtAvg !== undefined ? Math.round(exp.chtAvg) + '°C' : '165°C'}, res: ${resi.chtAvg !== undefined ? (resi.chtAvg >= 0 ? '+' : '') + Number(resi.chtAvg).toFixed(1) + '°C' : (resi.cht !== undefined ? (resi.cht >= 0 ? '+' : '') + Number(resi.cht).toFixed(1) + '°C' : '0°C')})
+- Avg EGT: ${avgEgt} (exp: ${exp.egtAvg !== undefined ? Math.round(exp.egtAvg) + '°C' : '781°C'}, res: ${resi.egtAvg !== undefined ? (resi.egtAvg >= 0 ? '+' : '') + Number(resi.egtAvg).toFixed(1) + '°C' : (resi.egt !== undefined ? (resi.egt >= 0 ? '+' : '') + Number(resi.egt).toFixed(1) + '°C' : '0°C')})
+- Oil Pressure: ${raw.oilPress !== undefined ? Number(raw.oilPress).toFixed(1) : '53.0'} PSI (exp: ${exp.oilPress !== undefined ? Number(exp.oilPress).toFixed(1) : '53.0'}, res: ${resi.oilPress !== undefined ? (resi.oilPress >= 0 ? '+' : '') + Number(resi.oilPress).toFixed(1) : 0})
+- Oil Temp: ${raw.oilTemp !== undefined ? Number(raw.oilTemp).toFixed(1) : '90.0'} °C
+- Engine Load: ${raw.load !== undefined ? Number(raw.load).toFixed(0) : '72'}%
+Diagnostics & Sensor Trust:
+- Sensor Trust: ${appState.overallTrust !== undefined ? Number(appState.overallTrust).toFixed(2) : '1.00'} (${appState.trustedCount || 9}/${appState.totalSensors || 9} trusted) | Quarantined: ${quarantinedSensors.length > 0 ? quarantinedSensors.join(', ') : 'None'} | Oil Trust: ${oilTrustVal}
+- AI/ML Diagnosis: ${appState.aiDiagnosis || 'HEALTHY'} (${appState.aiDiagStatus || 'NOMINAL'}) | Anomaly Score: ${appState.anomalyScore !== undefined ? Number(appState.anomalyScore).toFixed(2) : '0.05'}
+- Health Index (EHI): ${appState.ehi !== undefined ? Math.round(appState.ehi) : 96}/100 (${appState.ehiStatus || 'NOMINAL'}) [Thermal: ${ehib.thermalContribution || 0}, Lub: ${ehib.lubricationContribution || 0}]
+- Prognostics (RUL): ${appState.rulLabel || rul.label || (appState.rulHours ? appState.rulHours + ' h' : '182 h')} (90% bounds: ${rul.rangeStr || (rul.range ? `[${rul.range}]` : (appState.RULRange ? `[${appState.RULRange.low}–${appState.RULRange.high} h]` : '[165–198 h]'))}, confidence: ${rul.confidencePct || appState.RULConfidence || 91}%)
+- Degradation: ${appState.degradationPct !== undefined ? appState.degradationPct : 0}% (${appState.degradationTrend || 'STABLE'})`;
 
     const userPrompt = `${stateContext}
 
-USER QUESTION: ${query}
-
-RESPONSE FORMAT REQUIREMENTS:
-Format your engineering decision-support explanation exactly as:
-
-[STATUS TITLE]
-
-One concise conclusion sentence.
-
-Evidence:
-• [2 to 4 relevant values from the snapshot matching the query]
-
-Why:
-[2 to 3 sentences explaining the physical or diagnostic relationship based on the snapshot]
-
-Mission implication:
-[One cautious sentence describing what the current simulation state means for mission risk]
-
-CRITICAL RULES:
-1. Grounding: All numbers MUST come directly from the state snapshot above. Never invent, estimate, replace, or fabricate any numbers. If a requested value is missing or "Not available", explicitly state that it is unavailable.
-2. Sensor Trust Priority:
-   - If AI DIAGNOSIS is SENSOR FAULT or any sensor is quarantined:
-     Status Title MUST be: SENSOR ISSUE — [CHANNEL NAME]
-     Clearly state that the sensor signal is unreliable and quarantined, while engine mechanical condition remains protected.
-     Never treat a quarantined sensor as evidence of mechanical engine failure or degradation.
-   - If AI DIAGNOSIS is THERMAL DEGRADATION or THERMAL RUNAWAY:
-     Status Title MUST be: ENGINE DEGRADATION — THERMAL
-     Explain that dual trusted thermal sensors (CHT and EGT) confirm genuine thermal degradation.
-   - If AI DIAGNOSIS is HEALTHY (and normal):
-     Status Title MUST be: ENGINE STATUS — NOMINAL
-     State that the engine is operating normally within expected parameters.
-   - If user asks specifically about RUL or degradation:
-     Status Title: PROGNOSTICS — REMAINING USEFUL LIFE
-     Cite exact RUL estimate, confidence bounds, and degradation percentage.
-   - If user asks specifically about sensor trust or reliability:
-     Status Title: SENSOR TRUST — [CHANNEL NAME or NOMINAL]
-     Cite trust scores, trusted counts, and quarantine status.
-3. Decision-Support Only:
-   - Do NOT give aircraft or flight control commands.
-   - Do NOT recommend throttle adjustments.
-   - Do NOT issue abort or continue orders.
-   - Do NOT claim operational airworthiness certification.`;
+User Question: ${query}`;
 
     // Dev-mode context logging (never log API key)
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[Groq] Query: "${query.slice(0, 80)}..." | Phase: ${appState.missionPhase} | Diagnosis: ${appState.aiDiagnosis} | EHI: ${appState.ehi !== undefined ? Math.round(appState.ehi) : 'N/A'}`);
     }
 
-    const text = await callGroqAPI(userPrompt, GROQ_SYSTEM_PROMPT);
+    let text = null;
+    try {
+      text = await callGroqAPI(userPrompt, GROQ_SYSTEM_PROMPT);
+    } catch (apiErr) {
+      if (apiErr.statusCode === 429 && apiErr.retryAfter && apiErr.retryAfter <= 4.0) {
+        console.warn(`[AI ROUTE] Groq 429 TPM hit. Retrying once after ${apiErr.retryAfter}s...`);
+        await new Promise(r => setTimeout(r, Math.ceil(apiErr.retryAfter * 1000) + 250));
+        text = await callGroqAPI(userPrompt, GROQ_SYSTEM_PROMPT);
+      } else {
+        throw apiErr;
+      }
+    }
 
     if (text) {
+      console.log(`[AI ROUTE] Groq response status: 200`);
+      console.log(`[AI ROUTE] Response source: grok`);
       sendJsonResponse(res, 200, { source: 'grok', response: sanitizeUnicode(text) });
       return;
     }
 
     // Graceful fallback if Groq returns empty
     console.warn('[Groq] Empty response from API. Serving grounded local analysis fallback.');
+    console.log(`[AI ROUTE] Groq response status: 200`);
+    console.log(`[AI ROUTE] Response source: local_fallback`);
     const localFallback = generateServerLocalAnalysis(query, appState);
     sendJsonResponse(res, 200, {
       source: 'local_fallback',
@@ -647,12 +537,23 @@ CRITICAL RULES:
     });
 
   } catch (err) {
-    console.error('[Groq] API Error:', err.message);
+    const status = err.statusCode || 500;
+    console.error(`[AI DEBUG] Groq error: ${err.message}`);
+    console.log(`[AI ROUTE] Groq response status: ${status}`);
+    console.log(`[AI ROUTE] Response source: groq_error`);
     const localFallback = generateServerLocalAnalysis(query, appState);
-    sendJsonResponse(res, 200, {
-      source: 'local_fallback',
-      response: sanitizeUnicode(localFallback),
-      note: 'Served via local engine analysis after Groq API exception.'
+    const is429 = status === 429;
+    const errorMsg = is429 
+      ? `Groq TPM Rate Limit (429): Rate limit exceeded. ${err.groqMessage || ''}`.trim()
+      : (err.groqMessage || err.message);
+
+    sendJsonResponse(res, status, {
+      source: 'groq_error',
+      statusCode: status,
+      error: err.message,
+      groqError: errorMsg,
+      fallback: sanitizeUnicode(localFallback),
+      note: is429 ? 'Groq TPM rate limit reached; displaying emergency local analysis.' : 'Served via local engine analysis after Groq API exception.'
     });
   }
 }

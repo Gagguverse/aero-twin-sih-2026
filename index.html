@@ -17,7 +17,459 @@
   <!-- Application Stylesheet -->
   <link rel="stylesheet" href="css/main.css">
 </head>
-<body>
+<body class="brief-active">
+
+  <!-- ======================================================================
+       PRE-UI LANDING / MISSION BRIEF SCREEN
+       ====================================================================== -->
+  <div id="mission-brief-screen" class="mission-brief-screen" role="region" aria-label="AERO TWIN Mission Brief">
+    <!-- 0. INITIAL SYSTEM BOOT & INITIALIZATION OVERLAY (~1.4s) -->
+    <div id="brief-boot-sequence" class="brief-boot-sequence" role="status" aria-live="polite">
+      <div class="brief-boot-inner">
+        <div class="brief-boot-mark" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 11.5L16 4L29 11.5L25.5 15L16 9.5L6.5 15L3 11.5Z" fill="#00F0FF" fill-opacity="0.9"/>
+            <path d="M16 8L23.5 24H19.5L16 16.5L12.5 24H8.5L16 8Z" fill="#3B82F6"/>
+            <circle cx="9" cy="24" r="2" fill="#00F0FF"/>
+            <circle cx="23" cy="24" r="2" fill="#10B981"/>
+          </svg>
+        </div>
+        <div class="brief-boot-title">AERO TWIN</div>
+        <div class="brief-boot-sub">DIGITAL TWIN INITIALIZATION</div>
+        
+        <div class="brief-boot-terminal">
+          <div class="brief-boot-line line-1">
+            <span class="boot-prompt">▶</span>
+            <span>TELEMETRY LINK</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">CONNECTED</span>
+          </div>
+          <div class="brief-boot-line line-2">
+            <span class="boot-prompt">▶</span>
+            <span>SENSOR TRUST</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">ONLINE</span>
+          </div>
+          <div class="brief-boot-line line-3">
+            <span class="boot-prompt">▶</span>
+            <span>DIGITAL TWIN</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">SYNCHRONIZED</span>
+          </div>
+          <div class="brief-boot-line line-4">
+            <span class="boot-prompt">▶</span>
+            <span>AI DIAGNOSTICS</span>
+            <span class="boot-dots">..............</span>
+            <span class="boot-ok">READY</span>
+          </div>
+        </div>
+
+        <div class="brief-boot-progress-wrap">
+          <div class="brief-boot-progress-bar"></div>
+        </div>
+        <div class="brief-boot-skip-hint">Click anywhere to enter directly</div>
+      </div>
+    </div>
+
+    <div class="brief-bg-pattern"></div>
+    <div class="brief-container">
+      
+      <!-- 1. TOP HEADER -->
+      <header class="brief-header">
+        <div class="brief-brand-group">
+          <div class="brief-brand-icon" title="AERO TWIN">
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AERO TWIN Mark">
+              <defs>
+                <linearGradient id="brief-brand-grad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00F0FF"/>
+                  <stop offset="50%" stop-color="#3B82F6"/>
+                  <stop offset="100%" stop-color="#10B981"/>
+                </linearGradient>
+                <linearGradient id="brief-wing-grad" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.9"/>
+                  <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.75"/>
+                </linearGradient>
+              </defs>
+              <path d="M3 11.5L16 4L29 11.5L25.5 15L16 9.5L6.5 15L3 11.5Z" fill="url(#brief-wing-grad)"/>
+              <path d="M16 8L23.5 24H19.5L16 16.5L12.5 24H8.5L16 8Z" fill="url(#brief-brand-grad)"/>
+              <path d="M10 18.5H22" stroke="#0F172A" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M12.5 18.5H19.5" stroke="#00F0FF" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="9" cy="24" r="2.2" fill="#00F0FF"/>
+              <circle cx="23" cy="24" r="2.2" fill="#10B981"/>
+            </svg>
+          </div>
+          <div class="brief-brand-text">
+            <span class="brief-brand-title">AERO TWIN</span>
+            <span class="brief-brand-subtitle">DIGITAL TWIN • MALE UAV ENGINE MONITORING</span>
+          </div>
+        </div>
+
+        <div class="brief-header-status">
+          <span class="brief-status-tag">
+            <span class="brief-status-dot"></span>
+            <span>SYSTEM READY</span>
+          </span>
+          <span class="brief-status-tag">SIMULATION DATA</span>
+          <span class="brief-status-tag">DECISION-SUPPORT PROTOTYPE</span>
+        </div>
+      </header>
+
+      <!-- MAIN CONTENT -->
+      <main class="brief-main">
+        <!-- 2 & 3. HERO SECTION & MISSION BRIEF CARD -->
+        <div class="brief-hero-row">
+          <!-- 2. HERO SECTION -->
+          <div class="brief-hero-content">
+            <!-- Subtle Technical Line-Art Schematic SVG with Motion UI -->
+            <div class="brief-schematic-wrap" aria-hidden="true">
+              <svg class="brief-schematic-svg" viewBox="0 0 440 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Grid / Datum Axis -->
+                <line x1="20" y1="110" x2="420" y2="110" stroke="#38BDF8" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35"/>
+                <line x1="220" y1="20" x2="220" y2="200" stroke="#38BDF8" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35"/>
+                
+                <!-- Radar Sweep Circle & Line -->
+                <circle cx="220" cy="110" r="85" stroke="#00F0FF" stroke-width="0.7" stroke-dasharray="2 4" opacity="0.25"/>
+                <line class="uav-radar-sweep" x1="220" y1="110" x2="220" y2="25" stroke="#00F0FF" stroke-width="1.2" opacity="0.4"/>
+
+                <!-- Scanning Beam -->
+                <line class="uav-scan-beam" x1="40" y1="20" x2="400" y2="20" stroke="#38BDF8" stroke-width="1" opacity="0"/>
+
+                <!-- High-Aspect Swept Wing Planform -->
+                <path d="M20 108 L180 108 L205 95 L235 95 L260 108 L420 108 L415 113 L260 112 L220 118 L180 112 L25 113 Z" stroke="#60A5FA" stroke-width="1.2" opacity="0.85"/>
+                
+                <!-- Twin Booms -->
+                <line x1="160" y1="108" x2="160" y2="175" stroke="#38BDF8" stroke-width="1" opacity="0.7"/>
+                <line x1="280" y1="108" x2="280" y2="175" stroke="#38BDF8" stroke-width="1" opacity="0.7"/>
+                
+                <!-- Inverted V-Tail Empennage -->
+                <path d="M160 175 L220 150 L280 175" stroke="#60A5FA" stroke-width="1.2" opacity="0.85"/>
+                
+                <!-- Fuselage & Engine Bay Nacelle -->
+                <rect x="202" y="85" width="36" height="52" rx="4" stroke="#00F0FF" stroke-width="1.2" opacity="0.9"/>
+                
+                <!-- Pusher Propeller Arc -->
+                <ellipse cx="220" cy="140" rx="28" ry="6" stroke="#38BDF8" stroke-width="1" stroke-dasharray="4 2" opacity="0.7"/>
+                
+                <!-- Telemetry Nodes / Beacons -->
+                <circle class="uav-beacon-node beacon-engine" cx="220" cy="110" r="3" fill="#00F0FF"/>
+                <circle class="uav-beacon-node beacon-left" cx="60" cy="110" r="2" fill="#60A5FA"/>
+                <circle class="uav-beacon-node beacon-right" cx="380" cy="110" r="2" fill="#60A5FA"/>
+                <circle cx="220" cy="140" r="1.8" fill="#10B981"/>
+              </svg>
+            </div>
+
+            <div class="brief-eyebrow">AERO PROPULSION INTELLIGENCE</div>
+            <h1 class="brief-hero-title">AERO TWIN</h1>
+            <div class="brief-hero-subtitle">ENGINE INTELLIGENCE PLATFORM</div>
+            <p class="brief-hero-description">
+              Real-time engine telemetry, sensor trust and AI-driven diagnostics for mission-level decision support.
+            </p>
+
+            <!-- LIVE SYSTEM SIGNAL (Telemetry Strip) -->
+            <div class="brief-telemetry-strip" role="region" aria-label="Live System Signal">
+              <div class="brief-telem-header">
+                <span class="brief-telem-pulse-dot"></span>
+                <span class="brief-telem-tag">LIVE SIMULATION</span>
+              </div>
+              <div class="brief-telem-items">
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">RPM</span>
+                  <span id="brief-val-rpm" class="brief-telem-val">4,392</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">CHT</span>
+                  <span id="brief-val-cht" class="brief-telem-val">166.2°C</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">EGT</span>
+                  <span id="brief-val-egt" class="brief-telem-val">781.7°C</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">OIL P</span>
+                  <span id="brief-val-oilp" class="brief-telem-val">53.3 PSI</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">EHI</span>
+                  <span id="brief-val-ehi" class="brief-telem-val brief-telem-val-ehi">96</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. MISSION BRIEF CARD -->
+          <div class="brief-mission-card">
+            <div class="brief-card-header">
+              <span class="brief-card-title">MISSION BRIEF</span>
+              <span class="brief-card-badge">UAV-07</span>
+            </div>
+
+            <div class="brief-card-rows">
+              <div class="brief-card-row">
+                <span class="brief-row-label">AIRCRAFT</span>
+                <span class="brief-row-value">MALE UAV</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">ENGINE</span>
+                <span class="brief-row-value">Aero Piston Engine</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">MISSION</span>
+                <span class="brief-row-value">SURVEILLANCE</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">DATA SOURCE</span>
+                <span class="brief-row-value brief-tag-simulation">SYNTHETIC SIMULATION</span>
+              </div>
+
+              <div class="brief-card-row brief-card-row-twin">
+                <span class="brief-row-label">TWIN STATUS</span>
+                <div class="brief-twin-status-wrap">
+                  <span class="brief-row-value brief-twin-status-val">
+                    <span class="brief-status-dot"></span>
+                    <span>SYNCHRONIZED</span>
+                  </span>
+                  <span class="brief-twin-status-sub">Physical State ↔ Digital Twin</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. KEY CAPABILITIES (5 Active Engineering Modules) -->
+        <div class="brief-capabilities-section">
+          <div class="brief-capabilities-grid">
+            <!-- 01 Sensor Trust -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <polyline points="9 12 11 14 15 10"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">ONLINE</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">01</span>
+                <h3 class="brief-cap-title">SENSOR TRUST</h3>
+              </div>
+              <p class="brief-cap-desc">Validate sensor reliability before health diagnosis.</p>
+            </div>
+
+            <!-- 02 AI Diagnostics -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+                    <rect x="9" y="9" width="6" height="6"/>
+                    <line x1="9" y1="1" x2="9" y2="4"/>
+                    <line x1="15" y1="1" x2="15" y2="4"/>
+                    <line x1="9" y1="20" x2="9" y2="23"/>
+                    <line x1="15" y1="20" x2="15" y2="23"/>
+                    <line x1="20" y1="9" x2="23" y2="9"/>
+                    <line x1="20" y1="14" x2="23" y2="14"/>
+                    <line x1="1" y1="9" x2="4" y2="9"/>
+                    <line x1="1" y1="14" x2="4" y2="14"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">READY</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">02</span>
+                <h3 class="brief-cap-title">AI DIAGNOSTICS</h3>
+              </div>
+              <p class="brief-cap-desc">Detect anomalies and classify engine faults.</p>
+            </div>
+
+            <!-- 03 Engine Health -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">MONITORING</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">03</span>
+                <h3 class="brief-cap-title">ENGINE HEALTH</h3>
+              </div>
+              <p class="brief-cap-desc">Real-time EHI with subsystem analysis.</p>
+            </div>
+
+            <!-- 04 RUL Estimation -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">MODEL ACTIVE</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">04</span>
+                <h3 class="brief-cap-title">RUL ESTIMATION</h3>
+              </div>
+              <p class="brief-cap-desc">Model-based degradation and remaining useful life.</p>
+            </div>
+
+            <!-- 05 Mission Risk -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="22" y1="12" x2="18" y2="12"/>
+                    <line x1="6" y1="12" x2="2" y2="12"/>
+                    <line x1="12" y1="6" x2="12" y2="2"/>
+                    <line x1="12" y1="22" x2="12" y2="18"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">READY</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">05</span>
+                <h3 class="brief-cap-title">MISSION RISK</h3>
+              </div>
+              <p class="brief-cap-desc">Translate engine condition into mission decision support.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. DIGITAL TWIN SIGNAL FLOW PIPELINE (Core Concept Visualization) -->
+        <div class="brief-signal-flow-section" role="region" aria-label="Digital Twin Signal Flow">
+          <div class="brief-flow-concept-label">
+            <span class="flow-pill">ARCHITECTURE</span>
+            <span class="flow-sub">SENSOR TRUST BEFORE HEALTH JUDGMENT</span>
+          </div>
+          <div class="brief-flow-diagram">
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">01</span>
+                <span class="node-rate">10 Hz</span>
+              </div>
+              <span class="node-title">RAW TELEMETRY</span>
+            </div>
+            
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node flow-node-focus">
+              <div class="node-top">
+                <span class="node-badge">02</span>
+                <span class="node-rate">9/9 CH</span>
+              </div>
+              <span class="node-title">SENSOR TRUST</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#00F0FF" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">03</span>
+                <span class="node-rate">FILTERED</span>
+              </div>
+              <span class="node-title">TRUSTED DATA</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">04</span>
+                <span class="node-rate">AI / ML</span>
+              </div>
+              <span class="node-title">AI DIAGNOSIS</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">05</span>
+                <span class="node-rate">PROGNOSTICS</span>
+              </div>
+              <span class="node-title">HEALTH / RUL</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#10B981" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">06</span>
+                <span class="node-rate">DECISION</span>
+              </div>
+              <span class="node-title">MISSION RISK</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. PRIMARY CTA -->
+        <div class="brief-cta-section">
+          <div class="brief-cta-status">
+            <span class="brief-status-dot"></span>
+            <span>MISSION SYSTEM READY</span>
+          </div>
+          <button id="btn-enter-mission-control" class="btn-enter-mission-control" type="button" aria-label="Enter Mission Control Dashboard">
+            <span>ENTER MISSION CONTROL</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+          <p class="brief-cta-subtext">Access live telemetry, diagnostics and mission intelligence</p>
+        </div>
+      </main>
+
+      <!-- 7. FOOTER -->
+      <footer class="brief-footer">
+        <div class="brief-footer-left">
+          <span class="brief-status-tag">
+            <span class="brief-status-dot"></span>
+            <span>SYSTEMS ONLINE</span>
+          </span>
+          <span class="brief-footer-divider">|</span>
+          <span class="brief-version-tag">v2.0.1</span>
+        </div>
+        <div class="brief-footer-right">
+          <span>AERO TWIN</span>
+          <span class="brief-footer-divider">|</span>
+          <span>SIH 2026</span>
+        </div>
+      </footer>
+
+    </div>
+  </div>
 
   <div class="app-container">
 
@@ -268,7 +720,10 @@
 
           <div class="twin-overlay-top">
             <span class="twin-state-chip badge-nominal" id="twin-state-chip">HEALTHY</span>
-            <span class="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
+            <button class="twin-back-btn" id="btn-back-to-engine" onclick="resetEngineInspection()" type="button" style="display: none;" title="Return to full engine digital twin overview">
+              &larr; BACK TO ENGINE
+            </button>
+            <span class="twin-sync-label" id="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
           </div>
 
           <!-- Physical Engine Component Labeling Layer -->
@@ -305,7 +760,10 @@
                 <span class="hud-category" id="hud-category">CYLINDER 1</span>
                 <h4 class="hud-name" id="hud-name">PISTON 1</h4>
               </div>
-              <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
+                <button class="hud-back-btn" onclick="resetEngineInspection()" type="button" style="padding: 2px 8px; font-size: 0.65rem;" title="Back to engine overview">&larr; BACK</button>
+              </div>
             </div>
 
             <div class="hud-function-box" id="hud-function-box">

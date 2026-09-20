@@ -711,6 +711,12 @@ body {
 .telemetry-trend.up {
   color: var(--status-critical);
 }
+.telemetry-trend.down {
+  color: var(--status-warning);
+}
+.telemetry-trend.warn {
+  color: var(--status-warning);
+}
 .telemetry-trend.stable {
   color: var(--status-nominal);
 }
@@ -836,6 +842,36 @@ body {
   border-color: var(--accent-blue);
 }
 
+/* Floating Back to Engine Navigation Button */
+.twin-back-btn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #00F0FF;
+  background: rgba(11, 16, 24, 0.94);
+  border: 1.5px solid #00F0FF;
+  border-radius: var(--radius-sm, 4px);
+  padding: 5px 12px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 10px rgba(0, 240, 255, 0.35);
+  pointer-events: auto;
+  z-index: 30;
+  transition: all var(--transition-fast, 0.15s ease);
+}
+
+.twin-back-btn:hover {
+  background: rgba(0, 240, 255, 0.18);
+  border-color: #38BDF8;
+  color: #FFFFFF;
+  box-shadow: 0 4px 20px rgba(0, 240, 255, 0.5);
+  transform: translateY(-1px);
+}
+
 /* Floating Inspection HUD */
 .twin-inspection-hud {
   position: absolute;
@@ -843,6 +879,8 @@ body {
   left: 12px;
   width: 285px;
   max-width: calc(100% - 24px);
+  max-height: calc(100% - 56px);
+  overflow-y: auto;
   background: rgba(11, 16, 24, 0.94);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-sm);
@@ -2078,6 +2116,12 @@ body {
   border: 1px solid rgba(59, 130, 246, 0.35);
 }
 
+.ai-source-badge.badge-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
 .typing-indicator {
   display: flex;
   align-items: center;
@@ -2888,9 +2932,1587 @@ body {
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
+/* ==========================================================================
+   MOTION-FIRST AEROSPACE DIGITAL TWIN PRE-UI / MISSION CONTROL ENTRY
+   ========================================================================== */
+html:has(body.brief-active),
+body.brief-active {
+  overflow: hidden !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
+#mission-brief-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  background-color: #050A12;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 0.38s cubic-bezier(0.4, 0, 0.2, 1), transform 0.38s cubic-bezier(0.4, 0, 0.2, 1), filter 0.38s ease;
+}
+
+#mission-brief-screen.brief-fade-out {
+  opacity: 0;
+  transform: scale(0.985);
+  filter: brightness(1.2);
+  pointer-events: none;
+}
+
+/* Static, lightweight aerospace grid with subtle scan sweep */
+.brief-bg-pattern {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.022) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.022) 1px, transparent 1px);
+  background-size: 32px 32px;
+  z-index: 1;
+}
+
+.brief-bg-pattern::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.2), rgba(0, 240, 255, 0.35), rgba(56, 189, 248, 0.2), transparent);
+  animation: gridSweep 10s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes gridSweep {
+  0% { transform: translateY(-10px); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+/* ==========================================================================
+   INITIAL BOOT & INITIALIZATION SEQUENCE OVERLAY (~1.4s)
+   ========================================================================== */
+.brief-boot-sequence {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: #04070D;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s ease;
+  cursor: pointer;
+}
+
+.brief-boot-sequence.boot-complete {
+  opacity: 0;
+  transform: scale(1.015);
+  pointer-events: none;
+}
+
+.brief-boot-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 90%;
+  max-width: 460px;
+  padding: 24px;
+}
+
+.brief-boot-mark {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #0A121E;
+  border: 1px solid #1C2E46;
+  margin-bottom: 12px;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
+  animation: bootMarkPulse 2s infinite ease-in-out;
+}
+
+@keyframes bootMarkPulse {
+  0%, 100% { border-color: #1C2E46; box-shadow: 0 0 15px rgba(56, 189, 248, 0.1); }
+  50% { border-color: #38BDF8; box-shadow: 0 0 25px rgba(56, 189, 248, 0.3); }
+}
+
+.brief-boot-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #FFFFFF;
+  margin-bottom: 2px;
+}
+
+.brief-boot-sub {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: #64748B;
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+
+.brief-boot-terminal {
+  width: 100%;
+  background: #070B12;
+  border: 1px solid #141E2C;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.brief-boot-line {
+  display: flex;
+  align-items: center;
+  color: #475569;
+  opacity: 0.3;
+  transform: translateX(-3px);
+  transition: opacity 0.25s ease, transform 0.25s ease, color 0.25s ease;
+}
+
+.brief-boot-line.active {
+  opacity: 1;
+  transform: translateX(0);
+  color: #94A3B8;
+}
+
+.boot-prompt {
+  color: #38BDF8;
+  margin-right: 8px;
+}
+
+.boot-ok {
+  color: #10B981;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.brief-boot-progress-wrap {
+  width: 100%;
+  height: 2px;
+  background: #0E1624;
+  border-radius: 2px;
+  margin-top: 18px;
+  overflow: hidden;
+}
+
+.brief-boot-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2563EB, #00F0FF, #10B981);
+  animation: bootProgress 1.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes bootProgress {
+  0% { width: 0%; }
+  35% { width: 40%; }
+  70% { width: 75%; }
+  100% { width: 100%; }
+}
+
+.brief-boot-skip-hint {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: #334155;
+  margin-top: 10px;
+  letter-spacing: 0.05em;
+}
+
+/* ==========================================================================
+   MAIN BRIEF CONTAINER & LAYOUT
+   ========================================================================== */
+.brief-container {
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 28px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 2;
+}
+
+/* Header */
+.brief-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #141F2E;
+  gap: 16px;
+}
+
+.brief-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brief-brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: #0A121E;
+  border: 1px solid #1C2D42;
+  position: relative;
+}
+
+.brief-brand-icon::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid #00F0FF;
+  opacity: 0;
+  animation: iconBorderPing 3s infinite ease-out;
+}
+
+@keyframes iconBorderPing {
+  0% { transform: scale(1); opacity: 0.7; }
+  60%, 100% { transform: scale(1.18); opacity: 0; }
+}
+
+.brief-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.brief-brand-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+  line-height: 1.2;
+}
+
+.brief-brand-subtitle {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.brief-header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brief-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: #94A3B8;
+  background: #0A101A;
+  border: 1px solid #172436;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.brief-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+  flex-shrink: 0;
+  animation: dotLivePulse 2s infinite ease-in-out;
+}
+
+@keyframes dotLivePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+/* Main Body Layout */
+.brief-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 10px 0 12px;
+}
+
+/* Hero Row */
+.brief-hero-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: stretch;
+  position: relative;
+}
+
+.brief-hero-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  padding: 4px 0;
+  min-width: 0;
+}
+
+/* Motion-First Animated UAV Digital Twin Schematic */
+.brief-schematic-wrap {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 320px;
+  height: 170px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.85;
+}
+
+.brief-schematic-svg {
+  width: 100%;
+  height: 100%;
+  animation: uavDrift 7s ease-in-out infinite;
+}
+
+@keyframes uavDrift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-2px, -3px); }
+}
+
+.uav-scan-beam {
+  animation: airframeScan 5s ease-in-out infinite;
+}
+
+@keyframes airframeScan {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 0.6; }
+  85% { opacity: 0.6; }
+  100% { transform: translateY(180px); opacity: 0; }
+}
+
+.uav-beacon-node {
+  animation: beaconBlink 2.2s infinite ease-in-out;
+}
+.beacon-left { animation-delay: 0s; }
+.beacon-right { animation-delay: 0.4s; }
+.beacon-engine { animation-delay: 0.8s; }
+
+@keyframes beaconBlink {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.uav-radar-sweep {
+  transform-origin: 220px 110px;
+  animation: radarSweep 8s linear infinite;
+}
+
+@keyframes radarSweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.brief-eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #38BDF8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.brief-hero-title {
+  font-size: 2.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
+  margin: 0 0 2px;
+  line-height: 1.05;
+}
+
+.brief-hero-subtitle {
+  font-size: 1.10rem;
+  font-weight: 600;
+  color: #60A5FA;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.brief-hero-description {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #94A3B8;
+  max-width: 480px;
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   LIVE SYSTEM SIGNAL TELEMETRY STRIP (Below Hero)
+   ========================================================================== */
+.brief-telemetry-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #080D17;
+  border: 1px solid #162436;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  margin-top: 10px;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.brief-telem-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-right: 1px solid #19273A;
+  padding-right: 14px;
+}
+
+.brief-telem-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00F0FF;
+  box-shadow: 0 0 6px rgba(0, 240, 255, 0.8);
+  animation: telemPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes telemPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.brief-telem-tag {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #38BDF8;
+}
+
+.brief-telem-items {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: space-around;
+  padding-left: 10px;
+}
+
+.brief-telem-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.brief-telem-label {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+}
+
+.brief-telem-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #EDF2F7;
+  letter-spacing: 0.02em;
+  min-width: 44px;
+  text-align: right;
+  transition: color 0.15s ease;
+}
+
+.brief-telem-val-ehi {
+  color: #10B981;
+}
+
+.brief-telem-divider {
+  width: 1px;
+  height: 14px;
+  background: #142030;
+}
+
+/* ==========================================================================
+   MISSION BRIEF CARD (Right Side Panel)
+   ========================================================================== */
+.brief-mission-card {
+  background: #0A0F1A;
+  border: 1px solid #1A283C;
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+.brief-mission-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #2563EB 0%, #00F0FF 50%, #10B981 100%);
+}
+
+.brief-mission-card::after {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.035), transparent);
+  animation: cardScanBeam 7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes cardScanBeam {
+  0% { transform: translateY(-100%); }
+  40%, 100% { transform: translateY(400%); }
+}
+
+.brief-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #142030;
+}
+
+.brief-card-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #EDF2F7;
+  text-transform: uppercase;
+}
+
+.brief-card-badge {
+  font-family: var(--font-mono);
+  font-size: 0.70rem;
+  font-weight: 700;
+  color: #38BDF8;
+  background: #0E1A2A;
+  border: 1px solid #1A3450;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.05em;
+}
+
+.brief-card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brief-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: #070B13;
+  border: 1px solid #121B27;
+}
+
+.brief-card-row-twin {
+  padding: 6px 9px;
+}
+
+.brief-row-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: #64748B;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.brief-row-value {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #EDF2F7;
+  text-align: right;
+}
+
+.brief-tag-simulation {
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.70rem;
+  letter-spacing: 0.04em;
+  display: inline-block;
+}
+
+.brief-twin-status-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.brief-twin-status-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #10B981;
+}
+
+.brief-twin-status-sub {
+  font-family: var(--font-mono);
+  font-size: 0.63rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   KEY CAPABILITIES (5 Active Engineering Modules)
+   ========================================================================== */
+.brief-capabilities-section {
+  width: 100%;
+}
+
+.brief-capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.brief-cap-card {
+  background: #090E17;
+  border: 1px solid #162232;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+  position: relative;
+}
+
+.brief-cap-card:hover {
+  border-color: #2563EB;
+  background: #0D1522;
+  transform: translateY(-1px);
+}
+
+.brief-cap-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brief-cap-icon-wrap {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60A5FA;
+}
+
+.brief-cap-status-pill {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.06em;
+}
+
+.brief-cap-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brief-cap-num {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #38BDF8;
+}
+
+.brief-cap-title {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #F1F5F9;
+  letter-spacing: 0.05em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.brief-cap-desc {
+  font-size: 0.68rem;
+  color: #8292A6;
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* ==========================================================================
+   DIGITAL TWIN SIGNAL FLOW PIPELINE (Core Concept Visualization)
+   ========================================================================== */
+.brief-signal-flow-section {
+  background: #080D16;
+  border: 1px solid #142030;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.brief-flow-concept-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-pill {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.06em;
+}
+
+.flow-sub {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: #64748B;
+  letter-spacing: 0.06em;
+}
+
+.brief-flow-diagram {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 6px;
+}
+
+.flow-node {
+  background: #060910;
+  border: 1px solid #131E2B;
+  border-radius: 4px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.flow-node-focus {
+  border-color: rgba(0, 240, 255, 0.4);
+  background: #08121E;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.1);
+}
+
+.node-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.node-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: #64748B;
+  font-weight: 700;
+}
+
+.flow-node-focus .node-badge {
+  color: #00F0FF;
+}
+
+.node-title {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #EDF2F7;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-rate {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  color: #475569;
+  letter-spacing: 0.02em;
+}
+
+.flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+}
+
+.flow-pulse-line {
+  stroke-dasharray: 4 3;
+  animation: flowDash 1.4s linear infinite;
+}
+
+@keyframes flowDash {
+  to { stroke-dashoffset: -14; }
+}
+
+/* ==========================================================================
+   PRIMARY CTA SECTION
+   ========================================================================== */
+.brief-cta-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.brief-cta-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #10B981;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.btn-enter-mission-control {
+  appearance: none;
+  border: 1px solid #3B82F6;
+  background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 50%, #1D4ED8 100%);
+  background-size: 200% 200%;
+  color: #FFFFFF;
+  font-family: var(--font-ui);
+  font-size: 0.90rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 11px 32px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(29, 78, 216, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  overflow: hidden;
+  animation: ctaEnergySweep 4s ease infinite;
+}
+
+@keyframes ctaEnergySweep {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.btn-enter-mission-control:hover {
+  transform: translateY(-1px);
+  border-color: #60A5FA;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn-enter-mission-control:active {
+  transform: translateY(0);
+}
+
+.btn-enter-mission-control svg {
+  transition: transform 0.18s ease;
+}
+
+.btn-enter-mission-control:hover svg {
+  transform: translateX(4px);
+}
+
+.brief-cta-subtext {
+  font-size: 0.72rem;
+  color: #64748B;
+  margin: 6px 0 0;
+  letter-spacing: 0.01em;
+}
+
+/* Footer */
+.brief-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid #141F2E;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: #64748B;
+}
+
+.brief-footer-left,
+.brief-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brief-footer-divider {
+  color: #1F2E42;
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .brief-hero-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .brief-capabilities-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .brief-flow-diagram {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .brief-container {
+    padding: 14px 14px 18px;
+    overflow-x: hidden;
+  }
+  .brief-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .brief-header-status {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .brief-hero-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .brief-hero-content {
+    min-width: 0;
+  }
+  .brief-hero-title {
+    font-size: 2.1rem;
+    word-break: break-word;
+  }
+  .brief-hero-description {
+    max-width: 100%;
+  }
+  .brief-mission-card {
+    min-width: 0;
+  }
+  .brief-schematic-wrap {
+    display: none;
+  }
+  .brief-telemetry-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .brief-telem-header {
+    border-right: none;
+    border-bottom: 1px solid #19273A;
+    padding-right: 0;
+    padding-bottom: 4px;
+    width: 100%;
+  }
+  .brief-telem-items {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 8px 14px;
+    padding-left: 0;
+  }
+  .brief-telem-divider {
+    display: none;
+  }
+  .brief-capabilities-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .brief-flow-diagram {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .flow-arrow {
+    display: none;
+  }
+  .brief-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 540px) {
+  .brief-header-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .brief-status-tag {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .brief-hero-title {
+    font-size: 1.85rem;
+  }
+  .brief-hero-subtitle {
+    font-size: 0.95rem;
+  }
+  .brief-telem-items {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .brief-capabilities-grid {
+    grid-template-columns: 1fr;
+  }
+  .brief-flow-diagram {
+    grid-template-columns: 1fr;
+  }
+  .btn-enter-mission-control {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+}
+
+/* Reduced Motion Compliance */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
   </style>
 </head>
-<body>
+<body class="brief-active">
+
+  <!-- ======================================================================
+       PRE-UI LANDING / MISSION BRIEF SCREEN
+       ====================================================================== -->
+  <div id="mission-brief-screen" class="mission-brief-screen" role="region" aria-label="AERO TWIN Mission Brief">
+    <!-- 0. INITIAL SYSTEM BOOT & INITIALIZATION OVERLAY (~1.4s) -->
+    <div id="brief-boot-sequence" class="brief-boot-sequence" role="status" aria-live="polite">
+      <div class="brief-boot-inner">
+        <div class="brief-boot-mark" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 11.5L16 4L29 11.5L25.5 15L16 9.5L6.5 15L3 11.5Z" fill="#00F0FF" fill-opacity="0.9"/>
+            <path d="M16 8L23.5 24H19.5L16 16.5L12.5 24H8.5L16 8Z" fill="#3B82F6"/>
+            <circle cx="9" cy="24" r="2" fill="#00F0FF"/>
+            <circle cx="23" cy="24" r="2" fill="#10B981"/>
+          </svg>
+        </div>
+        <div class="brief-boot-title">AERO TWIN</div>
+        <div class="brief-boot-sub">DIGITAL TWIN INITIALIZATION</div>
+        
+        <div class="brief-boot-terminal">
+          <div class="brief-boot-line line-1">
+            <span class="boot-prompt">▶</span>
+            <span>TELEMETRY LINK</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">CONNECTED</span>
+          </div>
+          <div class="brief-boot-line line-2">
+            <span class="boot-prompt">▶</span>
+            <span>SENSOR TRUST</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">ONLINE</span>
+          </div>
+          <div class="brief-boot-line line-3">
+            <span class="boot-prompt">▶</span>
+            <span>DIGITAL TWIN</span>
+            <span class="boot-dots">................</span>
+            <span class="boot-ok">SYNCHRONIZED</span>
+          </div>
+          <div class="brief-boot-line line-4">
+            <span class="boot-prompt">▶</span>
+            <span>AI DIAGNOSTICS</span>
+            <span class="boot-dots">..............</span>
+            <span class="boot-ok">READY</span>
+          </div>
+        </div>
+
+        <div class="brief-boot-progress-wrap">
+          <div class="brief-boot-progress-bar"></div>
+        </div>
+        <div class="brief-boot-skip-hint">Click anywhere to enter directly</div>
+      </div>
+    </div>
+
+    <div class="brief-bg-pattern"></div>
+    <div class="brief-container">
+      
+      <!-- 1. TOP HEADER -->
+      <header class="brief-header">
+        <div class="brief-brand-group">
+          <div class="brief-brand-icon" title="AERO TWIN">
+            <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AERO TWIN Mark">
+              <defs>
+                <linearGradient id="brief-brand-grad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00F0FF"/>
+                  <stop offset="50%" stop-color="#3B82F6"/>
+                  <stop offset="100%" stop-color="#10B981"/>
+                </linearGradient>
+                <linearGradient id="brief-wing-grad" x1="0" y1="0" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.9"/>
+                  <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.75"/>
+                </linearGradient>
+              </defs>
+              <path d="M3 11.5L16 4L29 11.5L25.5 15L16 9.5L6.5 15L3 11.5Z" fill="url(#brief-wing-grad)"/>
+              <path d="M16 8L23.5 24H19.5L16 16.5L12.5 24H8.5L16 8Z" fill="url(#brief-brand-grad)"/>
+              <path d="M10 18.5H22" stroke="#0F172A" stroke-width="2.2" stroke-linecap="round"/>
+              <path d="M12.5 18.5H19.5" stroke="#00F0FF" stroke-width="1.4" stroke-linecap="round"/>
+              <circle cx="9" cy="24" r="2.2" fill="#00F0FF"/>
+              <circle cx="23" cy="24" r="2.2" fill="#10B981"/>
+            </svg>
+          </div>
+          <div class="brief-brand-text">
+            <span class="brief-brand-title">AERO TWIN</span>
+            <span class="brief-brand-subtitle">DIGITAL TWIN • MALE UAV ENGINE MONITORING</span>
+          </div>
+        </div>
+
+        <div class="brief-header-status">
+          <span class="brief-status-tag">
+            <span class="brief-status-dot"></span>
+            <span>SYSTEM READY</span>
+          </span>
+          <span class="brief-status-tag">SIMULATION DATA</span>
+          <span class="brief-status-tag">DECISION-SUPPORT PROTOTYPE</span>
+        </div>
+      </header>
+
+      <!-- MAIN CONTENT -->
+      <main class="brief-main">
+        <!-- 2 & 3. HERO SECTION & MISSION BRIEF CARD -->
+        <div class="brief-hero-row">
+          <!-- 2. HERO SECTION -->
+          <div class="brief-hero-content">
+            <!-- Subtle Technical Line-Art Schematic SVG with Motion UI -->
+            <div class="brief-schematic-wrap" aria-hidden="true">
+              <svg class="brief-schematic-svg" viewBox="0 0 440 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Grid / Datum Axis -->
+                <line x1="20" y1="110" x2="420" y2="110" stroke="#38BDF8" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35"/>
+                <line x1="220" y1="20" x2="220" y2="200" stroke="#38BDF8" stroke-width="0.8" stroke-dasharray="3 3" opacity="0.35"/>
+                
+                <!-- Radar Sweep Circle & Line -->
+                <circle cx="220" cy="110" r="85" stroke="#00F0FF" stroke-width="0.7" stroke-dasharray="2 4" opacity="0.25"/>
+                <line class="uav-radar-sweep" x1="220" y1="110" x2="220" y2="25" stroke="#00F0FF" stroke-width="1.2" opacity="0.4"/>
+
+                <!-- Scanning Beam -->
+                <line class="uav-scan-beam" x1="40" y1="20" x2="400" y2="20" stroke="#38BDF8" stroke-width="1" opacity="0"/>
+
+                <!-- High-Aspect Swept Wing Planform -->
+                <path d="M20 108 L180 108 L205 95 L235 95 L260 108 L420 108 L415 113 L260 112 L220 118 L180 112 L25 113 Z" stroke="#60A5FA" stroke-width="1.2" opacity="0.85"/>
+                
+                <!-- Twin Booms -->
+                <line x1="160" y1="108" x2="160" y2="175" stroke="#38BDF8" stroke-width="1" opacity="0.7"/>
+                <line x1="280" y1="108" x2="280" y2="175" stroke="#38BDF8" stroke-width="1" opacity="0.7"/>
+                
+                <!-- Inverted V-Tail Empennage -->
+                <path d="M160 175 L220 150 L280 175" stroke="#60A5FA" stroke-width="1.2" opacity="0.85"/>
+                
+                <!-- Fuselage & Engine Bay Nacelle -->
+                <rect x="202" y="85" width="36" height="52" rx="4" stroke="#00F0FF" stroke-width="1.2" opacity="0.9"/>
+                
+                <!-- Pusher Propeller Arc -->
+                <ellipse cx="220" cy="140" rx="28" ry="6" stroke="#38BDF8" stroke-width="1" stroke-dasharray="4 2" opacity="0.7"/>
+                
+                <!-- Telemetry Nodes / Beacons -->
+                <circle class="uav-beacon-node beacon-engine" cx="220" cy="110" r="3" fill="#00F0FF"/>
+                <circle class="uav-beacon-node beacon-left" cx="60" cy="110" r="2" fill="#60A5FA"/>
+                <circle class="uav-beacon-node beacon-right" cx="380" cy="110" r="2" fill="#60A5FA"/>
+                <circle cx="220" cy="140" r="1.8" fill="#10B981"/>
+              </svg>
+            </div>
+
+            <div class="brief-eyebrow">AERO PROPULSION INTELLIGENCE</div>
+            <h1 class="brief-hero-title">AERO TWIN</h1>
+            <div class="brief-hero-subtitle">ENGINE INTELLIGENCE PLATFORM</div>
+            <p class="brief-hero-description">
+              Real-time engine telemetry, sensor trust and AI-driven diagnostics for mission-level decision support.
+            </p>
+
+            <!-- LIVE SYSTEM SIGNAL (Telemetry Strip) -->
+            <div class="brief-telemetry-strip" role="region" aria-label="Live System Signal">
+              <div class="brief-telem-header">
+                <span class="brief-telem-pulse-dot"></span>
+                <span class="brief-telem-tag">LIVE SIMULATION</span>
+              </div>
+              <div class="brief-telem-items">
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">RPM</span>
+                  <span id="brief-val-rpm" class="brief-telem-val">4,392</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">CHT</span>
+                  <span id="brief-val-cht" class="brief-telem-val">166.2°C</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">EGT</span>
+                  <span id="brief-val-egt" class="brief-telem-val">781.7°C</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">OIL P</span>
+                  <span id="brief-val-oilp" class="brief-telem-val">53.3 PSI</span>
+                </div>
+                <div class="brief-telem-divider"></div>
+                <div class="brief-telem-item">
+                  <span class="brief-telem-label">EHI</span>
+                  <span id="brief-val-ehi" class="brief-telem-val brief-telem-val-ehi">96</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. MISSION BRIEF CARD -->
+          <div class="brief-mission-card">
+            <div class="brief-card-header">
+              <span class="brief-card-title">MISSION BRIEF</span>
+              <span class="brief-card-badge">UAV-07</span>
+            </div>
+
+            <div class="brief-card-rows">
+              <div class="brief-card-row">
+                <span class="brief-row-label">AIRCRAFT</span>
+                <span class="brief-row-value">MALE UAV</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">ENGINE</span>
+                <span class="brief-row-value">Aero Piston Engine</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">MISSION</span>
+                <span class="brief-row-value">SURVEILLANCE</span>
+              </div>
+
+              <div class="brief-card-row">
+                <span class="brief-row-label">DATA SOURCE</span>
+                <span class="brief-row-value brief-tag-simulation">SYNTHETIC SIMULATION</span>
+              </div>
+
+              <div class="brief-card-row brief-card-row-twin">
+                <span class="brief-row-label">TWIN STATUS</span>
+                <div class="brief-twin-status-wrap">
+                  <span class="brief-row-value brief-twin-status-val">
+                    <span class="brief-status-dot"></span>
+                    <span>SYNCHRONIZED</span>
+                  </span>
+                  <span class="brief-twin-status-sub">Physical State ↔ Digital Twin</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. KEY CAPABILITIES (5 Active Engineering Modules) -->
+        <div class="brief-capabilities-section">
+          <div class="brief-capabilities-grid">
+            <!-- 01 Sensor Trust -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <polyline points="9 12 11 14 15 10"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">ONLINE</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">01</span>
+                <h3 class="brief-cap-title">SENSOR TRUST</h3>
+              </div>
+              <p class="brief-cap-desc">Validate sensor reliability before health diagnosis.</p>
+            </div>
+
+            <!-- 02 AI Diagnostics -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+                    <rect x="9" y="9" width="6" height="6"/>
+                    <line x1="9" y1="1" x2="9" y2="4"/>
+                    <line x1="15" y1="1" x2="15" y2="4"/>
+                    <line x1="9" y1="20" x2="9" y2="23"/>
+                    <line x1="15" y1="20" x2="15" y2="23"/>
+                    <line x1="20" y1="9" x2="23" y2="9"/>
+                    <line x1="20" y1="14" x2="23" y2="14"/>
+                    <line x1="1" y1="9" x2="4" y2="9"/>
+                    <line x1="1" y1="14" x2="4" y2="14"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">READY</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">02</span>
+                <h3 class="brief-cap-title">AI DIAGNOSTICS</h3>
+              </div>
+              <p class="brief-cap-desc">Detect anomalies and classify engine faults.</p>
+            </div>
+
+            <!-- 03 Engine Health -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">MONITORING</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">03</span>
+                <h3 class="brief-cap-title">ENGINE HEALTH</h3>
+              </div>
+              <p class="brief-cap-desc">Real-time EHI with subsystem analysis.</p>
+            </div>
+
+            <!-- 04 RUL Estimation -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">MODEL ACTIVE</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">04</span>
+                <h3 class="brief-cap-title">RUL ESTIMATION</h3>
+              </div>
+              <p class="brief-cap-desc">Model-based degradation and remaining useful life.</p>
+            </div>
+
+            <!-- 05 Mission Risk -->
+            <div class="brief-cap-card">
+              <div class="brief-cap-top">
+                <div class="brief-cap-icon-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="22" y1="12" x2="18" y2="12"/>
+                    <line x1="6" y1="12" x2="2" y2="12"/>
+                    <line x1="12" y1="6" x2="12" y2="2"/>
+                    <line x1="12" y1="22" x2="12" y2="18"/>
+                  </svg>
+                </div>
+                <span class="brief-cap-status-pill">READY</span>
+              </div>
+              <div class="brief-cap-title-row">
+                <span class="brief-cap-num">05</span>
+                <h3 class="brief-cap-title">MISSION RISK</h3>
+              </div>
+              <p class="brief-cap-desc">Translate engine condition into mission decision support.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. DIGITAL TWIN SIGNAL FLOW PIPELINE (Core Concept Visualization) -->
+        <div class="brief-signal-flow-section" role="region" aria-label="Digital Twin Signal Flow">
+          <div class="brief-flow-concept-label">
+            <span class="flow-pill">ARCHITECTURE</span>
+            <span class="flow-sub">SENSOR TRUST BEFORE HEALTH JUDGMENT</span>
+          </div>
+          <div class="brief-flow-diagram">
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">01</span>
+                <span class="node-rate">10 Hz</span>
+              </div>
+              <span class="node-title">RAW TELEMETRY</span>
+            </div>
+            
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node flow-node-focus">
+              <div class="node-top">
+                <span class="node-badge">02</span>
+                <span class="node-rate">9/9 CH</span>
+              </div>
+              <span class="node-title">SENSOR TRUST</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#00F0FF" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">03</span>
+                <span class="node-rate">FILTERED</span>
+              </div>
+              <span class="node-title">TRUSTED DATA</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">04</span>
+                <span class="node-rate">AI / ML</span>
+              </div>
+              <span class="node-title">AI DIAGNOSIS</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#38BDF8" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">05</span>
+                <span class="node-rate">PROGNOSTICS</span>
+              </div>
+              <span class="node-title">HEALTH / RUL</span>
+            </div>
+
+            <div class="flow-arrow" aria-hidden="true">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+                <path d="M1 6H15M15 6L10 2M15 6L10 10" stroke="#10B981" stroke-width="1.3" class="flow-pulse-line"/>
+              </svg>
+            </div>
+
+            <div class="flow-node">
+              <div class="node-top">
+                <span class="node-badge">06</span>
+                <span class="node-rate">DECISION</span>
+              </div>
+              <span class="node-title">MISSION RISK</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. PRIMARY CTA -->
+        <div class="brief-cta-section">
+          <div class="brief-cta-status">
+            <span class="brief-status-dot"></span>
+            <span>MISSION SYSTEM READY</span>
+          </div>
+          <button id="btn-enter-mission-control" class="btn-enter-mission-control" type="button" aria-label="Enter Mission Control Dashboard">
+            <span>ENTER MISSION CONTROL</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+          <p class="brief-cta-subtext">Access live telemetry, diagnostics and mission intelligence</p>
+        </div>
+      </main>
+
+      <!-- 7. FOOTER -->
+      <footer class="brief-footer">
+        <div class="brief-footer-left">
+          <span class="brief-status-tag">
+            <span class="brief-status-dot"></span>
+            <span>SYSTEMS ONLINE</span>
+          </span>
+          <span class="brief-footer-divider">|</span>
+          <span class="brief-version-tag">v2.0.1</span>
+        </div>
+        <div class="brief-footer-right">
+          <span>AERO TWIN</span>
+          <span class="brief-footer-divider">|</span>
+          <span>SIH 2026</span>
+        </div>
+      </footer>
+
+    </div>
+  </div>
 
   <div class="app-container">
 
@@ -3141,7 +4763,10 @@ body {
 
           <div class="twin-overlay-top">
             <span class="twin-state-chip badge-nominal" id="twin-state-chip">HEALTHY</span>
-            <span class="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
+            <button class="twin-back-btn" id="btn-back-to-engine" onclick="resetEngineInspection()" type="button" style="display: none;" title="Return to full engine digital twin overview">
+              &larr; BACK TO ENGINE
+            </button>
+            <span class="twin-sync-label" id="twin-sync-label">SYNCHRONIZED ENGINE STATE</span>
           </div>
 
           <!-- Physical Engine Component Labeling Layer -->
@@ -3178,7 +4803,10 @@ body {
                 <span class="hud-category" id="hud-category">CYLINDER 1</span>
                 <h4 class="hud-name" id="hud-name">PISTON 1</h4>
               </div>
-              <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <span class="hud-status-badge badge-nominal" id="hud-status">NOMINAL</span>
+                <button class="hud-back-btn" onclick="resetEngineInspection()" type="button" style="padding: 2px 8px; font-size: 0.65rem;" title="Back to engine overview">&larr; BACK</button>
+              </div>
             </div>
 
             <div class="hud-function-box" id="hud-function-box">
@@ -9151,6 +10779,12 @@ if (typeof window !== 'undefined') {
     _animate(time) {
       if (!this.renderer || !this.scene || !this.camera) return;
 
+      // Pause rendering loop while Pre-UI Mission Brief is displayed to eliminate GPU/CPU lag
+      if (document.body && document.body.classList.contains('brief-active')) {
+        requestAnimationFrame(this._animate);
+        return;
+      }
+
       // Smooth Orbit Controls
       if (this.controls) {
         if (this.autoRotate) {
@@ -10195,8 +11829,12 @@ return mapboxgl$1;
     // 4. UPDATE CENTRAL APP STATE
     syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult);
 
-    // 5. RENDER ALL DASHBOARD SECTIONS FROM appState
-    renderDashboard();
+    // 5. RENDER ALL DASHBOARD SECTIONS FROM appState (Deferred while Pre-UI is active to eliminate main-thread reflows)
+    if (!document.body || !document.body.classList.contains('brief-active')) {
+      renderDashboard();
+    } else {
+      updateBriefTelemetryStrip(rawState, diagnosticResult);
+    }
 
     // 6. SYNCHRONIZE 3D ENGINE STATE
     if (digitalTwin) {
@@ -10385,7 +12023,7 @@ return mapboxgl$1;
     renderOverviewCards(s);
 
     // 2. Section 3: Live Telemetry & Digital Twin State
-    renderLiveTelemetry(s.rawTelemetry, s.trustResult);
+    renderLiveTelemetry(s.rawTelemetry, s.trustResult, s.physics);
 
     // 3. Section 3: Right Column Engine Status + WHY
     renderEngineStatusAndWhy(s);
@@ -10567,13 +12205,134 @@ return mapboxgl$1;
   // ==========================================================================
   // SECTION 3: LIVE TELEMETRY
   // ==========================================================================
-  function renderLiveTelemetry(raw, trustResult) {
+  // SECTION 3: LIVE TELEMETRY (Operating-Condition Aware Expected-State Logic)
+  // ==========================================================================
+  function renderLiveTelemetry(raw, trustResult, physics) {
     const container = document.getElementById('telemetry-list');
     if (!container) return;
 
-    const avgCht = raw.cht ? (raw.cht.reduce((a, b) => a + b, 0) / 4) : 178;
-    const avgEgt = raw.egt ? (raw.egt.reduce((a, b) => a + b, 0) / 4) : 824;
+    const s = window.appState || {};
+    const phys = physics || s.physics || {};
+    const exp = phys.expected || {};
+
+    const avgCht = (raw.cht && Array.isArray(raw.cht) && raw.cht.length)
+      ? (raw.cht.reduce((a, b) => a + b, 0) / raw.cht.length)
+      : (typeof raw.cht === 'number' ? raw.cht : (exp.chtAvg || 172));
+    const avgEgt = (raw.egt && Array.isArray(raw.egt) && raw.egt.length)
+      ? (raw.egt.reduce((a, b) => a + b, 0) / raw.egt.length)
+      : (typeof raw.egt === 'number' ? raw.egt : (exp.egtAvg || 805));
     const isOilQuarantined = trustResult && trustResult.quarantined && trustResult.quarantined.includes('oilPress');
+
+    // Operating-condition aware evaluator: compares actual against physics expected state
+    function evalCondition(val, expectedVal, warnDelta, critDelta, options = {}) {
+      if (typeof val !== 'number' || isNaN(val)) {
+        return { status: 'Normal', trend: 'Normal' };
+      }
+      const expVal = (typeof expectedVal === 'number' && !isNaN(expectedVal)) ? expectedVal : val;
+      const diff = val - expVal;
+      const absDiff = Math.abs(diff);
+
+      // 1. Check absolute safety redlines (independent of operating point)
+      if (options.hardCritHigh !== undefined && val >= options.hardCritHigh) {
+        return { status: 'Critical', trend: '↑ High' };
+      }
+      if (options.hardCritLow !== undefined && val <= options.hardCritLow) {
+        return { status: 'Critical', trend: '↓ Low' };
+      }
+      if (options.hardWarnHigh !== undefined && val >= options.hardWarnHigh) {
+        return { status: 'Warning', trend: '↑ High' };
+      }
+      if (options.hardWarnLow !== undefined && val <= options.hardWarnLow) {
+        return { status: 'Warning', trend: '↓ Low' };
+      }
+
+      // 2. Physics-based residual evaluation against current flight phase / operating equilibrium
+      if (absDiff > critDelta) {
+        return { status: 'Critical', trend: diff > 0 ? '↑ High' : '↓ Low' };
+      }
+      if (absDiff > warnDelta) {
+        return { status: 'Warning', trend: diff > 0 ? '↑ High' : '↓ Low' };
+      }
+      return { status: 'Normal', trend: 'Normal' };
+    }
+
+    // RPM: Expected RPM computed dynamically by physics model for current throttle/phase (e.g. ~4392 in cruise, ~5400 in takeoff)
+    // Tolerances from AeroPhysicsModel.nominalRanges.rpm: warn: 250 RPM, crit: 450 RPM
+    const expectedRpm = exp.rpm !== undefined ? exp.rpm : 4392;
+    const rpmCond = evalCondition(raw.rpm, expectedRpm, 250, 450, {
+      hardWarnHigh: 5450,
+      hardCritHigh: 5650,
+      hardWarnLow: 1600,
+      hardCritLow: 1200
+    });
+
+    // CHT: Expected cylinder head temperature (~165–175°C in cruise)
+    // Tolerances from AeroPhysicsModel: warn: 14°C, crit: 24°C
+    const expectedCht = exp.chtAvg !== undefined ? exp.chtAvg : 172;
+    const chtCond = evalCondition(avgCht, expectedCht, 14, 24, {
+      hardWarnHigh: 195,
+      hardCritHigh: 215,
+      hardWarnLow: 90
+    });
+
+    // EGT: Expected exhaust gas temperature (~780–820°C in cruise)
+    // Tolerances from AeroPhysicsModel: warn: 40°C, crit: 70°C
+    const expectedEgt = exp.egtAvg !== undefined ? exp.egtAvg : 805;
+    const egtCond = evalCondition(avgEgt, expectedEgt, 40, 70, {
+      hardWarnHigh: 870,
+      hardCritHigh: 910,
+      hardWarnLow: 500
+    });
+
+    // Oil Temperature: Expected ~85–92°C in cruise
+    // Tolerances from AeroPhysicsModel: warn: 10°C, crit: 18°C
+    const expectedOilTemp = exp.oilTemp !== undefined ? exp.oilTemp : 90;
+    const oilTempCond = evalCondition(raw.oilTemp, expectedOilTemp, 10, 18, {
+      hardWarnHigh: 104,
+      hardCritHigh: 115,
+      hardWarnLow: 55
+    });
+
+    // Oil Pressure: Expected ~50–58 PSI in cruise
+    // Tolerances from AeroPhysicsModel: warn: 8 PSI, crit: 15 PSI
+    // Sensor Trust Priority: If transducer is quarantined, flag as Suspicious / Frozen
+    let oilPressCond;
+    if (isOilQuarantined) {
+      oilPressCond = { status: 'Suspicious', trend: '— Frozen' };
+    } else {
+      const expectedOilPress = exp.oilPress !== undefined ? exp.oilPress : 54;
+      oilPressCond = evalCondition(raw.oilPress, expectedOilPress, 8, 15, {
+        hardWarnLow: 38,
+        hardCritLow: 28,
+        hardWarnHigh: 72,
+        hardCritHigh: 85
+      });
+    }
+
+    // Fuel Flow: Expected ~21–24 L/hr in cruise, ~34 in takeoff
+    // Tolerances from AeroPhysicsModel: warn: 3.5 L/hr, crit: 6.0 L/hr
+    const expectedFuelFlow = exp.fuelFlow !== undefined ? exp.fuelFlow : 23.5;
+    const fuelCond = evalCondition(raw.fuelFlow, expectedFuelFlow, 3.5, 6.0, {
+      hardWarnHigh: 40.0,
+      hardCritHigh: 45.0
+    });
+
+    // MAP: Expected ~24–28 inHg in cruise, ~35–38 in takeoff
+    // Tolerances from AeroPhysicsModel: warn: 3.5 inHg, crit: 6.0 inHg
+    const expectedMap = exp.map !== undefined ? exp.map : 26.5;
+    const mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
+      hardWarnHigh: 38.0,
+      hardCritHigh: 42.0
+    });
+
+    // Engine Load: Expected matches current throttle demand (~72% in cruise, 100% in takeoff)
+    // Tolerances from AeroPhysicsModel: warn: 14%, crit: 22%
+    const actualLoad = raw.load !== undefined ? raw.load : 72;
+    const expectedLoad = exp.load !== undefined ? exp.load : 72;
+    const loadCond = evalCondition(actualLoad, expectedLoad, 14, 22, {
+      hardWarnHigh: 96,
+      hardCritHigh: 102
+    });
 
     const items = [
       {
@@ -10581,64 +12340,64 @@ return mapboxgl$1;
         name: 'RPM (Engine Speed)',
         val: raw.rpm,
         unit: 'RPM',
-        status: raw.rpm > 4350 ? 'Warning' : 'Normal',
-        trend: raw.rpm > 4350 ? '↑ High' : '↑ Stable'
+        status: rpmCond.status,
+        trend: rpmCond.trend
       },
       {
         key: 'cht',
         name: 'CHT (Cylinder Head Temp)',
         val: avgCht,
         unit: '°C',
-        status: avgCht > 215 ? 'Critical' : (avgCht > 190 ? 'Warning' : 'Normal'),
-        trend: avgCht > 215 ? '↑ Critical' : (avgCht > 190 ? '↑ High' : 'Normal')
+        status: chtCond.status,
+        trend: chtCond.trend
       },
       {
         key: 'egt',
         name: 'EGT (Exhaust Gas Temp)',
         val: avgEgt,
         unit: '°C',
-        status: avgEgt > 900 ? 'Critical' : (avgEgt > 850 ? 'Warning' : 'Normal'),
-        trend: avgEgt > 900 ? '↑ Critical' : (avgEgt > 850 ? '↑ High' : 'Normal')
+        status: egtCond.status,
+        trend: egtCond.trend
       },
       {
         key: 'oilTemp',
         name: 'Oil Temperature',
         val: raw.oilTemp,
         unit: '°C',
-        status: raw.oilTemp > 105 ? 'Warning' : 'Normal',
-        trend: raw.oilTemp > 105 ? '↑ Warning' : 'Normal'
+        status: oilTempCond.status,
+        trend: oilTempCond.trend
       },
       {
         key: 'oilPress',
         name: 'Oil Pressure',
         val: raw.oilPress,
         unit: 'PSI',
-        status: isOilQuarantined ? 'Suspicious' : (raw.oilPress < 40 ? 'Warning' : 'Normal'),
-        trend: isOilQuarantined ? '— Frozen' : (raw.oilPress < 40 ? '↓ Degraded' : 'Normal')
+        status: oilPressCond.status,
+        trend: oilPressCond.trend
       },
       {
         key: 'fuelFlow',
         name: 'Fuel Flow Rate',
         val: raw.fuelFlow,
         unit: 'L/hr',
-        status: raw.fuelFlow > 30 ? 'Warning' : 'Normal',
-        trend: raw.fuelFlow > 30 ? '↑ High' : 'Normal'
+        status: fuelCond.status,
+        trend: fuelCond.trend
       },
       {
         key: 'map',
         name: 'MAP (Manifold Pressure)',
         val: raw.map,
         unit: 'inHg',
-        status: raw.map > 36 ? 'Warning' : 'Normal',
-        trend: raw.map > 36 ? '↑ High' : 'Normal'
+        status: mapCond.status,
+        trend: mapCond.trend
       },
       {
         key: 'engineLoad',
         name: 'Calculated Engine Load',
-        val: raw.load !== undefined ? raw.load : 72,
+        val: actualLoad,
         unit: '%',
-        status: raw.load > 85 ? 'Warning' : 'Normal',
-        trend: raw.load > 85 ? '↑ High' : 'Normal'
+        status: loadCond.status,
+        trend: loadCond.trend
       }
     ];
 
@@ -10649,9 +12408,15 @@ return mapboxgl$1;
       const statusClass = isCrit ? 'crit' : (isWarn ? 'warn' : '');
 
       let trendClass = 'stable';
-      if (item.trend.includes('Critical') || item.trend.includes('High')) trendClass = 'up';
-      if (item.trend.includes('Degraded')) trendClass = 'down';
-      if (item.trend.includes('Frozen')) trendClass = 'frozen';
+      if (item.trend.includes('Frozen')) {
+        trendClass = 'frozen';
+      } else if (item.status === 'Critical') {
+        trendClass = item.trend.includes('Low') ? 'down' : 'up';
+      } else if (item.status === 'Warning') {
+        trendClass = item.trend.includes('Low') ? 'down' : 'warn';
+      } else {
+        trendClass = 'stable';
+      }
 
       return `
         <div class="telemetry-item ${alertClass}" id="telem-${item.key}">
@@ -11400,10 +13165,99 @@ return mapboxgl$1;
     }
   };
 
+  // Live Telemetry Strip on Mission Brief Screen
+  function updateBriefTelemetryStrip(rawState, diagResult) {
+    if (!rawState) return;
+    const rpmEl = document.getElementById('brief-val-rpm');
+    const chtEl = document.getElementById('brief-val-cht');
+    const egtEl = document.getElementById('brief-val-egt');
+    const oilpEl = document.getElementById('brief-val-oilp');
+    const ehiEl = document.getElementById('brief-val-ehi');
+
+    if (rpmEl) rpmEl.textContent = Math.round(rawState.rpm).toLocaleString();
+    if (chtEl) {
+      const avgCht = Array.isArray(rawState.cht) ? (rawState.cht.reduce((a, b) => a + b, 0) / rawState.cht.length) : (rawState.cht || 166.2);
+      chtEl.textContent = `${avgCht.toFixed(1)}°C`;
+    }
+    if (egtEl) {
+      const avgEgt = Array.isArray(rawState.egt) ? (rawState.egt.reduce((a, b) => a + b, 0) / rawState.egt.length) : (rawState.egt || 781.7);
+      egtEl.textContent = `${avgEgt.toFixed(1)}°C`;
+    }
+    if (oilpEl) {
+      const oilP = rawState.oilPress !== undefined ? rawState.oilPress : 53.3;
+      oilpEl.textContent = `${oilP.toFixed(1)} PSI`;
+    }
+    if (ehiEl) {
+      const ehi = Math.round(diagResult && diagResult.healthIndex !== undefined ? diagResult.healthIndex : 96);
+      ehiEl.textContent = ehi;
+      ehiEl.style.color = ehi >= 85 ? '#10B981' : (ehi >= 60 ? '#F59E0B' : '#EF4444');
+    }
+  }
+
   // ==========================================================================
   // EVENT LISTENERS & MODALS
   // ==========================================================================
   function initUIEventListeners() {
+    // 0. Initial Mission Brief Boot Sequence Progression (~1.4s)
+    const bootOverlay = document.getElementById('brief-boot-sequence');
+    if (bootOverlay) {
+      let isBootFinished = false;
+      const completeBoot = () => {
+        if (isBootFinished) return;
+        isBootFinished = true;
+        bootOverlay.classList.add('boot-complete');
+        setTimeout(() => {
+          bootOverlay.style.display = 'none';
+        }, 400);
+      };
+
+      // Click to skip boot animation immediately
+      bootOverlay.addEventListener('click', completeBoot);
+
+      const l1 = bootOverlay.querySelector('.line-1');
+      const l2 = bootOverlay.querySelector('.line-2');
+      const l3 = bootOverlay.querySelector('.line-3');
+      const l4 = bootOverlay.querySelector('.line-4');
+
+      setTimeout(() => { if (l1 && !isBootFinished) l1.classList.add('active'); }, 180);
+      setTimeout(() => { if (l2 && !isBootFinished) l2.classList.add('active'); }, 520);
+      setTimeout(() => { if (l3 && !isBootFinished) l3.classList.add('active'); }, 840);
+      setTimeout(() => { if (l4 && !isBootFinished) l4.classList.add('active'); }, 1140);
+      setTimeout(() => { completeBoot(); }, 1450);
+    }
+
+    // Mission Brief Pre-UI Landing Transition to Live Dashboard
+    const enterMissionBtn = document.getElementById('btn-enter-mission-control');
+    const briefScreen = document.getElementById('mission-brief-screen');
+    if (enterMissionBtn && briefScreen) {
+      enterMissionBtn.addEventListener('click', () => {
+        document.body.classList.remove('brief-active');
+        briefScreen.classList.add('brief-fade-out');
+        // Render dashboard state immediately as transition starts
+        renderDashboard();
+        setTimeout(() => {
+          briefScreen.style.display = 'none';
+          // Trigger layout recalculations and resizes for 3D and Mapbox
+          window.dispatchEvent(new Event('resize'));
+          if (digitalTwin && typeof digitalTwin.resize === 'function') {
+            digitalTwin.resize();
+          }
+          if (missionMap && missionMap.map && typeof missionMap.map.resize === 'function') {
+            missionMap.map.resize();
+          }
+        }, 380);
+      });
+    }
+
+    window.openMissionBrief = function () {
+      if (briefScreen) {
+        document.body.classList.add('brief-active');
+        briefScreen.style.display = 'flex';
+        void briefScreen.offsetHeight;
+        briefScreen.classList.remove('brief-fade-out');
+      }
+    };
+
     // Scenario Buttons
     document.querySelectorAll('.btn-scenario').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -11982,8 +13836,8 @@ return mapboxgl$1;
     const qLower = query.trim().toLowerCase();
     const qClean = qLower.replace(/[?!.]+$/, '').trim().replace(/\s+/g, ' ');
 
-    // 1. GREETING (Fast-path: direct greeting)
-    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25) {
+    // 1. GREETING (Fast-path: direct greeting only if not asking an engineering question)
+    if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening))\b/i.test(qLower) && qLower.length < 25 && !isEngineeringQuery(qLower)) {
       return "Hello. I’m the AERO TWIN Decision-Support Assistant. How can I assist you with the engine condition?";
     }
 
@@ -12060,8 +13914,8 @@ return mapboxgl$1;
     // Convert **bold** to <strong>
     let html = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-    // Ensure section headers like Evidence:, Why:, Mission implication: are bolded
-    html = html.replace(/(?:^|<br>|\n)(Evidence|Why|Mission implication):/gi, '<br><strong>$1:</strong>');
+    // Ensure section headers like Conclusion:, Evidence:, Why:, Mission implication: are bolded
+    html = html.replace(/(?:^|<br>|\n)(Conclusion|Evidence|Why|Mission implication):/gi, '<br><strong>$1:</strong>');
 
     // Normalize markdown bullets "- " or "* " to "• "
     html = html.replace(/(?:^|\n)[-*]\s+/g, '\n• ');
@@ -12075,6 +13929,16 @@ return mapboxgl$1;
     return html;
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   let isAssistantResponding = false;
 
   function handleUserQuery(query) {
@@ -12086,41 +13950,56 @@ return mapboxgl$1;
 
     appendAssistantMessage('user', cleanQuery);
 
-    // 1. DETERMINISTIC INTENT ROUTING (Identity / Greetings - Fast-path)
-    const deterministicResponse = routeDeterministicIntent(cleanQuery);
-    if (deterministicResponse) {
-      appendAssistantMessage('ai', deterministicResponse, 'local');
-      isAssistantResponding = false;
-      if (sendBtn) sendBtn.disabled = false;
-      return;
-    }
+    const isEng = isEngineeringQuery(cleanQuery);
+    console.log(`[AI ROUTE] Query: "${cleanQuery}"`);
+    console.log(`[AI ROUTE] Engineering query: ${isEng}`);
+    console.log(`[AI ROUTE] Calling Groq: true`);
 
-    // 2. CAPTURE EXACTLY ONE IMMUTABLE SNAPSHOT OF CURRENT appState AT SUBMISSION MOMENT
+    // CAPTURE EXACTLY ONE IMMUTABLE SNAPSHOT OF CURRENT appState AT SUBMISSION MOMENT
     const snapshot = getAssistantSnapshot();
 
-    // 3. SHOW TYPING INDICATOR
+    // SHOW TYPING INDICATOR
     showTypingIndicator();
 
-    // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
+    // DISPATCH TO GROQ (NO SILENT BYPASS OR DETERMINISTIC HIJACKING)
     tryGrokQuery(cleanQuery, snapshot)
       .then(grokResult => {
         removeTypingIndicator();
-        if (grokResult) {
-          // Grok succeeded — convert markdown cleanly to HTML
-          const html = formatAssistantMarkdown(grokResult);
+        const source = grokResult ? (grokResult.source || (grokResult.error ? 'groq_error' : 'unknown')) : 'unknown';
+        console.log(`[AI ROUTE] Response source: ${source}`);
+
+        if (grokResult && grokResult.source === 'grok' && grokResult.response) {
+          // Groq succeeded — convert markdown cleanly to HTML
+          const html = formatAssistantMarkdown(grokResult.response);
           appendAssistantMessage('ai', html, 'grok');
+        } else if (grokResult && (grokResult.error || grokResult.source === 'groq_error' || grokResult.source === 'missing_api_key')) {
+          // Requirement 9: If Groq returns 429/401/403/500/error, show ACTUAL error in UI
+          // Requirement 10: Keep local fallback as emergency fallback without hiding Groq failure
+          const errStatus = grokResult.status === 429 ? 'HTTP 429 (TPM Rate Limit)' : (grokResult.status ? `HTTP ${grokResult.status}` : 'API Error');
+          const errMsg = grokResult.message || 'Groq inference failure';
+          const errBanner = `<div class="ai-error-banner" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; color: #fca5a5; font-size: 0.78rem; line-height: 1.35;"><strong>Groq API Error (${escapeHtml(errStatus)}):</strong> ${escapeHtml(errMsg)}<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Displaying emergency local analysis below:</div></div>`;
+          const fallbackText = grokResult.fallback || generateLocalAnalysis(cleanQuery, snapshot);
+          const fallbackHtml = formatAssistantMarkdown(fallbackText);
+          appendAssistantMessage('ai', errBanner + fallbackHtml, 'groq_error');
+        } else if (grokResult && grokResult.response) {
+          const html = formatAssistantMarkdown(grokResult.response);
+          appendAssistantMessage('ai', html, grokResult.source || 'local');
         } else {
-          // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+          // Emergency Fallback
           const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
           const html = formatAssistantMarkdown(localResponse);
           appendAssistantMessage('ai', html, 'local');
         }
       })
-      .catch(() => {
+      .catch((err) => {
         removeTypingIndicator();
+        console.log(`[AI ROUTE] Response source: client_exception`);
+        console.error('[AI DEBUG] Groq error:', err);
+        const errMsg = err && err.message ? err.message : 'Unknown client exception';
+        const errBanner = `<div class="ai-error-banner" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; color: #fca5a5; font-size: 0.78rem; line-height: 1.35;"><strong>Groq Client Error:</strong> ${escapeHtml(errMsg)}<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Displaying emergency local analysis below:</div></div>`;
         const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
         const html = formatAssistantMarkdown(localResponse);
-        appendAssistantMessage('ai', html, 'local');
+        appendAssistantMessage('ai', errBanner + html, 'groq_error');
       })
       .finally(() => {
         removeTypingIndicator();
@@ -12132,6 +14011,8 @@ return mapboxgl$1;
   window.handleUserQuery = handleUserQuery;
 
   async function tryGrokQuery(query, snapshot) {
+    console.log('[AI DEBUG] Chat request started');
+    console.log('[AI DEBUG] Endpoint: /api/grok');
     try {
       const response = await fetch('/api/grok', {
         method: 'POST',
@@ -12141,13 +14022,56 @@ return mapboxgl$1;
           appState: snapshot || getAssistantSnapshot()
         })
       });
-      if (!response.ok) return null;
-      const data = await response.json();
-      if (data.error) return null;
-      return data.response || null;
+      console.log(`[AI ROUTE] Groq response status: ${response.status}`);
+      console.log(`[AI DEBUG] Groq response status: ${response.status}`);
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        const errorMsg = (data && (data.groqError || data.error || data.message)) || `HTTP ${response.status} ${response.statusText}`;
+        console.error(`[AI DEBUG] Groq error: ${errorMsg}`);
+        return {
+          error: true,
+          status: response.status,
+          message: errorMsg,
+          fallback: data ? (data.fallback || data.response) : null,
+          source: (data && data.source) ? data.source : 'groq_error'
+        };
+      }
+
+      if (data && data.source === 'groq_error') {
+        return {
+          error: true,
+          status: data.statusCode || 500,
+          message: data.groqError || data.error || 'Groq error occurred',
+          fallback: data.fallback || data.response,
+          source: 'groq_error'
+        };
+      }
+
+      if (data && data.source === 'grok' && data.response) {
+        return { source: 'grok', response: data.response };
+      }
+
+      if (data && data.source === 'local_fallback' && data.response) {
+        console.warn('[AI DEBUG] Groq served via local fallback');
+        return { source: 'local', response: data.response };
+      }
+
+      return (data && data.response) ? { source: 'grok', response: data.response } : null;
     } catch (err) {
-      // Network error or server not available
-      return null;
+      console.error(`[AI DEBUG] Groq network error: ${err.message}`);
+      return {
+        error: true,
+        status: 0,
+        message: err.message || 'Network error communicating with /api/grok',
+        source: 'groq_error'
+      };
     }
   }
 
@@ -12453,8 +14377,20 @@ return mapboxgl$1;
     // Add source badge for AI responses
     if (sender === 'ai' && source) {
       const badge = document.createElement('span');
-      badge.className = `ai-source-badge ${source === 'grok' ? 'badge-grok' : 'badge-local'}`;
-      badge.textContent = source === 'grok' ? '✦ GROK AI' : '⚙ LOCAL ENGINE ANALYSIS';
+      let badgeClass = 'badge-local';
+      let badgeLabel = '⚙ LOCAL ENGINE ANALYSIS';
+      if (source === 'grok') {
+        badgeClass = 'badge-grok';
+        badgeLabel = '✦ GROK AI';
+      } else if (source === 'groq_error') {
+        badgeClass = 'badge-error';
+        badgeLabel = '⚠ GROQ ERROR / LOCAL FALLBACK';
+      } else if (source === 'local') {
+        badgeClass = 'badge-local';
+        badgeLabel = '⚙ LOCAL ENGINE ANALYSIS';
+      }
+      badge.className = `ai-source-badge ${badgeClass}`;
+      badge.textContent = badgeLabel;
       bubble.appendChild(badge);
     }
 
@@ -12916,6 +14852,12 @@ return mapboxgl$1;
   function updateInspectionHud(comp) {
     if (!comp) return;
 
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'inline-flex';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = 'none';
+
     const compId = comp.componentId || comp.id || comp.type || 'piston';
     const normId = compId.replace(/_[1-4]$/, ''); // e.g. piston_1 -> piston
     const physComp = PHYSICAL_COMPONENTS.find(p => p.id === compId || p.id === normId || p.type === comp.type);
@@ -13147,6 +15089,12 @@ return mapboxgl$1;
     if (btnXray) btnXray.classList.remove('active');
     if (btnExploded) btnExploded.classList.remove('active');
 
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'none';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = '';
+
     const hud = document.getElementById('twin-inspection-hud');
     if (hud) hud.style.display = 'none';
 
@@ -13163,6 +15111,12 @@ return mapboxgl$1;
 
     const xrayBanner = document.getElementById('twin-xray-overview');
     if (xrayBanner) xrayBanner.style.display = 'none';
+
+    const syncLabel = document.getElementById('twin-sync-label');
+    if (syncLabel) syncLabel.style.display = 'none';
+
+    const backBtn = document.getElementById('btn-back-to-engine');
+    if (backBtn) backBtn.style.display = 'inline-flex';
 
     const hud = document.getElementById('twin-inspection-hud');
     if (hud) {
@@ -13201,6 +15155,7 @@ return mapboxgl$1;
   window.generateLocalAnalysis = generateLocalAnalysis;
   window.routeDeterministicIntent = routeDeterministicIntent;
   window.handleUserQuery = handleUserQuery;
+  window.renderLiveTelemetry = renderLiveTelemetry;
 
 })();
 

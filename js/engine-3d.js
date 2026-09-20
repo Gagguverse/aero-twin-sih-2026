@@ -1482,6 +1482,12 @@
     _animate(time) {
       if (!this.renderer || !this.scene || !this.camera) return;
 
+      // Pause rendering loop while Pre-UI Mission Brief is displayed to eliminate GPU/CPU lag
+      if (document.body && document.body.classList.contains('brief-active')) {
+        requestAnimationFrame(this._animate);
+        return;
+      }
+
       // Smooth Orbit Controls
       if (this.controls) {
         if (this.autoRotate) {

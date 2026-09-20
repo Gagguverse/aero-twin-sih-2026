@@ -4646,15 +4646,24 @@ body.brief-active {
       <div class="summary-card status-nominal" id="card-mission-rel">
         <div class="card-header-mini">
           <span class="card-title-mini">Mission Reliability</span>
-          <span class="card-status-badge badge-nominal" id="mission-rel-badge">GO</span>
+          <span class="card-status-badge badge-nominal" id="mission-rel-badge">NOMINAL (GO)</span>
         </div>
         <div class="card-main-val">
-          <span id="mission-rel-val">96</span>
+          <span id="mission-rel-val">97</span>
           <span class="unit">%</span>
         </div>
         <div class="card-footer-mini">
           <span id="mission-phase-label">CRUISE &bull; 02h 18m</span>
-          <span class="sec-val" id="mission-risk-val" style="font-size: 0.65rem;">DECISION SUPPORT</span>
+          <button class="btn-mini-link" id="btn-inspect-reliability" type="button" style="background:none;border:none;color:var(--accent-blue);font-size:0.68rem;cursor:pointer;text-decoration:underline;">CONTRIBUTORS &rarr;</button>
+        </div>
+        <div id="mission-rel-contributors-summary" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; border-top: 1px dashed var(--border-subtle); padding-top: 4px; font-family: var(--font-mono); display: flex; flex-direction: column; gap: 2px;">
+          <div style="display:flex; justify-content:space-between;">
+            <span>Risk Level:</span>
+            <strong id="mission-risk-val" style="color: var(--status-nominal);">NOMINAL</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; color: var(--text-secondary); font-size: 0.62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span id="mission-rel-contributors-preview">EHI: -1 | Anom: -1 | Trust: 0 | Fault: 0 | MAP: 0</span>
+          </div>
         </div>
       </div>
     </section>
@@ -5373,6 +5382,47 @@ body.brief-active {
         <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid var(--accent-blue-border); padding: 10px 12px; border-radius: var(--radius-sm); margin-top: 12px; font-size: 0.72rem;">
           <strong style="color: var(--accent-blue);">Sensor Trust Shielding Rule:</strong>
           <span>If a sensor is quarantined (e.g. frozen oil pressure transducer), its unphysical penalty is completely shielded from EHI. <strong>BAD SENSOR &ne; BAD ENGINE</strong>.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       MODAL 3B: MISSION RELIABILITY BREAKDOWN (OPERATING-CONDITION AWARE)
+       ====================================================================== -->
+  <div class="modal-backdrop" id="modal-reliability-breakdown" role="dialog" aria-modal="true" aria-labelledby="modal-rel-title">
+    <div class="modal-dialog" style="max-width: 620px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-rel-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Mission Reliability &mdash; Operating-Condition Aware Contributor Breakdown
+        </h3>
+        <button class="btn-modal-close" id="btn-close-reliability" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-0); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 12px;">
+          <div>
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">Mission Reliability</span>
+            <div style="font-size: 1.6rem; font-weight: 700; font-family: var(--font-mono); color: var(--status-nominal);" id="modal-rel-score-val">97%</div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">Risk Level</span>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--status-nominal);" id="modal-rel-risk-val">NOMINAL</div>
+            <span class="card-status-badge badge-nominal" id="modal-rel-status-val" style="font-size: 0.65rem;">NOMINAL (GO)</span>
+          </div>
+        </div>
+
+        <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 10px;">
+          Mission Reliability starts from a <strong>100% Base Score</strong>. Penalties reflect genuine operational risks: telemetry outside operating envelope, sustained abnormal residuals, confirmed mechanical faults, sensor distrust, or critical degradation.
+        </p>
+
+        <div id="reliability-breakdown-details" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Populated dynamically via app.js -->
+        </div>
+
+        <div style="margin-top: 14px;">
+          <span style="font-size: 0.70rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">Deterministic Diagnostic Telemetry Grounding (Debug Field):</span>
+          <pre id="reliability-debug-pre" style="background: var(--surface-0); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-primary); margin-top: 4px; line-height: 1.45; white-space: pre-wrap;"></pre>
         </div>
       </div>
     </div>
@@ -6560,8 +6610,29 @@ class AeroPhysicsModel {
     else if (missionPhase === 'takeoff') expectedRpm = 5400;
 
     // 2. Expected Manifold Absolute Pressure (MAP, inHg)
-    const boostFactor = 19.0 * normThrottle * Math.min(1.15, Math.max(0.7, Math.sqrt(densityRatio)));
-    const expectedMap = Number((ambientPress + boostFactor).toFixed(1));
+    // Turbocharged aero piston engine with automatic density/wastegate regulation
+    // Up to critical altitude (~28,000 ft MSL), wastegate maintains throttle-demanded manifold pressure
+    const criticalAltitude = 28000;
+    const maxBoostInHg = 28.0; // Max compressor boost capability
+    let targetRegulatedMap;
+    if (missionPhase === 'takeoff') {
+      targetRegulatedMap = 39.2;
+    } else if (missionPhase === 'idle') {
+      targetRegulatedMap = 15.5;
+    } else if (missionPhase === 'loiter') {
+      targetRegulatedMap = 25.5;
+    } else {
+      // Cruise / Climb: nominal cruise at 72% throttle is ~28.5 inHg
+      targetRegulatedMap = 14.0 + (normThrottle * 20.14);
+    }
+
+    let expectedMap;
+    const requiredBoost = targetRegulatedMap - ambientPress;
+    if (altitude <= criticalAltitude && requiredBoost <= maxBoostInHg) {
+      expectedMap = Number(targetRegulatedMap.toFixed(1));
+    } else {
+      expectedMap = Number((ambientPress + (maxBoostInHg * normThrottle)).toFixed(1));
+    }
 
     // 3. Expected Fuel Flow (L/hr)
     const normRpm = expectedRpm / 5000;
@@ -6610,6 +6681,54 @@ class AeroPhysicsModel {
         oilPress: expectedOilPress,
         load
       }
+    };
+  }
+
+  /**
+   * Evaluates expected operating envelope for MAP based on
+   * altitude, mission phase, engine load, throttle, and turbo operating state.
+   */
+  getMapOperatingEnvelope(conditions = {}) {
+    const altitude = typeof conditions.altitude === 'number' ? conditions.altitude : 18000;
+    const throttle = typeof conditions.throttle === 'number' ? conditions.throttle : 0.72;
+    const missionPhase = (conditions.missionPhase || 'cruise').toLowerCase();
+    const load = typeof conditions.load === 'number' ? conditions.load : Math.round(throttle * 100);
+
+    let nominalMin, nominalMax, warnMin, warnMax;
+
+    if (missionPhase === 'takeoff' || throttle >= 0.88) {
+      nominalMin = 34.0;
+      nominalMax = 41.5;
+      warnMin = 31.0;
+      warnMax = 43.5;
+    } else if (missionPhase === 'idle' || throttle <= 0.35) {
+      nominalMin = 13.0;
+      nominalMax = 20.0;
+      warnMin = 11.0;
+      warnMax = 23.0;
+    } else if (missionPhase === 'loiter' || (throttle >= 0.45 && throttle <= 0.60)) {
+      nominalMin = 22.0;
+      nominalMax = 28.5;
+      warnMin = 19.0;
+      warnMax = 31.5;
+    } else {
+      // Cruise / General flight at 60-85% throttle:
+      // Valid turbocharged operating envelope: 25.0 to 33.5 inHg
+      nominalMin = 25.0;
+      nominalMax = 33.5;
+      warnMin = 22.0;
+      warnMax = 36.5;
+    }
+
+    return {
+      nominalMin,
+      nominalMax,
+      warnMin,
+      warnMax,
+      phase: missionPhase,
+      altitude,
+      throttle,
+      load
     };
   }
 
@@ -6668,10 +6787,33 @@ class AeroPhysicsModel {
       load: Number((residuals.load / this.nominalRanges.load.range).toFixed(3))
     };
 
+    // Operating-condition aware MAP envelope evaluation
+    const envelope = this.getMapOperatingEnvelope({
+      altitude: (expectedState.operatingConditions && expectedState.operatingConditions.altitude) !== undefined
+        ? expectedState.operatingConditions.altitude
+        : rawTelemetry.altitude,
+      throttle: (expectedState.operatingConditions && expectedState.operatingConditions.throttle) !== undefined
+        ? expectedState.operatingConditions.throttle
+        : rawTelemetry.throttle,
+      missionPhase: (expectedState.operatingConditions && expectedState.operatingConditions.missionPhase)
+        || rawTelemetry.missionPhase,
+      load: actualLoad
+    });
+
+    let mapStatus = 'NORMAL';
+    if (actualMap >= envelope.nominalMin && actualMap <= envelope.nominalMax) {
+      // Legitimate reading within operating envelope -> NORMAL
+      mapStatus = 'NORMAL';
+    } else if (actualMap >= envelope.warnMin && actualMap <= envelope.warnMax) {
+      mapStatus = actualMap > envelope.nominalMax ? 'ELEVATED' : 'LOW';
+    } else {
+      mapStatus = 'CRITICAL';
+    }
+
     // Semantic Status Classifier: 'NORMAL' | 'ELEVATED' | 'LOW' | 'CRITICAL'
     const status = {
       rpm: this._classifyStatus(residuals.rpm, this.nominalRanges.rpm),
-      map: this._classifyStatus(residuals.map, this.nominalRanges.map),
+      map: mapStatus,
       fuelFlow: this._classifyStatus(residuals.fuelFlow, this.nominalRanges.fuelFlow),
       cht: this._classifyStatus(residuals.cht, this.nominalRanges.cht),
       egt: this._classifyStatus(residuals.egt, this.nominalRanges.egt),
@@ -6742,7 +6884,8 @@ class AeroPhysicsModel {
         actual: `${actualMap.toFixed(1)} inHg`,
         residual: `${residuals.map >= 0 ? '+' : ''}${residuals.map.toFixed(1)} inHg`,
         status: status.map,
-        isQuarantined: false
+        isQuarantined: false,
+        envelope: envelope
       }
     ];
 
@@ -6751,7 +6894,8 @@ class AeroPhysicsModel {
       normalizedResiduals: norm,
       status,
       tableRows,
-      isShielded: isOilQuarantined
+      isShielded: isOilQuarantined,
+      mapEnvelope: envelope
     };
   }
 
@@ -8719,9 +8863,11 @@ class AIDiagnosticNet {
    * @param {Object} rawState - Raw telemetry from engine simulator
    * @param {Object} trustResult - Output of SensorTrustEngine (scores, quarantined, trustedState, reasons)
    * @param {Object} expected - Physics-expected baseline
+   * @param {Object} expected - Physics-expected baseline
+   * @param {Object} [physicsResult] - Output of AeroPhysicsModel.computeResiduals
    * @returns {Object} Diagnostic evaluation result
    */
-  evaluate(rawState, trustResult, expected = {}) {
+  evaluate(rawState, trustResult, expected = {}, physicsResult = null) {
     const trusted = trustResult.trustedState || rawState;
     const scores = trustResult.scores || {};
     const quarantined = trustResult.quarantined || [];
@@ -8916,7 +9062,9 @@ class AIDiagnosticNet {
       trustResult,
       this.faultClass,
       this.anomalyScore,
-      rawState
+      rawState,
+      expected,
+      physicsResult
     );
 
     // 8. Deterministic Maintenance Advisory (P2 Decision Support)
@@ -9020,84 +9168,229 @@ class AIDiagnosticNet {
   }
 
   /**
-   * Deterministic Mission Reliability Calculation (SIH26054 Core Decision Support)
-   * Formula:
-   * - EHI Contribution (50% max)
-   * - RUL vs Mission Duration Margin (25% max)
-   * - Sensor Trust Confidence (15% max)
-   * - Anomaly / Fault Severity Penalty (up to -35% deduction)
+   * Operating-Condition Aware Mission Reliability Calculation (SIH26054 Core Decision Support)
+   * Evaluates genuine operational risk starting from a 100% baseline:
+   * - EHI Penalty (0 to -1 pt for nominal 96-100; scaled if degraded)
+   * - Statistical Anomaly Penalty (0 to -1 pt for baseline Gaussian variance)
+   * - Sensor Trust Penalty (0 for trusted instrumentation; -4 to -6 pts for quarantined sensor)
+   * - Confirmed Fault Penalty (0 for HEALTHY & SENSOR_FAULT; -28 for THERMAL, -52 for LUBRICATION)
+   * - MAP Operating Envelope Penalty (0 when MAP is within valid turbo envelope for current altitude/load)
+   * - RUL Margin Penalty (0 when reserve RUL is abundant)
    */
-  _computeMissionReliability(ehi, degradationPct, rulHours, trustResult, faultClass, anomalyScore, rawState) {
+  _computeMissionReliability(ehi, degradationPct, rulHours, trustResult = {}, faultClass = 'HEALTHY', anomalyScore = 0.04, rawState = {}, expected = {}, physicsResult = null) {
+    const baseScore = 100;
     const phase = (rawState.missionPhase || 'cruise').toUpperCase();
-    const enduranceHrs = rawState.enduranceHrs || 6.2;
-    const remainingMissionDuration = '02h 18m';
+    const remainingMissionDuration = rawState.remainingMissionDuration || '02h 18m';
     const reqMissionHours = 2.3;
+    const overallTrust = (trustResult && trustResult.overallTrust !== undefined) ? trustResult.overallTrust : 1.0;
+    const quarantined = (trustResult && trustResult.quarantined) || [];
+    const actualMap = typeof rawState.map === 'number' ? rawState.map : 28.5;
+    const altitude = typeof rawState.altitude === 'number' ? rawState.altitude : 18000;
+    const throttle = typeof rawState.throttle === 'number' ? rawState.throttle : 0.72;
 
-    // 1. EHI Component (0 - 50 pts)
-    const ehiContrib = (ehi / 100) * 50;
-
-    // 2. RUL Safety Margin (0 - 25 pts)
-    let rulMarginPts = 0;
-    if (rulHours >= reqMissionHours * 10) {
-      rulMarginPts = 25; // Abundant RUL
-    } else if (rulHours >= reqMissionHours * 3) {
-      rulMarginPts = 18;
-    } else if (rulHours >= reqMissionHours) {
-      rulMarginPts = 10;
+    // 1. EHI Penalty: Base EHI = 96-100 gives 0 to 1 pt nominal deduction
+    let ehiPenalty = 0;
+    let ehiReason = `EHI nominal (${Math.round(ehi)}/100)`;
+    if (ehi >= 95) {
+      ehiPenalty = Math.max(0, Math.round((100 - ehi) * 0.25));
+      if (ehiPenalty > 0) {
+        ehiReason = `EHI nominal minor variance (${Math.round(ehi)}/100, -${ehiPenalty} pt)`;
+      } else {
+        ehiReason = `EHI pristine (${Math.round(ehi)}/100)`;
+      }
+    } else if (ehi >= 85) {
+      ehiPenalty = 2 + Math.round((95 - ehi) * 0.6);
+      ehiReason = `Moderate EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
+    } else if (ehi >= 70) {
+      ehiPenalty = 8 + Math.round((85 - ehi) * 0.9);
+      ehiReason = `Substantial EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
     } else {
-      rulMarginPts = 0; // RUL exhausted before mission completion!
+      ehiPenalty = 22 + Math.round((70 - ehi) * 1.1);
+      ehiReason = `Critical EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
+    }
+    ehiPenalty = Math.min(45, Math.max(0, ehiPenalty));
+
+    // 2. Statistical Anomaly Penalty
+    let anomalyPenalty = 0;
+    let anomalyReason = `No statistical anomalies (Score: ${anomalyScore.toFixed(2)})`;
+    if (anomalyScore <= 0.12) {
+      anomalyPenalty = 0;
+      anomalyReason = `Nominal Gaussian envelope (Score: ${anomalyScore.toFixed(2)})`;
+    } else if (anomalyScore <= 0.35) {
+      // Normal background variance: -1 pt (matches user's specified example: Anomaly: -1)
+      anomalyPenalty = 1;
+      anomalyReason = `Minor background variance (Score: ${anomalyScore.toFixed(2)}, -1 pt)`;
+    } else if (anomalyScore <= 0.55) {
+      anomalyPenalty = 4;
+      anomalyReason = `Elevated statistical residual (Score: ${anomalyScore.toFixed(2)}, -4 pts)`;
+    } else if (anomalyScore <= 0.75) {
+      anomalyPenalty = 9;
+      anomalyReason = `Significant multi-sensor anomaly (Score: ${anomalyScore.toFixed(2)}, -9 pts)`;
+    } else {
+      anomalyPenalty = Math.min(18, Math.round(9 + (anomalyScore - 0.75) * 30));
+      anomalyReason = `Severe out-of-distribution anomaly (Score: ${anomalyScore.toFixed(2)}, -${anomalyPenalty} pts)`;
     }
 
-    // 3. Sensor Trust Component (0 - 15 pts)
-    const overallTrust = trustResult.overallTrust !== undefined ? trustResult.overallTrust : 1.0;
-    const sensorTrustPts = overallTrust * 15;
+    // 3. Sensor Trust Penalty
+    // Core SIH principle: Sensor freeze/fault reduces instrument confidence,
+    // but MUST NOT be penalized as engine failure!
+    let sensorTrustPenalty = 0;
+    let sensorTrustReason = `All sensors trusted (Index: ${overallTrust.toFixed(2)})`;
+    if (quarantined.length === 0 && overallTrust >= 0.94) {
+      sensorTrustPenalty = 0;
+      sensorTrustReason = `All sensors fully trusted (Index: ${overallTrust.toFixed(2)})`;
+    } else if (quarantined.length > 0 || overallTrust < 0.94) {
+      sensorTrustPenalty = Math.min(12, Math.max(3, Math.round((1.0 - overallTrust) * 20) + quarantined.length * 2));
+      sensorTrustReason = `Instrumentation uncertainty (${quarantined.length} sensor quarantined, trust ${overallTrust.toFixed(2)}, -${sensorTrustPenalty} pts)`;
+    }
 
-    // 4. Fault & Anomaly Risk Deduction
-    let riskDeduction = 0;
-    let riskLabel = 'NONE';
-
-    if (faultClass === 'HEALTHY') {
-      riskDeduction = anomalyScore * 8;
-      riskLabel = 'NOMINAL PROPULSION';
+    // 4. Confirmed Fault Penalty
+    let confirmedFaultPenalty = 0;
+    let confirmedFaultReason = `No confirmed propulsion faults`;
+    if (faultClass === 'HEALTHY' || !faultClass) {
+      confirmedFaultPenalty = 0;
+      confirmedFaultReason = `Propulsion system mechanically nominal`;
     } else if (faultClass === 'SENSOR_FAULT') {
-      // Sensor fault carries instrument uncertainty but does NOT mean engine failure!
-      riskDeduction = 8;
-      riskLabel = 'SENSOR UNCERTAINTY (ENGINE HEALTH PROTECTED)';
+      // Sensor fault carries ZERO mechanical fault penalty (engine health protected!)
+      confirmedFaultPenalty = 0;
+      confirmedFaultReason = `Sensor fault isolated — engine mechanical health protected`;
     } else if (faultClass === 'THERMAL_DEGRADATION') {
-      riskDeduction = 38;
-      riskLabel = 'HIGH THERMAL RISK (OVERHEAT / MISSION ABORT)';
+      confirmedFaultPenalty = 28;
+      confirmedFaultReason = `Cylinder head & exhaust thermal runaway confirmed (-28 pts)`;
     } else if (faultClass === 'LUBRICATION_DEGRADATION') {
-      riskDeduction = 65;
-      riskLabel = 'CRITICAL BEARING WEAR (IMMEDIATE DIVERT)';
+      confirmedFaultPenalty = 52;
+      confirmedFaultReason = `Critical hydrodynamic lubrication failure / bearing distress (-52 pts)`;
     } else if (faultClass === 'RPM_INSTABILITY') {
-      riskDeduction = 25;
-      riskLabel = 'GOVERNOR SURGE (PROPULSION INSTABILITY)';
+      confirmedFaultPenalty = 16;
+      confirmedFaultReason = `Propulsion governor hunting & speed oscillation (-16 pts)`;
     }
 
-    const rawScore = Math.max(12, Math.min(99, ehiContrib + rulMarginPts + sensorTrustPts - riskDeduction));
-    const score = Math.round(rawScore);
+    // 5. Operating-Condition Aware MAP Envelope Penalty
+    let mapEnvelopePenalty = 0;
+    let mapReason = `MAP within turbocharger operating envelope (${actualMap.toFixed(1)} inHg)`;
 
-    let status = 'GO';
-    if (score >= 85) status = 'NOMINAL (GO)';
-    else if (score >= 70) status = 'ADVISORY (CAUTION)';
-    else if (score >= 50) status = 'WARNING (DERATE)';
-    else status = 'CRITICAL (ABORT / DIVERT)';
+    let mapNomMin = 25.0, mapNomMax = 33.5, mapWarnMin = 22.0, mapWarnMax = 36.5;
+    if (physicsResult && physicsResult.mapEnvelope) {
+      mapNomMin = physicsResult.mapEnvelope.nominalMin;
+      mapNomMax = physicsResult.mapEnvelope.nominalMax;
+      mapWarnMin = physicsResult.mapEnvelope.warnMin;
+      mapWarnMax = physicsResult.mapEnvelope.warnMax;
+    } else if (phase === 'TAKEOFF' || throttle >= 0.88) {
+      mapNomMin = 34.0; mapNomMax = 41.5; mapWarnMin = 31.0; mapWarnMax = 43.5;
+    } else if (phase === 'IDLE' || throttle <= 0.35) {
+      mapNomMin = 13.0; mapNomMax = 20.0; mapWarnMin = 11.0; mapWarnMax = 23.0;
+    } else if (phase === 'LOITER') {
+      mapNomMin = 22.0; mapNomMax = 28.5; mapWarnMin = 19.0; mapWarnMax = 31.5;
+    }
 
-    const reasons = [
-      `EHI base contribution: ${ehiContrib.toFixed(1)} / 50 pts (EHI: ${Math.round(ehi)}/100)`,
-      `RUL safety margin: ${rulMarginPts} / 25 pts (Est. RUL ${rulHours}h vs mission req ${reqMissionHours}h)`,
-      `Instrumentation trust: ${sensorTrustPts.toFixed(1)} / 15 pts (Sensor Trust Index: ${overallTrust.toFixed(2)})`,
-      `Active operational risk: ${riskLabel}`
+    // Evaluate actual MAP against operating envelope
+    if (actualMap >= mapNomMin && actualMap <= mapNomMax) {
+      mapEnvelopePenalty = 0;
+      mapReason = `MAP within turbo operating envelope (${actualMap.toFixed(1)} inHg [${mapNomMin}-${mapNomMax}])`;
+    } else if (actualMap >= mapWarnMin && actualMap <= mapWarnMax) {
+      mapEnvelopePenalty = 6;
+      mapReason = `MAP moderately outside turbo envelope (${actualMap.toFixed(1)} inHg, -6 pts)`;
+    } else {
+      mapEnvelopePenalty = 18;
+      mapReason = `MAP critically outside turbo envelope (${actualMap.toFixed(1)} inHg, -18 pts)`;
+    }
+
+    // 6. Prognostics & RUL Margin Penalty
+    let rulPenalty = 0;
+    let rulReason = `RUL margin abundant (${Math.round(rulHours)}h vs ${reqMissionHours}h req)`;
+    if (rulHours < reqMissionHours) {
+      rulPenalty = 25;
+      rulReason = `RUL depleted below mission requirement (${Math.round(rulHours)}h < ${reqMissionHours}h, -25 pts)`;
+    } else if (rulHours < reqMissionHours * 3) {
+      rulPenalty = 8;
+      rulReason = `Low RUL reserve margin (${Math.round(rulHours)}h, -8 pts)`;
+    } else if (rulHours < 25) {
+      rulPenalty = 2;
+      rulReason = `Moderate RUL reserve margin (${Math.round(rulHours)}h, -2 pts)`;
+    }
+
+    // Total Penalties
+    const totalDeductions = ehiPenalty + anomalyPenalty + sensorTrustPenalty + confirmedFaultPenalty + mapEnvelopePenalty + rulPenalty;
+    const finalScore = Math.max(10, Math.min(99, Math.round(baseScore - totalDeductions)));
+
+    let status = 'NOMINAL (GO)';
+    let riskLevel = 'NOMINAL';
+    if (finalScore >= 88) {
+      status = 'NOMINAL (GO)';
+      riskLevel = 'NOMINAL';
+    } else if (finalScore >= 75) {
+      status = 'ADVISORY (CAUTION)';
+      riskLevel = 'ADVISORY';
+    } else if (finalScore >= 50) {
+      status = 'WARNING (DERATE)';
+      riskLevel = 'ELEVATED RISK';
+    } else {
+      status = 'CRITICAL (ABORT / DIVERT)';
+      riskLevel = 'CRITICAL RISK';
+    }
+
+    // Contributors Breakdown (explicit debug structure)
+    const contributors = {
+      baseScore,
+      penalties: {
+        ehi: -ehiPenalty,
+        anomaly: -anomalyPenalty,
+        sensorTrust: -sensorTrustPenalty,
+        confirmedFault: -confirmedFaultPenalty,
+        mapEnvelope: -mapEnvelopePenalty,
+        rul: -rulPenalty
+      },
+      reasons: {
+        ehi: ehiReason,
+        anomaly: anomalyReason,
+        sensorTrust: sensorTrustReason,
+        confirmedFault: confirmedFaultReason,
+        mapEnvelope: mapReason,
+        rul: rulReason
+      },
+      totalDeductions: -totalDeductions,
+      finalScore,
+      riskLevel
+    };
+
+    const contributorItems = [
+      { key: 'ehi', label: 'EHI', penalty: -ehiPenalty, reason: ehiReason },
+      { key: 'anomaly', label: 'Anomaly', penalty: -anomalyPenalty, reason: anomalyReason },
+      { key: 'sensorTrust', label: 'Sensor Trust', penalty: -sensorTrustPenalty, reason: sensorTrustReason },
+      { key: 'confirmedFault', label: 'Confirmed Fault', penalty: -confirmedFaultPenalty, reason: confirmedFaultReason },
+      { key: 'mapEnvelope', label: 'MAP envelope', penalty: -mapEnvelopePenalty, reason: mapReason }
+    ];
+
+    if (rulPenalty > 0) {
+      contributorItems.push({ key: 'rul', label: 'RUL margin', penalty: -rulPenalty, reason: rulReason });
+    }
+
+    const debugText = `Mission Reliability: ${finalScore}%\nRisk Level: ${riskLevel}\n\nContributors:\nEHI: ${-ehiPenalty}\nAnomaly: ${-anomalyPenalty}\nSensor Trust: ${-sensorTrustPenalty}\nConfirmed Fault: ${-confirmedFaultPenalty}\nMAP envelope: ${-mapEnvelopePenalty}${rulPenalty > 0 ? `\nRUL margin: ${-rulPenalty}` : ''}`;
+
+    const reasonsList = [
+      `Base Reliability: 100% | Final: ${finalScore}% (${status})`,
+      `EHI: ${-ehiPenalty} pts (${ehiReason})`,
+      `Anomaly: ${-anomalyPenalty} pts (${anomalyReason})`,
+      `Sensor Trust: ${-sensorTrustPenalty} pts (${sensorTrustReason})`,
+      `Confirmed Fault: ${-confirmedFaultPenalty} pts (${confirmedFaultReason})`,
+      `MAP Envelope: ${-mapEnvelopePenalty} pts (${mapReason})`
     ];
 
     return {
-      score,
+      score: finalScore,
       status,
-      risk: riskLabel,
+      risk: riskLevel,
+      riskLevel,
       phase,
+      currentPhase: phase,
       remainingMissionDuration,
-      label: 'Mission Reliability Score — Decision Support',
-      reasons
+      label: 'Mission Reliability Score — Operating-Condition Aware',
+      baseScore,
+      totalDeductions,
+      contributors,
+      contributorItems,
+      debugText,
+      reasons: reasonsList
     };
   }
 
@@ -11824,7 +12117,7 @@ return mapboxgl$1;
       : null;
 
     // 3. REAL AI / ML DIAGNOSTIC & PROGNOSTIC EVALUATION
-    const diagnosticResult = aiDiagnosticNet.evaluate(rawState, trustResult, expected);
+    const diagnosticResult = aiDiagnosticNet.evaluate(rawState, trustResult, expected, physicsResult);
 
     // 4. UPDATE CENTRAL APP STATE
     syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult);
@@ -11867,6 +12160,7 @@ return mapboxgl$1;
       status: physicsResult.status,
       tableRows: physicsResult.tableRows,
       isShielded: physicsResult.isShielded,
+      mapEnvelope: physicsResult.mapEnvelope,
       operatingConditions: rawState.operatingConditions || {
         altitude: rawState.altitude || 18000,
         throttle: rawState.throttle || 0.72,
@@ -11877,8 +12171,8 @@ return mapboxgl$1;
 
     // 2. Mission Reliability (P0 SIH26054 Core Capability)
     s.missionReliability = diagnosticResult.missionReliability || {
-      score: 96,
-      status: 'GO',
+      score: 97,
+      status: 'NOMINAL (GO)',
       reasons: ['All propulsion parameters nominal'],
       currentPhase: (rawState.missionPhase || 'cruise').toUpperCase(),
       remainingMissionDuration: '02h 18m'
@@ -12123,20 +12417,29 @@ return mapboxgl$1;
     const relRisk = document.getElementById('mission-risk-val');
 
     if (s.missionReliability) {
-      if (relVal) relVal.textContent = s.missionReliability.score;
+      const relScore = s.missionReliability.score;
+      if (relVal) relVal.textContent = relScore;
+      const badgeType = relScore >= 88 ? 'nominal' : (relScore >= 75 ? 'warning' : 'critical');
       if (relBadge) {
         relBadge.textContent = s.missionReliability.status;
-        relBadge.className = `card-status-badge badge-${s.missionReliability.status.toLowerCase()}`;
+        relBadge.className = `card-status-badge badge-${badgeType}`;
       }
       if (relPhase) {
         relPhase.textContent = `${s.missionReliability.currentPhase || s.missionPhase} • ${s.missionReliability.remainingMissionDuration || '02h 18m'}`;
       }
-      if (relRisk && s.missionReliability.reasons && s.missionReliability.reasons.length > 0) {
-        relRisk.textContent = s.missionReliability.reasons[0].toUpperCase();
+      if (relRisk) {
+        relRisk.textContent = s.missionReliability.riskLevel || s.missionReliability.risk || 'NOMINAL';
+        relRisk.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
       }
       if (cardRel) {
-        const cStatus = s.missionReliability.status === 'GO' ? 'status-nominal' : (s.missionReliability.status === 'DEGRADED' ? 'status-warning' : 'status-critical');
-        cardRel.className = `summary-card ${cStatus}`;
+        cardRel.className = `summary-card status-${badgeType}`;
+      }
+
+      // Render on-card contributors preview
+      const contribPreview = document.getElementById('mission-rel-contributors-preview');
+      if (contribPreview && s.missionReliability.contributors && s.missionReliability.contributors.penalties) {
+        const p = s.missionReliability.contributors.penalties;
+        contribPreview.textContent = `EHI: ${p.ehi} | Anom: ${p.anomaly} | Trust: ${p.sensorTrust} | Fault: ${p.confirmedFault} | MAP: ${p.mapEnvelope}`;
       }
     }
 
@@ -12317,17 +12620,29 @@ return mapboxgl$1;
       hardCritHigh: 45.0
     });
 
-    // MAP: Expected ~24–28 inHg in cruise, ~35–38 in takeoff
-    // Tolerances from AeroPhysicsModel: warn: 3.5 inHg, crit: 6.0 inHg
-    const expectedMap = exp.map !== undefined ? exp.map : 26.5;
-    const mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
-      hardWarnHigh: 38.0,
-      hardCritHigh: 42.0
-    });
+    // MAP: Operating-Condition Aware Turbocharged Envelope Evaluation
+    const actualLoad = raw.load !== undefined ? raw.load : 72;
+    const mapEnvelope = (physics && physics.mapEnvelope)
+      ? physics.mapEnvelope
+      : (physicsModel ? physicsModel.getMapOperatingEnvelope({ altitude: raw.altitude, throttle: raw.throttle, missionPhase: raw.missionPhase, load: actualLoad }) : null);
+
+    let mapCond;
+    if (mapEnvelope && raw.map >= mapEnvelope.nominalMin && raw.map <= mapEnvelope.nominalMax) {
+      mapCond = { status: 'Normal', trend: 'Normal' };
+    } else if (mapEnvelope && raw.map >= mapEnvelope.warnMin && raw.map <= mapEnvelope.warnMax) {
+      mapCond = { status: 'Warning', trend: raw.map > mapEnvelope.nominalMax ? '↑ High' : '↓ Low' };
+    } else if (mapEnvelope) {
+      mapCond = { status: 'Critical', trend: raw.map > mapEnvelope.warnMax ? '↑ High' : '↓ Low' };
+    } else {
+      const expectedMap = exp.map !== undefined ? exp.map : 28.5;
+      mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
+        hardWarnHigh: 38.0,
+        hardCritHigh: 42.0
+      });
+    }
 
     // Engine Load: Expected matches current throttle demand (~72% in cruise, 100% in takeoff)
     // Tolerances from AeroPhysicsModel: warn: 14%, crit: 22%
-    const actualLoad = raw.load !== undefined ? raw.load : 72;
     const expectedLoad = exp.load !== undefined ? exp.load : 72;
     const loadCond = evalCondition(actualLoad, expectedLoad, 14, 22, {
       hardWarnHigh: 96,
@@ -13258,6 +13573,12 @@ return mapboxgl$1;
       }
     };
 
+    window.enterMissionControl = function () {
+      if (enterMissionBtn) {
+        enterMissionBtn.click();
+      }
+    };
+
     // Scenario Buttons
     document.querySelectorAll('.btn-scenario').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -13428,6 +13749,21 @@ return mapboxgl$1;
     }
     if (btnCloseEhi && modalEhi) {
       btnCloseEhi.addEventListener('click', () => modalEhi.classList.remove('open'));
+    }
+
+    // Modal: Mission Reliability Contributor Breakdown (Operating-Condition Aware)
+    const btnInspectRel = document.getElementById('btn-inspect-reliability');
+    const modalRel = document.getElementById('modal-reliability-breakdown');
+    const btnCloseRel = document.getElementById('btn-close-reliability');
+
+    if (btnInspectRel && modalRel) {
+      btnInspectRel.addEventListener('click', () => {
+        renderModalReliabilityBreakdown();
+        modalRel.classList.add('open');
+      });
+    }
+    if (btnCloseRel && modalRel) {
+      btnCloseRel.addEventListener('click', () => modalRel.classList.remove('open'));
     }
 
     // Modal: ML Validation Report (P2)
@@ -13603,6 +13939,79 @@ return mapboxgl$1;
         <strong style="font-size: 1.1rem; color: ${s.ehiStatus === 'NOMINAL' ? 'var(--status-nominal)' : (s.ehiStatus === 'WARNING' ? 'var(--status-warning)' : 'var(--status-critical)')}; font-family: var(--font-mono);">${Math.round(s.ehi)} / 100 (${s.ehiStatus})</strong>
       </div>
     `;
+  }
+
+  function renderModalReliabilityBreakdown() {
+    const container = document.getElementById('reliability-breakdown-details');
+    const debugPre = document.getElementById('reliability-debug-pre');
+    const scoreVal = document.getElementById('modal-rel-score-val');
+    const statusVal = document.getElementById('modal-rel-status-val');
+    const riskVal = document.getElementById('modal-rel-risk-val');
+    if (!container) return;
+    const s = window.appState;
+    const rel = s.missionReliability || {};
+    const score = rel.score !== undefined ? rel.score : 97;
+    const risk = rel.riskLevel || rel.risk || 'NOMINAL';
+    const status = rel.status || 'NOMINAL (GO)';
+
+    const badgeType = score >= 88 ? 'nominal' : (score >= 75 ? 'warning' : 'critical');
+    if (scoreVal) {
+      scoreVal.textContent = `${score}%`;
+      scoreVal.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
+    }
+    if (statusVal) {
+      statusVal.textContent = status;
+      statusVal.className = `card-status-badge badge-${badgeType}`;
+    }
+    if (riskVal) {
+      riskVal.textContent = risk;
+      riskVal.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
+    }
+
+    const contribs = rel.contributors || {
+      baseScore: 100,
+      penalties: { ehi: -1, anomaly: -1, sensorTrust: 0, confirmedFault: 0, mapEnvelope: 0, rul: 0 },
+      reasons: {}
+    };
+
+    const p = contribs.penalties || {};
+    const r = contribs.reasons || {};
+
+    const items = [
+      { name: 'Reliability Base Score', val: '100%', penalty: 0, reason: 'Theoretical nominal propulsion baseline under equilibrium', isBase: true },
+      { name: 'Engine Health Index (EHI)', val: `${p.ehi !== undefined ? p.ehi : 0} pts`, penalty: p.ehi || 0, reason: r.ehi || `EHI evaluated at ${Math.round(s.ehi || 96)}/100` },
+      { name: 'Statistical Anomaly Score', val: `${p.anomaly !== undefined ? p.anomaly : 0} pts`, penalty: p.anomaly || 0, reason: r.anomaly || `Isolation Forest anomaly score ${s.anomalyScore?.toFixed(2) || '0.18'}` },
+      { name: 'Sensor Trust Confidence', val: `${p.sensorTrust !== undefined ? p.sensorTrust : 0} pts`, penalty: p.sensorTrust || 0, reason: r.sensorTrust || 'All sensor telemetry streams trusted' },
+      { name: 'Confirmed Mechanical Fault', val: `${p.confirmedFault !== undefined ? p.confirmedFault : 0} pts`, penalty: p.confirmedFault || 0, reason: r.confirmedFault || 'No confirmed propulsion faults' },
+      { name: 'MAP Operating Envelope', val: `${p.mapEnvelope !== undefined ? p.mapEnvelope : 0} pts`, penalty: p.mapEnvelope || 0, reason: r.mapEnvelope || 'MAP within turbocharger operating envelope' }
+    ];
+
+    if (p.rul && p.rul < 0) {
+      items.push({ name: 'RUL Reserve Margin', val: `${p.rul} pts`, penalty: p.rul, reason: r.rul || 'RUL margin reserve' });
+    }
+
+    container.innerHTML = items.map(item => {
+      const isBase = !!item.isBase;
+      const color = isBase ? 'var(--status-nominal)' : (item.penalty < 0 ? 'var(--status-critical)' : 'var(--status-nominal)');
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; background: var(--surface-0); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+          <div>
+            <strong style="color: var(--text-primary); font-size: 0.78rem;">${item.name}</strong>
+            <div style="font-size: 0.68rem; color: var(--text-secondary); line-height: 1.25; margin-top: 1px;">${item.reason}</div>
+          </div>
+          <span style="font-family: var(--font-mono); font-weight: 700; color: ${color}; font-size: 0.85rem; margin-left: 12px; white-space: nowrap;">${item.val}</span>
+        </div>
+      `;
+    }).join('') + `
+      <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); margin-top: 4px; border: 1px solid var(--border-subtle);">
+        <span style="font-weight: 700; color: var(--text-primary);">Evaluated Mission Reliability</span>
+        <strong style="font-size: 1.1rem; color: ${scoreVal ? scoreVal.style.color : 'var(--status-nominal)'}; font-family: var(--font-mono);">${score}% &bull; ${risk}</strong>
+      </div>
+    `;
+
+    if (debugPre) {
+      debugPre.textContent = rel.debugText || `Mission Reliability: ${score}%\nRisk Level: ${risk}\n\nContributors:\nEHI: ${p.ehi !== undefined ? p.ehi : -1}\nAnomaly: ${p.anomaly !== undefined ? p.anomaly : -1}\nSensor Trust: ${p.sensorTrust !== undefined ? p.sensorTrust : 0}\nConfirmed Fault: ${p.confirmedFault !== undefined ? p.confirmedFault : 0}\nMAP envelope: ${p.mapEnvelope !== undefined ? p.mapEnvelope : 0}`;
+    }
   }
 
   // ==========================================================================

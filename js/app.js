@@ -191,7 +191,7 @@
       : null;
 
     // 3. REAL AI / ML DIAGNOSTIC & PROGNOSTIC EVALUATION
-    const diagnosticResult = aiDiagnosticNet.evaluate(rawState, trustResult, expected);
+    const diagnosticResult = aiDiagnosticNet.evaluate(rawState, trustResult, expected, physicsResult);
 
     // 4. UPDATE CENTRAL APP STATE
     syncAppState(rawState, expected, trustResult, diagnosticResult, physicsResult);
@@ -234,6 +234,7 @@
       status: physicsResult.status,
       tableRows: physicsResult.tableRows,
       isShielded: physicsResult.isShielded,
+      mapEnvelope: physicsResult.mapEnvelope,
       operatingConditions: rawState.operatingConditions || {
         altitude: rawState.altitude || 18000,
         throttle: rawState.throttle || 0.72,
@@ -244,8 +245,8 @@
 
     // 2. Mission Reliability (P0 SIH26054 Core Capability)
     s.missionReliability = diagnosticResult.missionReliability || {
-      score: 96,
-      status: 'GO',
+      score: 97,
+      status: 'NOMINAL (GO)',
       reasons: ['All propulsion parameters nominal'],
       currentPhase: (rawState.missionPhase || 'cruise').toUpperCase(),
       remainingMissionDuration: '02h 18m'
@@ -490,20 +491,29 @@
     const relRisk = document.getElementById('mission-risk-val');
 
     if (s.missionReliability) {
-      if (relVal) relVal.textContent = s.missionReliability.score;
+      const relScore = s.missionReliability.score;
+      if (relVal) relVal.textContent = relScore;
+      const badgeType = relScore >= 88 ? 'nominal' : (relScore >= 75 ? 'warning' : 'critical');
       if (relBadge) {
         relBadge.textContent = s.missionReliability.status;
-        relBadge.className = `card-status-badge badge-${s.missionReliability.status.toLowerCase()}`;
+        relBadge.className = `card-status-badge badge-${badgeType}`;
       }
       if (relPhase) {
         relPhase.textContent = `${s.missionReliability.currentPhase || s.missionPhase} • ${s.missionReliability.remainingMissionDuration || '02h 18m'}`;
       }
-      if (relRisk && s.missionReliability.reasons && s.missionReliability.reasons.length > 0) {
-        relRisk.textContent = s.missionReliability.reasons[0].toUpperCase();
+      if (relRisk) {
+        relRisk.textContent = s.missionReliability.riskLevel || s.missionReliability.risk || 'NOMINAL';
+        relRisk.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
       }
       if (cardRel) {
-        const cStatus = s.missionReliability.status === 'GO' ? 'status-nominal' : (s.missionReliability.status === 'DEGRADED' ? 'status-warning' : 'status-critical');
-        cardRel.className = `summary-card ${cStatus}`;
+        cardRel.className = `summary-card status-${badgeType}`;
+      }
+
+      // Render on-card contributors preview
+      const contribPreview = document.getElementById('mission-rel-contributors-preview');
+      if (contribPreview && s.missionReliability.contributors && s.missionReliability.contributors.penalties) {
+        const p = s.missionReliability.contributors.penalties;
+        contribPreview.textContent = `EHI: ${p.ehi} | Anom: ${p.anomaly} | Trust: ${p.sensorTrust} | Fault: ${p.confirmedFault} | MAP: ${p.mapEnvelope}`;
       }
     }
 
@@ -684,17 +694,29 @@
       hardCritHigh: 45.0
     });
 
-    // MAP: Expected ~24–28 inHg in cruise, ~35–38 in takeoff
-    // Tolerances from AeroPhysicsModel: warn: 3.5 inHg, crit: 6.0 inHg
-    const expectedMap = exp.map !== undefined ? exp.map : 26.5;
-    const mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
-      hardWarnHigh: 38.0,
-      hardCritHigh: 42.0
-    });
+    // MAP: Operating-Condition Aware Turbocharged Envelope Evaluation
+    const actualLoad = raw.load !== undefined ? raw.load : 72;
+    const mapEnvelope = (physics && physics.mapEnvelope)
+      ? physics.mapEnvelope
+      : (physicsModel ? physicsModel.getMapOperatingEnvelope({ altitude: raw.altitude, throttle: raw.throttle, missionPhase: raw.missionPhase, load: actualLoad }) : null);
+
+    let mapCond;
+    if (mapEnvelope && raw.map >= mapEnvelope.nominalMin && raw.map <= mapEnvelope.nominalMax) {
+      mapCond = { status: 'Normal', trend: 'Normal' };
+    } else if (mapEnvelope && raw.map >= mapEnvelope.warnMin && raw.map <= mapEnvelope.warnMax) {
+      mapCond = { status: 'Warning', trend: raw.map > mapEnvelope.nominalMax ? '↑ High' : '↓ Low' };
+    } else if (mapEnvelope) {
+      mapCond = { status: 'Critical', trend: raw.map > mapEnvelope.warnMax ? '↑ High' : '↓ Low' };
+    } else {
+      const expectedMap = exp.map !== undefined ? exp.map : 28.5;
+      mapCond = evalCondition(raw.map, expectedMap, 3.5, 6.0, {
+        hardWarnHigh: 38.0,
+        hardCritHigh: 42.0
+      });
+    }
 
     // Engine Load: Expected matches current throttle demand (~72% in cruise, 100% in takeoff)
     // Tolerances from AeroPhysicsModel: warn: 14%, crit: 22%
-    const actualLoad = raw.load !== undefined ? raw.load : 72;
     const expectedLoad = exp.load !== undefined ? exp.load : 72;
     const loadCond = evalCondition(actualLoad, expectedLoad, 14, 22, {
       hardWarnHigh: 96,
@@ -1625,6 +1647,12 @@
       }
     };
 
+    window.enterMissionControl = function () {
+      if (enterMissionBtn) {
+        enterMissionBtn.click();
+      }
+    };
+
     // Scenario Buttons
     document.querySelectorAll('.btn-scenario').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1795,6 +1823,21 @@
     }
     if (btnCloseEhi && modalEhi) {
       btnCloseEhi.addEventListener('click', () => modalEhi.classList.remove('open'));
+    }
+
+    // Modal: Mission Reliability Contributor Breakdown (Operating-Condition Aware)
+    const btnInspectRel = document.getElementById('btn-inspect-reliability');
+    const modalRel = document.getElementById('modal-reliability-breakdown');
+    const btnCloseRel = document.getElementById('btn-close-reliability');
+
+    if (btnInspectRel && modalRel) {
+      btnInspectRel.addEventListener('click', () => {
+        renderModalReliabilityBreakdown();
+        modalRel.classList.add('open');
+      });
+    }
+    if (btnCloseRel && modalRel) {
+      btnCloseRel.addEventListener('click', () => modalRel.classList.remove('open'));
     }
 
     // Modal: ML Validation Report (P2)
@@ -1970,6 +2013,79 @@
         <strong style="font-size: 1.1rem; color: ${s.ehiStatus === 'NOMINAL' ? 'var(--status-nominal)' : (s.ehiStatus === 'WARNING' ? 'var(--status-warning)' : 'var(--status-critical)')}; font-family: var(--font-mono);">${Math.round(s.ehi)} / 100 (${s.ehiStatus})</strong>
       </div>
     `;
+  }
+
+  function renderModalReliabilityBreakdown() {
+    const container = document.getElementById('reliability-breakdown-details');
+    const debugPre = document.getElementById('reliability-debug-pre');
+    const scoreVal = document.getElementById('modal-rel-score-val');
+    const statusVal = document.getElementById('modal-rel-status-val');
+    const riskVal = document.getElementById('modal-rel-risk-val');
+    if (!container) return;
+    const s = window.appState;
+    const rel = s.missionReliability || {};
+    const score = rel.score !== undefined ? rel.score : 97;
+    const risk = rel.riskLevel || rel.risk || 'NOMINAL';
+    const status = rel.status || 'NOMINAL (GO)';
+
+    const badgeType = score >= 88 ? 'nominal' : (score >= 75 ? 'warning' : 'critical');
+    if (scoreVal) {
+      scoreVal.textContent = `${score}%`;
+      scoreVal.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
+    }
+    if (statusVal) {
+      statusVal.textContent = status;
+      statusVal.className = `card-status-badge badge-${badgeType}`;
+    }
+    if (riskVal) {
+      riskVal.textContent = risk;
+      riskVal.style.color = badgeType === 'nominal' ? 'var(--status-nominal)' : (badgeType === 'warning' ? 'var(--status-warning)' : 'var(--status-critical)');
+    }
+
+    const contribs = rel.contributors || {
+      baseScore: 100,
+      penalties: { ehi: -1, anomaly: -1, sensorTrust: 0, confirmedFault: 0, mapEnvelope: 0, rul: 0 },
+      reasons: {}
+    };
+
+    const p = contribs.penalties || {};
+    const r = contribs.reasons || {};
+
+    const items = [
+      { name: 'Reliability Base Score', val: '100%', penalty: 0, reason: 'Theoretical nominal propulsion baseline under equilibrium', isBase: true },
+      { name: 'Engine Health Index (EHI)', val: `${p.ehi !== undefined ? p.ehi : 0} pts`, penalty: p.ehi || 0, reason: r.ehi || `EHI evaluated at ${Math.round(s.ehi || 96)}/100` },
+      { name: 'Statistical Anomaly Score', val: `${p.anomaly !== undefined ? p.anomaly : 0} pts`, penalty: p.anomaly || 0, reason: r.anomaly || `Isolation Forest anomaly score ${s.anomalyScore?.toFixed(2) || '0.18'}` },
+      { name: 'Sensor Trust Confidence', val: `${p.sensorTrust !== undefined ? p.sensorTrust : 0} pts`, penalty: p.sensorTrust || 0, reason: r.sensorTrust || 'All sensor telemetry streams trusted' },
+      { name: 'Confirmed Mechanical Fault', val: `${p.confirmedFault !== undefined ? p.confirmedFault : 0} pts`, penalty: p.confirmedFault || 0, reason: r.confirmedFault || 'No confirmed propulsion faults' },
+      { name: 'MAP Operating Envelope', val: `${p.mapEnvelope !== undefined ? p.mapEnvelope : 0} pts`, penalty: p.mapEnvelope || 0, reason: r.mapEnvelope || 'MAP within turbocharger operating envelope' }
+    ];
+
+    if (p.rul && p.rul < 0) {
+      items.push({ name: 'RUL Reserve Margin', val: `${p.rul} pts`, penalty: p.rul, reason: r.rul || 'RUL margin reserve' });
+    }
+
+    container.innerHTML = items.map(item => {
+      const isBase = !!item.isBase;
+      const color = isBase ? 'var(--status-nominal)' : (item.penalty < 0 ? 'var(--status-critical)' : 'var(--status-nominal)');
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; background: var(--surface-0); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+          <div>
+            <strong style="color: var(--text-primary); font-size: 0.78rem;">${item.name}</strong>
+            <div style="font-size: 0.68rem; color: var(--text-secondary); line-height: 1.25; margin-top: 1px;">${item.reason}</div>
+          </div>
+          <span style="font-family: var(--font-mono); font-weight: 700; color: ${color}; font-size: 0.85rem; margin-left: 12px; white-space: nowrap;">${item.val}</span>
+        </div>
+      `;
+    }).join('') + `
+      <div style="display: flex; justify-content: space-between; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); margin-top: 4px; border: 1px solid var(--border-subtle);">
+        <span style="font-weight: 700; color: var(--text-primary);">Evaluated Mission Reliability</span>
+        <strong style="font-size: 1.1rem; color: ${scoreVal ? scoreVal.style.color : 'var(--status-nominal)'}; font-family: var(--font-mono);">${score}% &bull; ${risk}</strong>
+      </div>
+    `;
+
+    if (debugPre) {
+      debugPre.textContent = rel.debugText || `Mission Reliability: ${score}%\nRisk Level: ${risk}\n\nContributors:\nEHI: ${p.ehi !== undefined ? p.ehi : -1}\nAnomaly: ${p.anomaly !== undefined ? p.anomaly : -1}\nSensor Trust: ${p.sensorTrust !== undefined ? p.sensorTrust : 0}\nConfirmed Fault: ${p.confirmedFault !== undefined ? p.confirmedFault : 0}\nMAP envelope: ${p.mapEnvelope !== undefined ? p.mapEnvelope : 0}`;
+    }
   }
 
   // ==========================================================================

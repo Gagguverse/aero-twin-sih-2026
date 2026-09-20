@@ -278,9 +278,11 @@ class AIDiagnosticNet {
    * @param {Object} rawState - Raw telemetry from engine simulator
    * @param {Object} trustResult - Output of SensorTrustEngine (scores, quarantined, trustedState, reasons)
    * @param {Object} expected - Physics-expected baseline
+   * @param {Object} expected - Physics-expected baseline
+   * @param {Object} [physicsResult] - Output of AeroPhysicsModel.computeResiduals
    * @returns {Object} Diagnostic evaluation result
    */
-  evaluate(rawState, trustResult, expected = {}) {
+  evaluate(rawState, trustResult, expected = {}, physicsResult = null) {
     const trusted = trustResult.trustedState || rawState;
     const scores = trustResult.scores || {};
     const quarantined = trustResult.quarantined || [];
@@ -475,7 +477,9 @@ class AIDiagnosticNet {
       trustResult,
       this.faultClass,
       this.anomalyScore,
-      rawState
+      rawState,
+      expected,
+      physicsResult
     );
 
     // 8. Deterministic Maintenance Advisory (P2 Decision Support)
@@ -579,84 +583,229 @@ class AIDiagnosticNet {
   }
 
   /**
-   * Deterministic Mission Reliability Calculation (SIH26054 Core Decision Support)
-   * Formula:
-   * - EHI Contribution (50% max)
-   * - RUL vs Mission Duration Margin (25% max)
-   * - Sensor Trust Confidence (15% max)
-   * - Anomaly / Fault Severity Penalty (up to -35% deduction)
+   * Operating-Condition Aware Mission Reliability Calculation (SIH26054 Core Decision Support)
+   * Evaluates genuine operational risk starting from a 100% baseline:
+   * - EHI Penalty (0 to -1 pt for nominal 96-100; scaled if degraded)
+   * - Statistical Anomaly Penalty (0 to -1 pt for baseline Gaussian variance)
+   * - Sensor Trust Penalty (0 for trusted instrumentation; -4 to -6 pts for quarantined sensor)
+   * - Confirmed Fault Penalty (0 for HEALTHY & SENSOR_FAULT; -28 for THERMAL, -52 for LUBRICATION)
+   * - MAP Operating Envelope Penalty (0 when MAP is within valid turbo envelope for current altitude/load)
+   * - RUL Margin Penalty (0 when reserve RUL is abundant)
    */
-  _computeMissionReliability(ehi, degradationPct, rulHours, trustResult, faultClass, anomalyScore, rawState) {
+  _computeMissionReliability(ehi, degradationPct, rulHours, trustResult = {}, faultClass = 'HEALTHY', anomalyScore = 0.04, rawState = {}, expected = {}, physicsResult = null) {
+    const baseScore = 100;
     const phase = (rawState.missionPhase || 'cruise').toUpperCase();
-    const enduranceHrs = rawState.enduranceHrs || 6.2;
-    const remainingMissionDuration = '02h 18m';
+    const remainingMissionDuration = rawState.remainingMissionDuration || '02h 18m';
     const reqMissionHours = 2.3;
+    const overallTrust = (trustResult && trustResult.overallTrust !== undefined) ? trustResult.overallTrust : 1.0;
+    const quarantined = (trustResult && trustResult.quarantined) || [];
+    const actualMap = typeof rawState.map === 'number' ? rawState.map : 28.5;
+    const altitude = typeof rawState.altitude === 'number' ? rawState.altitude : 18000;
+    const throttle = typeof rawState.throttle === 'number' ? rawState.throttle : 0.72;
 
-    // 1. EHI Component (0 - 50 pts)
-    const ehiContrib = (ehi / 100) * 50;
-
-    // 2. RUL Safety Margin (0 - 25 pts)
-    let rulMarginPts = 0;
-    if (rulHours >= reqMissionHours * 10) {
-      rulMarginPts = 25; // Abundant RUL
-    } else if (rulHours >= reqMissionHours * 3) {
-      rulMarginPts = 18;
-    } else if (rulHours >= reqMissionHours) {
-      rulMarginPts = 10;
+    // 1. EHI Penalty: Base EHI = 96-100 gives 0 to 1 pt nominal deduction
+    let ehiPenalty = 0;
+    let ehiReason = `EHI nominal (${Math.round(ehi)}/100)`;
+    if (ehi >= 95) {
+      ehiPenalty = Math.max(0, Math.round((100 - ehi) * 0.25));
+      if (ehiPenalty > 0) {
+        ehiReason = `EHI nominal minor variance (${Math.round(ehi)}/100, -${ehiPenalty} pt)`;
+      } else {
+        ehiReason = `EHI pristine (${Math.round(ehi)}/100)`;
+      }
+    } else if (ehi >= 85) {
+      ehiPenalty = 2 + Math.round((95 - ehi) * 0.6);
+      ehiReason = `Moderate EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
+    } else if (ehi >= 70) {
+      ehiPenalty = 8 + Math.round((85 - ehi) * 0.9);
+      ehiReason = `Substantial EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
     } else {
-      rulMarginPts = 0; // RUL exhausted before mission completion!
+      ehiPenalty = 22 + Math.round((70 - ehi) * 1.1);
+      ehiReason = `Critical EHI degradation (${Math.round(ehi)}/100, -${ehiPenalty} pts)`;
+    }
+    ehiPenalty = Math.min(45, Math.max(0, ehiPenalty));
+
+    // 2. Statistical Anomaly Penalty
+    let anomalyPenalty = 0;
+    let anomalyReason = `No statistical anomalies (Score: ${anomalyScore.toFixed(2)})`;
+    if (anomalyScore <= 0.12) {
+      anomalyPenalty = 0;
+      anomalyReason = `Nominal Gaussian envelope (Score: ${anomalyScore.toFixed(2)})`;
+    } else if (anomalyScore <= 0.35) {
+      // Normal background variance: -1 pt (matches user's specified example: Anomaly: -1)
+      anomalyPenalty = 1;
+      anomalyReason = `Minor background variance (Score: ${anomalyScore.toFixed(2)}, -1 pt)`;
+    } else if (anomalyScore <= 0.55) {
+      anomalyPenalty = 4;
+      anomalyReason = `Elevated statistical residual (Score: ${anomalyScore.toFixed(2)}, -4 pts)`;
+    } else if (anomalyScore <= 0.75) {
+      anomalyPenalty = 9;
+      anomalyReason = `Significant multi-sensor anomaly (Score: ${anomalyScore.toFixed(2)}, -9 pts)`;
+    } else {
+      anomalyPenalty = Math.min(18, Math.round(9 + (anomalyScore - 0.75) * 30));
+      anomalyReason = `Severe out-of-distribution anomaly (Score: ${anomalyScore.toFixed(2)}, -${anomalyPenalty} pts)`;
     }
 
-    // 3. Sensor Trust Component (0 - 15 pts)
-    const overallTrust = trustResult.overallTrust !== undefined ? trustResult.overallTrust : 1.0;
-    const sensorTrustPts = overallTrust * 15;
+    // 3. Sensor Trust Penalty
+    // Core SIH principle: Sensor freeze/fault reduces instrument confidence,
+    // but MUST NOT be penalized as engine failure!
+    let sensorTrustPenalty = 0;
+    let sensorTrustReason = `All sensors trusted (Index: ${overallTrust.toFixed(2)})`;
+    if (quarantined.length === 0 && overallTrust >= 0.94) {
+      sensorTrustPenalty = 0;
+      sensorTrustReason = `All sensors fully trusted (Index: ${overallTrust.toFixed(2)})`;
+    } else if (quarantined.length > 0 || overallTrust < 0.94) {
+      sensorTrustPenalty = Math.min(12, Math.max(3, Math.round((1.0 - overallTrust) * 20) + quarantined.length * 2));
+      sensorTrustReason = `Instrumentation uncertainty (${quarantined.length} sensor quarantined, trust ${overallTrust.toFixed(2)}, -${sensorTrustPenalty} pts)`;
+    }
 
-    // 4. Fault & Anomaly Risk Deduction
-    let riskDeduction = 0;
-    let riskLabel = 'NONE';
-
-    if (faultClass === 'HEALTHY') {
-      riskDeduction = anomalyScore * 8;
-      riskLabel = 'NOMINAL PROPULSION';
+    // 4. Confirmed Fault Penalty
+    let confirmedFaultPenalty = 0;
+    let confirmedFaultReason = `No confirmed propulsion faults`;
+    if (faultClass === 'HEALTHY' || !faultClass) {
+      confirmedFaultPenalty = 0;
+      confirmedFaultReason = `Propulsion system mechanically nominal`;
     } else if (faultClass === 'SENSOR_FAULT') {
-      // Sensor fault carries instrument uncertainty but does NOT mean engine failure!
-      riskDeduction = 8;
-      riskLabel = 'SENSOR UNCERTAINTY (ENGINE HEALTH PROTECTED)';
+      // Sensor fault carries ZERO mechanical fault penalty (engine health protected!)
+      confirmedFaultPenalty = 0;
+      confirmedFaultReason = `Sensor fault isolated — engine mechanical health protected`;
     } else if (faultClass === 'THERMAL_DEGRADATION') {
-      riskDeduction = 38;
-      riskLabel = 'HIGH THERMAL RISK (OVERHEAT / MISSION ABORT)';
+      confirmedFaultPenalty = 28;
+      confirmedFaultReason = `Cylinder head & exhaust thermal runaway confirmed (-28 pts)`;
     } else if (faultClass === 'LUBRICATION_DEGRADATION') {
-      riskDeduction = 65;
-      riskLabel = 'CRITICAL BEARING WEAR (IMMEDIATE DIVERT)';
+      confirmedFaultPenalty = 52;
+      confirmedFaultReason = `Critical hydrodynamic lubrication failure / bearing distress (-52 pts)`;
     } else if (faultClass === 'RPM_INSTABILITY') {
-      riskDeduction = 25;
-      riskLabel = 'GOVERNOR SURGE (PROPULSION INSTABILITY)';
+      confirmedFaultPenalty = 16;
+      confirmedFaultReason = `Propulsion governor hunting & speed oscillation (-16 pts)`;
     }
 
-    const rawScore = Math.max(12, Math.min(99, ehiContrib + rulMarginPts + sensorTrustPts - riskDeduction));
-    const score = Math.round(rawScore);
+    // 5. Operating-Condition Aware MAP Envelope Penalty
+    let mapEnvelopePenalty = 0;
+    let mapReason = `MAP within turbocharger operating envelope (${actualMap.toFixed(1)} inHg)`;
 
-    let status = 'GO';
-    if (score >= 85) status = 'NOMINAL (GO)';
-    else if (score >= 70) status = 'ADVISORY (CAUTION)';
-    else if (score >= 50) status = 'WARNING (DERATE)';
-    else status = 'CRITICAL (ABORT / DIVERT)';
+    let mapNomMin = 25.0, mapNomMax = 33.5, mapWarnMin = 22.0, mapWarnMax = 36.5;
+    if (physicsResult && physicsResult.mapEnvelope) {
+      mapNomMin = physicsResult.mapEnvelope.nominalMin;
+      mapNomMax = physicsResult.mapEnvelope.nominalMax;
+      mapWarnMin = physicsResult.mapEnvelope.warnMin;
+      mapWarnMax = physicsResult.mapEnvelope.warnMax;
+    } else if (phase === 'TAKEOFF' || throttle >= 0.88) {
+      mapNomMin = 34.0; mapNomMax = 41.5; mapWarnMin = 31.0; mapWarnMax = 43.5;
+    } else if (phase === 'IDLE' || throttle <= 0.35) {
+      mapNomMin = 13.0; mapNomMax = 20.0; mapWarnMin = 11.0; mapWarnMax = 23.0;
+    } else if (phase === 'LOITER') {
+      mapNomMin = 22.0; mapNomMax = 28.5; mapWarnMin = 19.0; mapWarnMax = 31.5;
+    }
 
-    const reasons = [
-      `EHI base contribution: ${ehiContrib.toFixed(1)} / 50 pts (EHI: ${Math.round(ehi)}/100)`,
-      `RUL safety margin: ${rulMarginPts} / 25 pts (Est. RUL ${rulHours}h vs mission req ${reqMissionHours}h)`,
-      `Instrumentation trust: ${sensorTrustPts.toFixed(1)} / 15 pts (Sensor Trust Index: ${overallTrust.toFixed(2)})`,
-      `Active operational risk: ${riskLabel}`
+    // Evaluate actual MAP against operating envelope
+    if (actualMap >= mapNomMin && actualMap <= mapNomMax) {
+      mapEnvelopePenalty = 0;
+      mapReason = `MAP within turbo operating envelope (${actualMap.toFixed(1)} inHg [${mapNomMin}-${mapNomMax}])`;
+    } else if (actualMap >= mapWarnMin && actualMap <= mapWarnMax) {
+      mapEnvelopePenalty = 6;
+      mapReason = `MAP moderately outside turbo envelope (${actualMap.toFixed(1)} inHg, -6 pts)`;
+    } else {
+      mapEnvelopePenalty = 18;
+      mapReason = `MAP critically outside turbo envelope (${actualMap.toFixed(1)} inHg, -18 pts)`;
+    }
+
+    // 6. Prognostics & RUL Margin Penalty
+    let rulPenalty = 0;
+    let rulReason = `RUL margin abundant (${Math.round(rulHours)}h vs ${reqMissionHours}h req)`;
+    if (rulHours < reqMissionHours) {
+      rulPenalty = 25;
+      rulReason = `RUL depleted below mission requirement (${Math.round(rulHours)}h < ${reqMissionHours}h, -25 pts)`;
+    } else if (rulHours < reqMissionHours * 3) {
+      rulPenalty = 8;
+      rulReason = `Low RUL reserve margin (${Math.round(rulHours)}h, -8 pts)`;
+    } else if (rulHours < 25) {
+      rulPenalty = 2;
+      rulReason = `Moderate RUL reserve margin (${Math.round(rulHours)}h, -2 pts)`;
+    }
+
+    // Total Penalties
+    const totalDeductions = ehiPenalty + anomalyPenalty + sensorTrustPenalty + confirmedFaultPenalty + mapEnvelopePenalty + rulPenalty;
+    const finalScore = Math.max(10, Math.min(99, Math.round(baseScore - totalDeductions)));
+
+    let status = 'NOMINAL (GO)';
+    let riskLevel = 'NOMINAL';
+    if (finalScore >= 88) {
+      status = 'NOMINAL (GO)';
+      riskLevel = 'NOMINAL';
+    } else if (finalScore >= 75) {
+      status = 'ADVISORY (CAUTION)';
+      riskLevel = 'ADVISORY';
+    } else if (finalScore >= 50) {
+      status = 'WARNING (DERATE)';
+      riskLevel = 'ELEVATED RISK';
+    } else {
+      status = 'CRITICAL (ABORT / DIVERT)';
+      riskLevel = 'CRITICAL RISK';
+    }
+
+    // Contributors Breakdown (explicit debug structure)
+    const contributors = {
+      baseScore,
+      penalties: {
+        ehi: -ehiPenalty,
+        anomaly: -anomalyPenalty,
+        sensorTrust: -sensorTrustPenalty,
+        confirmedFault: -confirmedFaultPenalty,
+        mapEnvelope: -mapEnvelopePenalty,
+        rul: -rulPenalty
+      },
+      reasons: {
+        ehi: ehiReason,
+        anomaly: anomalyReason,
+        sensorTrust: sensorTrustReason,
+        confirmedFault: confirmedFaultReason,
+        mapEnvelope: mapReason,
+        rul: rulReason
+      },
+      totalDeductions: -totalDeductions,
+      finalScore,
+      riskLevel
+    };
+
+    const contributorItems = [
+      { key: 'ehi', label: 'EHI', penalty: -ehiPenalty, reason: ehiReason },
+      { key: 'anomaly', label: 'Anomaly', penalty: -anomalyPenalty, reason: anomalyReason },
+      { key: 'sensorTrust', label: 'Sensor Trust', penalty: -sensorTrustPenalty, reason: sensorTrustReason },
+      { key: 'confirmedFault', label: 'Confirmed Fault', penalty: -confirmedFaultPenalty, reason: confirmedFaultReason },
+      { key: 'mapEnvelope', label: 'MAP envelope', penalty: -mapEnvelopePenalty, reason: mapReason }
+    ];
+
+    if (rulPenalty > 0) {
+      contributorItems.push({ key: 'rul', label: 'RUL margin', penalty: -rulPenalty, reason: rulReason });
+    }
+
+    const debugText = `Mission Reliability: ${finalScore}%\nRisk Level: ${riskLevel}\n\nContributors:\nEHI: ${-ehiPenalty}\nAnomaly: ${-anomalyPenalty}\nSensor Trust: ${-sensorTrustPenalty}\nConfirmed Fault: ${-confirmedFaultPenalty}\nMAP envelope: ${-mapEnvelopePenalty}${rulPenalty > 0 ? `\nRUL margin: ${-rulPenalty}` : ''}`;
+
+    const reasonsList = [
+      `Base Reliability: 100% | Final: ${finalScore}% (${status})`,
+      `EHI: ${-ehiPenalty} pts (${ehiReason})`,
+      `Anomaly: ${-anomalyPenalty} pts (${anomalyReason})`,
+      `Sensor Trust: ${-sensorTrustPenalty} pts (${sensorTrustReason})`,
+      `Confirmed Fault: ${-confirmedFaultPenalty} pts (${confirmedFaultReason})`,
+      `MAP Envelope: ${-mapEnvelopePenalty} pts (${mapReason})`
     ];
 
     return {
-      score,
+      score: finalScore,
       status,
-      risk: riskLabel,
+      risk: riskLevel,
+      riskLevel,
       phase,
+      currentPhase: phase,
       remainingMissionDuration,
-      label: 'Mission Reliability Score — Decision Support',
-      reasons
+      label: 'Mission Reliability Score — Operating-Condition Aware',
+      baseScore,
+      totalDeductions,
+      contributors,
+      contributorItems,
+      debugText,
+      reasons: reasonsList
     };
   }
 

@@ -603,15 +603,24 @@
       <div class="summary-card status-nominal" id="card-mission-rel">
         <div class="card-header-mini">
           <span class="card-title-mini">Mission Reliability</span>
-          <span class="card-status-badge badge-nominal" id="mission-rel-badge">GO</span>
+          <span class="card-status-badge badge-nominal" id="mission-rel-badge">NOMINAL (GO)</span>
         </div>
         <div class="card-main-val">
-          <span id="mission-rel-val">96</span>
+          <span id="mission-rel-val">97</span>
           <span class="unit">%</span>
         </div>
         <div class="card-footer-mini">
           <span id="mission-phase-label">CRUISE &bull; 02h 18m</span>
-          <span class="sec-val" id="mission-risk-val" style="font-size: 0.65rem;">DECISION SUPPORT</span>
+          <button class="btn-mini-link" id="btn-inspect-reliability" type="button" style="background:none;border:none;color:var(--accent-blue);font-size:0.68rem;cursor:pointer;text-decoration:underline;">CONTRIBUTORS &rarr;</button>
+        </div>
+        <div id="mission-rel-contributors-summary" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; border-top: 1px dashed var(--border-subtle); padding-top: 4px; font-family: var(--font-mono); display: flex; flex-direction: column; gap: 2px;">
+          <div style="display:flex; justify-content:space-between;">
+            <span>Risk Level:</span>
+            <strong id="mission-risk-val" style="color: var(--status-nominal);">NOMINAL</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; color: var(--text-secondary); font-size: 0.62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span id="mission-rel-contributors-preview">EHI: -1 | Anom: -1 | Trust: 0 | Fault: 0 | MAP: 0</span>
+          </div>
         </div>
       </div>
     </section>
@@ -1330,6 +1339,47 @@
         <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid var(--accent-blue-border); padding: 10px 12px; border-radius: var(--radius-sm); margin-top: 12px; font-size: 0.72rem;">
           <strong style="color: var(--accent-blue);">Sensor Trust Shielding Rule:</strong>
           <span>If a sensor is quarantined (e.g. frozen oil pressure transducer), its unphysical penalty is completely shielded from EHI. <strong>BAD SENSOR &ne; BAD ENGINE</strong>.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       MODAL 3B: MISSION RELIABILITY BREAKDOWN (OPERATING-CONDITION AWARE)
+       ====================================================================== -->
+  <div class="modal-backdrop" id="modal-reliability-breakdown" role="dialog" aria-modal="true" aria-labelledby="modal-rel-title">
+    <div class="modal-dialog" style="max-width: 620px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-rel-title">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          Mission Reliability &mdash; Operating-Condition Aware Contributor Breakdown
+        </h3>
+        <button class="btn-modal-close" id="btn-close-reliability" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-0); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); margin-bottom: 12px;">
+          <div>
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">Mission Reliability</span>
+            <div style="font-size: 1.6rem; font-weight: 700; font-family: var(--font-mono); color: var(--status-nominal);" id="modal-rel-score-val">97%</div>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;">Risk Level</span>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--status-nominal);" id="modal-rel-risk-val">NOMINAL</div>
+            <span class="card-status-badge badge-nominal" id="modal-rel-status-val" style="font-size: 0.65rem;">NOMINAL (GO)</span>
+          </div>
+        </div>
+
+        <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 10px;">
+          Mission Reliability starts from a <strong>100% Base Score</strong>. Penalties reflect genuine operational risks: telemetry outside operating envelope, sustained abnormal residuals, confirmed mechanical faults, sensor distrust, or critical degradation.
+        </p>
+
+        <div id="reliability-breakdown-details" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Populated dynamically via app.js -->
+        </div>
+
+        <div style="margin-top: 14px;">
+          <span style="font-size: 0.70rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">Deterministic Diagnostic Telemetry Grounding (Debug Field):</span>
+          <pre id="reliability-debug-pre" style="background: var(--surface-0); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 12px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-primary); margin-top: 4px; line-height: 1.45; white-space: pre-wrap;"></pre>
         </div>
       </div>
     </div>

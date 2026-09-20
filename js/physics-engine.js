@@ -57,8 +57,29 @@ class AeroPhysicsModel {
     else if (missionPhase === 'takeoff') expectedRpm = 5400;
 
     // 2. Expected Manifold Absolute Pressure (MAP, inHg)
-    const boostFactor = 19.0 * normThrottle * Math.min(1.15, Math.max(0.7, Math.sqrt(densityRatio)));
-    const expectedMap = Number((ambientPress + boostFactor).toFixed(1));
+    // Turbocharged aero piston engine with automatic density/wastegate regulation
+    // Up to critical altitude (~28,000 ft MSL), wastegate maintains throttle-demanded manifold pressure
+    const criticalAltitude = 28000;
+    const maxBoostInHg = 28.0; // Max compressor boost capability
+    let targetRegulatedMap;
+    if (missionPhase === 'takeoff') {
+      targetRegulatedMap = 39.2;
+    } else if (missionPhase === 'idle') {
+      targetRegulatedMap = 15.5;
+    } else if (missionPhase === 'loiter') {
+      targetRegulatedMap = 25.5;
+    } else {
+      // Cruise / Climb: nominal cruise at 72% throttle is ~28.5 inHg
+      targetRegulatedMap = 14.0 + (normThrottle * 20.14);
+    }
+
+    let expectedMap;
+    const requiredBoost = targetRegulatedMap - ambientPress;
+    if (altitude <= criticalAltitude && requiredBoost <= maxBoostInHg) {
+      expectedMap = Number(targetRegulatedMap.toFixed(1));
+    } else {
+      expectedMap = Number((ambientPress + (maxBoostInHg * normThrottle)).toFixed(1));
+    }
 
     // 3. Expected Fuel Flow (L/hr)
     const normRpm = expectedRpm / 5000;
@@ -107,6 +128,54 @@ class AeroPhysicsModel {
         oilPress: expectedOilPress,
         load
       }
+    };
+  }
+
+  /**
+   * Evaluates expected operating envelope for MAP based on
+   * altitude, mission phase, engine load, throttle, and turbo operating state.
+   */
+  getMapOperatingEnvelope(conditions = {}) {
+    const altitude = typeof conditions.altitude === 'number' ? conditions.altitude : 18000;
+    const throttle = typeof conditions.throttle === 'number' ? conditions.throttle : 0.72;
+    const missionPhase = (conditions.missionPhase || 'cruise').toLowerCase();
+    const load = typeof conditions.load === 'number' ? conditions.load : Math.round(throttle * 100);
+
+    let nominalMin, nominalMax, warnMin, warnMax;
+
+    if (missionPhase === 'takeoff' || throttle >= 0.88) {
+      nominalMin = 34.0;
+      nominalMax = 41.5;
+      warnMin = 31.0;
+      warnMax = 43.5;
+    } else if (missionPhase === 'idle' || throttle <= 0.35) {
+      nominalMin = 13.0;
+      nominalMax = 20.0;
+      warnMin = 11.0;
+      warnMax = 23.0;
+    } else if (missionPhase === 'loiter' || (throttle >= 0.45 && throttle <= 0.60)) {
+      nominalMin = 22.0;
+      nominalMax = 28.5;
+      warnMin = 19.0;
+      warnMax = 31.5;
+    } else {
+      // Cruise / General flight at 60-85% throttle:
+      // Valid turbocharged operating envelope: 25.0 to 33.5 inHg
+      nominalMin = 25.0;
+      nominalMax = 33.5;
+      warnMin = 22.0;
+      warnMax = 36.5;
+    }
+
+    return {
+      nominalMin,
+      nominalMax,
+      warnMin,
+      warnMax,
+      phase: missionPhase,
+      altitude,
+      throttle,
+      load
     };
   }
 
@@ -165,10 +234,33 @@ class AeroPhysicsModel {
       load: Number((residuals.load / this.nominalRanges.load.range).toFixed(3))
     };
 
+    // Operating-condition aware MAP envelope evaluation
+    const envelope = this.getMapOperatingEnvelope({
+      altitude: (expectedState.operatingConditions && expectedState.operatingConditions.altitude) !== undefined
+        ? expectedState.operatingConditions.altitude
+        : rawTelemetry.altitude,
+      throttle: (expectedState.operatingConditions && expectedState.operatingConditions.throttle) !== undefined
+        ? expectedState.operatingConditions.throttle
+        : rawTelemetry.throttle,
+      missionPhase: (expectedState.operatingConditions && expectedState.operatingConditions.missionPhase)
+        || rawTelemetry.missionPhase,
+      load: actualLoad
+    });
+
+    let mapStatus = 'NORMAL';
+    if (actualMap >= envelope.nominalMin && actualMap <= envelope.nominalMax) {
+      // Legitimate reading within operating envelope -> NORMAL
+      mapStatus = 'NORMAL';
+    } else if (actualMap >= envelope.warnMin && actualMap <= envelope.warnMax) {
+      mapStatus = actualMap > envelope.nominalMax ? 'ELEVATED' : 'LOW';
+    } else {
+      mapStatus = 'CRITICAL';
+    }
+
     // Semantic Status Classifier: 'NORMAL' | 'ELEVATED' | 'LOW' | 'CRITICAL'
     const status = {
       rpm: this._classifyStatus(residuals.rpm, this.nominalRanges.rpm),
-      map: this._classifyStatus(residuals.map, this.nominalRanges.map),
+      map: mapStatus,
       fuelFlow: this._classifyStatus(residuals.fuelFlow, this.nominalRanges.fuelFlow),
       cht: this._classifyStatus(residuals.cht, this.nominalRanges.cht),
       egt: this._classifyStatus(residuals.egt, this.nominalRanges.egt),
@@ -239,7 +331,8 @@ class AeroPhysicsModel {
         actual: `${actualMap.toFixed(1)} inHg`,
         residual: `${residuals.map >= 0 ? '+' : ''}${residuals.map.toFixed(1)} inHg`,
         status: status.map,
-        isQuarantined: false
+        isQuarantined: false,
+        envelope: envelope
       }
     ];
 
@@ -248,7 +341,8 @@ class AeroPhysicsModel {
       normalizedResiduals: norm,
       status,
       tableRows,
-      isShielded: isOilQuarantined
+      isShielded: isOilQuarantined,
+      mapEnvelope: envelope
     };
   }
 

@@ -94,7 +94,8 @@ export const MissionMap: React.FC<MissionMapProps> = ({
   const uavMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const incidentMarkerRef = useRef<mapboxgl.Marker | null>(null);
   const baseMarkersRef = useRef<mapboxgl.Marker[]>([]);
-  const [selectedBaseId, setSelectedBaseId] = useState<string | null>('uttarlai');
+  const [selectedBaseId, setSelectedBaseId] = useState<string>('uttarlai');
+  const [mapStyleMode, setMapStyleMode] = useState<'standard' | 'satellite'>('standard');
   const [mapError, setMapError] = useState<string | null>(null);
 
   // Dynamic distance and ETA calculations
@@ -241,12 +242,14 @@ export const MissionMap: React.FC<MissionMapProps> = ({
 
       map.on('style.load', () => {
         // Requirement 9: Apply dark/night lighting preset on Mapbox Standard style
-        try {
-          map.setConfigProperty('basemap', 'lightPreset', 'night');
-          map.setConfigProperty('basemap', 'showPlaceLabels', true);
-          map.setConfigProperty('basemap', 'showRoadLabels', true);
-        } catch (e) {
-          // Standard style loaded without config property overrides
+        if (mapStyleMode === 'standard') {
+          try {
+            map.setConfigProperty('basemap', 'lightPreset', 'night');
+            map.setConfigProperty('basemap', 'showPlaceLabels', true);
+            map.setConfigProperty('basemap', 'showRoadLabels', true);
+          } catch (e) {
+            // Standard style loaded without config property overrides
+          }
         }
 
         // Add Planned Route GeoJSON Line on top of real geographic map
@@ -264,33 +267,35 @@ export const MissionMap: React.FC<MissionMapProps> = ({
             }
           });
 
-          // Route Glow Layer (Slot: top ensures it sits above 3D buildings and basemap)
-          map.addLayer({
+          // Route Glow Layer (Slot: top ensures it sits above 3D buildings and basemap in standard)
+          const glowLayerDef: any = {
             id: 'route-glow',
             type: 'line',
             source: 'planned-route',
-            slot: 'top',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint: {
               'line-color': '#00F0FF',
               'line-width': 7,
-              'line-opacity': 0.3
+              'line-opacity': 0.35
             }
-          });
+          };
+          if (mapStyleMode === 'standard') glowLayerDef.slot = 'top';
+          map.addLayer(glowLayerDef);
 
           // Main Route Line
-          map.addLayer({
+          const lineLayerDef: any = {
             id: 'route-line',
             type: 'line',
             source: 'planned-route',
-            slot: 'top',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint: {
               'line-color': '#00F0FF',
               'line-width': 2.5,
               'line-dasharray': [2, 1.5]
             }
-          });
+          };
+          if (mapStyleMode === 'standard') lineLayerDef.slot = 'top';
+          map.addLayer(lineLayerDef);
         }
 
         // Add Waypoint Markers
@@ -429,6 +434,34 @@ export const MissionMap: React.FC<MissionMapProps> = ({
 
       {/* Main Map Viewport with Explicit Height */}
       <div className="map-viewport-wrapper" style={{ height: '520px', minHeight: '500px', position: 'relative' }}>
+        {/* Real Geographic Map Style Toggle */}
+        <div className="map-style-toggle" style={{ position: 'absolute', top: '10px', right: '52px', zIndex: 5 }}>
+          <button
+            type="button"
+            className={`map-style-btn ${mapStyleMode === 'standard' ? 'active' : ''}`}
+            onClick={() => {
+              if (mapRef.current && mapStyleMode !== 'standard') {
+                setMapStyleMode('standard');
+                mapRef.current.setStyle('mapbox://styles/mapbox/standard');
+              }
+            }}
+          >
+            STANDARD
+          </button>
+          <button
+            type="button"
+            className={`map-style-btn ${mapStyleMode === 'satellite' ? 'active' : ''}`}
+            onClick={() => {
+              if (mapRef.current && mapStyleMode !== 'satellite') {
+                setMapStyleMode('satellite');
+                mapRef.current.setStyle('mapbox://styles/mapbox/satellite-streets-v12');
+              }
+            }}
+          >
+            SATELLITE
+          </button>
+        </div>
+
         <div 
           ref={mapContainerRef} 
           className="mapbox-canvas-container" 

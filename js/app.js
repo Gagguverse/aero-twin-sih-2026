@@ -2076,15 +2076,23 @@
     return html;
   }
 
+  let isAssistantResponding = false;
+
   function handleUserQuery(query) {
-    if (!query || !query.trim()) return;
+    if (!query || !query.trim() || isAssistantResponding) return;
     const cleanQuery = query.trim();
+    isAssistantResponding = true;
+    const sendBtn = document.getElementById('btn-chat-send');
+    if (sendBtn) sendBtn.disabled = true;
+
     appendAssistantMessage('user', cleanQuery);
 
     // 1. DETERMINISTIC INTENT ROUTING (Identity / Greetings - Fast-path)
     const deterministicResponse = routeDeterministicIntent(cleanQuery);
     if (deterministicResponse) {
       appendAssistantMessage('ai', deterministicResponse, 'local');
+      isAssistantResponding = false;
+      if (sendBtn) sendBtn.disabled = false;
       return;
     }
 
@@ -2092,22 +2100,34 @@
     const snapshot = getAssistantSnapshot();
 
     // 3. SHOW TYPING INDICATOR
-    const typingId = showTypingIndicator();
+    showTypingIndicator();
 
     // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
-    tryGrokQuery(cleanQuery, snapshot).then(grokResult => {
-      removeTypingIndicator(typingId);
-      if (grokResult) {
-        // Grok succeeded — convert markdown cleanly to HTML
-        const html = formatAssistantMarkdown(grokResult);
-        appendAssistantMessage('ai', html, 'grok');
-      } else {
-        // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+    tryGrokQuery(cleanQuery, snapshot)
+      .then(grokResult => {
+        removeTypingIndicator();
+        if (grokResult) {
+          // Grok succeeded — convert markdown cleanly to HTML
+          const html = formatAssistantMarkdown(grokResult);
+          appendAssistantMessage('ai', html, 'grok');
+        } else {
+          // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+          const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
+          const html = formatAssistantMarkdown(localResponse);
+          appendAssistantMessage('ai', html, 'local');
+        }
+      })
+      .catch(() => {
+        removeTypingIndicator();
         const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
         const html = formatAssistantMarkdown(localResponse);
         appendAssistantMessage('ai', html, 'local');
-      }
-    });
+      })
+      .finally(() => {
+        removeTypingIndicator();
+        isAssistantResponding = false;
+        if (sendBtn) sendBtn.disabled = false;
+      });
   }
 
   window.handleUserQuery = handleUserQuery;
@@ -2402,25 +2422,31 @@
   function showTypingIndicator() {
     const historyBox = document.getElementById('chat-history');
     if (!historyBox) return null;
-    const id = 'typing-' + Date.now();
+    // Always remove any existing indicators first to avoid duplicate visual gaps
+    historyBox.querySelectorAll('.typing-indicator').forEach(el => el.remove());
+
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble ai typing-indicator';
-    bubble.id = id;
     bubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
     historyBox.appendChild(bubble);
     historyBox.scrollTop = historyBox.scrollHeight;
-    return id;
+    return bubble;
   }
 
-  function removeTypingIndicator(id) {
-    if (!id) return;
-    const el = document.getElementById(id);
-    if (el) el.remove();
+  function removeTypingIndicator() {
+    const historyBox = document.getElementById('chat-history');
+    if (!historyBox) return;
+    historyBox.querySelectorAll('.typing-indicator').forEach(el => el.remove());
   }
 
   function appendAssistantMessage(sender, htmlText, source) {
     const historyBox = document.getElementById('chat-history');
     if (!historyBox) return;
+
+    // Guaranteed cleanup of any active typing indicator before inserting real bubble
+    if (sender === 'ai') {
+      removeTypingIndicator();
+    }
 
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${sender}`;

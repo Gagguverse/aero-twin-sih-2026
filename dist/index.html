@@ -1958,9 +1958,11 @@ body {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 320px;
+  height: 520px;
+  max-height: 520px;
+  min-height: 520px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .assistant-header {
@@ -1975,9 +1977,10 @@ body {
 
 .chat-history-box {
   flex: 1 1 0%;
-  min-height: 140px;
-  max-height: none;
+  min-height: 0;
+  max-height: 350px;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--surface-0);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -2018,21 +2021,23 @@ body {
 }
 
 .chat-bubble {
-  max-width: 92%;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  padding: 7px 10px;
+  max-width: 88%;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  padding: 7px 11px;
   border-radius: var(--radius-sm);
-  margin: 0;
+  margin: 0 !important;
   flex-shrink: 0;
   word-break: break-word;
   overflow-wrap: break-word;
   height: auto;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .chat-bubble.user {
   align-self: flex-end;
+  text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border-card);
   color: var(--text-primary);
@@ -2541,6 +2546,62 @@ body {
   overflow: hidden;
   background: #090E17;
   min-height: 440px;
+}
+
+/* Map Style Segmented Control Toggle (Standard vs Satellite) */
+.map-style-toggle {
+  position: absolute;
+  top: 10px;
+  right: 52px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.map-style-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.map-style-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.map-style-btn.active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 600px) {
+  .map-style-toggle {
+    top: 8px;
+    right: 48px;
+  }
+  .map-style-btn {
+    font-size: 0.58rem;
+    padding: 2px 6px;
+  }
 }
 
 .mission-map-box {
@@ -3346,6 +3407,11 @@ body {
       <div class="mission-map-layout">
         <!-- Map Viewport -->
         <div class="map-container-frame">
+          <!-- Real Geographic Map Style Toggle -->
+          <div class="map-style-toggle" id="map-style-toggle" role="group" aria-label="Map Style Imagery Toggle">
+            <button type="button" class="map-style-btn active" id="btn-map-style-standard" data-style="standard" title="Mapbox Standard Geographic View">STANDARD</button>
+            <button type="button" class="map-style-btn" id="btn-map-style-satellite" data-style="satellite" title="Real Satellite Imagery View">SATELLITE</button>
+          </div>
           <div id="mission-map-container" class="mission-map-box"></div>
         </div>
 
@@ -9315,6 +9381,13 @@ return mapboxgl$1;
       this.currentRecommendedBaseId = 'uttarlai';
       this.selectedBaseId = 'uttarlai';
 
+      // Map Style State (Standard vs Satellite)
+      this.currentStyleMode = 'standard';
+      this.styles = {
+        standard: 'mapbox://styles/mapbox/standard',
+        satellite: 'mapbox://styles/mapbox/satellite-streets-v12'
+      };
+
       // Simulated UAV Location along Rajasthan Mission Corridor
       this.uav = {
         lat: 26.6500,
@@ -9339,6 +9412,9 @@ return mapboxgl$1;
 
     async init() {
       if (!this.container) return;
+
+      // Bind Map Style Segmented Control Toggle buttons
+      this.bindStyleToggle();
 
       // 1. Resolve Mapbox Token from window or server API (never expose in UI/logs)
       let token = (window.VITE_MAPBOX_TOKEN || '').trim();
@@ -9381,6 +9457,39 @@ return mapboxgl$1;
       this.initMapbox(token);
     }
 
+    bindStyleToggle() {
+      const btnStandard = document.getElementById('btn-map-style-standard');
+      const btnSatellite = document.getElementById('btn-map-style-satellite');
+      if (btnStandard) {
+        btnStandard.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchStyle('standard');
+        });
+      }
+      if (btnSatellite) {
+        btnSatellite.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchStyle('satellite');
+        });
+      }
+    }
+
+    switchStyle(mode) {
+      if (!this.map || mode === this.currentStyleMode) return;
+      this.currentStyleMode = mode;
+      this.updateStyleToggleUI();
+
+      const styleUrl = this.styles[mode] || this.styles.standard;
+      this.map.setStyle(styleUrl);
+    }
+
+    updateStyleToggleUI() {
+      const btnStandard = document.getElementById('btn-map-style-standard');
+      const btnSatellite = document.getElementById('btn-map-style-satellite');
+      if (btnStandard) btnStandard.classList.toggle('active', this.currentStyleMode === 'standard');
+      if (btnSatellite) btnSatellite.classList.toggle('active', this.currentStyleMode === 'satellite');
+    }
+
     renderErrorState(title, message, hint) {
       this.container.innerHTML = `
         <div class="mapbox-error-state" style="width:100%; height:100%; min-height:480px; background:#090E17; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box;">
@@ -9400,10 +9509,10 @@ return mapboxgl$1;
       try {
         window.mapboxgl.accessToken = token;
 
-        // Requirement 3: Use real Mapbox Standard geographic style
+        // Requirement 3: Use real Mapbox Standard geographic style as default
         this.map = new window.mapboxgl.Map({
           container: this.containerId,
-          style: 'mapbox://styles/mapbox/standard',
+          style: this.styles.standard,
           // Requirement 4: Center around simulated UAV mission area in Rajasthan/Western India
           center: [71.8500, 25.5500],
           zoom: 7.2,
@@ -9419,20 +9528,18 @@ return mapboxgl$1;
           this.isMapLoaded = true;
 
           // Requirement 9: Set dark/night lighting configuration on Mapbox Standard style
-          try {
-            this.map.setConfigProperty('basemap', 'lightPreset', 'night');
-            this.map.setConfigProperty('basemap', 'showPlaceLabels', true);
-            this.map.setConfigProperty('basemap', 'showRoadLabels', true);
-          } catch (e) {
-            // Style loads with default standard configuration
+          if (this.currentStyleMode === 'standard') {
+            try {
+              this.map.setConfigProperty('basemap', 'lightPreset', 'night');
+              this.map.setConfigProperty('basemap', 'showPlaceLabels', true);
+              this.map.setConfigProperty('basemap', 'showRoadLabels', true);
+            } catch (e) {
+              // Style loads with default standard configuration
+            }
           }
 
           // Requirement 6: Keep Aero Twin overlays ON TOP of real geographic map
-          this.addRouteOverlays();
-          this.addWaypointMarkers();
-          this.addContingencyBaseMarkers();
-          this.addUavMarker();
-
+          this.rebuildLayersAndOverlays();
           this.updateUI();
         });
 
@@ -9457,51 +9564,103 @@ return mapboxgl$1;
       }
     }
 
+    rebuildLayersAndOverlays() {
+      if (!this.map) return;
+
+      // 1. Re-register GeoJSON route source and layers
+      this.addRouteOverlays();
+
+      // 2. Waypoint markers
+      if (!this.waypointMarkers || this.waypointMarkers.length === 0) {
+        this.addWaypointMarkers();
+      }
+
+      // 3. Contingency base markers
+      if (!this.baseMarkers || this.baseMarkers.length === 0) {
+        this.addContingencyBaseMarkers();
+      }
+
+      // 4. UAV marker
+      if (!this.uavMarker) {
+        this.addUavMarker();
+      } else {
+        this.uavMarker.setLngLat([this.uav.lng, this.uav.lat]);
+        const icon = this.uavMarker.getElement().querySelector('#uav-aircraft-icon');
+        if (icon) {
+          icon.style.transform = `rotate(${this.uav.heading}deg)`;
+        }
+      }
+
+      // 5. Incident marker (if active)
+      if (this.incident.active && this.incident.lat && this.incident.lng) {
+        if (!this.incidentMarker) {
+          const el = document.createElement('div');
+          el.className = 'mapbox-incident-marker pulse-red';
+          el.innerHTML = `<span>⚠️ INCIDENT LOCATION</span>`;
+          this.incidentMarker = new window.mapboxgl.Marker({ element: el })
+            .setLngLat([this.incident.lng, this.incident.lat])
+            .addTo(this.map);
+        } else {
+          this.incidentMarker.setLngLat([this.incident.lng, this.incident.lat]);
+        }
+      }
+    }
+
     addRouteOverlays() {
       if (!this.map) return;
 
       const coordinates = MISSION_ROUTE.map(wp => [wp.lng, wp.lat]);
-      if (this.map.getSource('planned-route')) return;
-
-      this.map.addSource('planned-route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: coordinates
+      if (!this.map.getSource('planned-route')) {
+        this.map.addSource('planned-route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: coordinates
+            }
           }
-        }
-      });
+        });
+      }
 
       // Route Glow Layer on top of real geographic map
-      this.map.addLayer({
-        id: 'route-glow',
-        type: 'line',
-        source: 'planned-route',
-        slot: 'top',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#00F0FF',
-          'line-width': 7,
-          'line-opacity': 0.3
+      if (!this.map.getLayer('route-glow')) {
+        const glowDef = {
+          id: 'route-glow',
+          type: 'line',
+          source: 'planned-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#00F0FF',
+            'line-width': 7,
+            'line-opacity': 0.35
+          }
+        };
+        if (this.currentStyleMode === 'standard') {
+          glowDef.slot = 'top';
         }
-      });
+        this.map.addLayer(glowDef);
+      }
 
       // Main Route Dashed Line
-      this.map.addLayer({
-        id: 'route-line',
-        type: 'line',
-        source: 'planned-route',
-        slot: 'top',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#00F0FF',
-          'line-width': 2.5,
-          'line-dasharray': [2, 1.5]
+      if (!this.map.getLayer('route-line')) {
+        const lineDef = {
+          id: 'route-line',
+          type: 'line',
+          source: 'planned-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#00F0FF',
+            'line-width': 2.5,
+            'line-dasharray': [2, 1.5]
+          }
+        };
+        if (this.currentStyleMode === 'standard') {
+          lineDef.slot = 'top';
         }
-      });
+        this.map.addLayer(lineDef);
+      }
     }
 
     addWaypointMarkers() {
@@ -11916,15 +12075,23 @@ return mapboxgl$1;
     return html;
   }
 
+  let isAssistantResponding = false;
+
   function handleUserQuery(query) {
-    if (!query || !query.trim()) return;
+    if (!query || !query.trim() || isAssistantResponding) return;
     const cleanQuery = query.trim();
+    isAssistantResponding = true;
+    const sendBtn = document.getElementById('btn-chat-send');
+    if (sendBtn) sendBtn.disabled = true;
+
     appendAssistantMessage('user', cleanQuery);
 
     // 1. DETERMINISTIC INTENT ROUTING (Identity / Greetings - Fast-path)
     const deterministicResponse = routeDeterministicIntent(cleanQuery);
     if (deterministicResponse) {
       appendAssistantMessage('ai', deterministicResponse, 'local');
+      isAssistantResponding = false;
+      if (sendBtn) sendBtn.disabled = false;
       return;
     }
 
@@ -11932,22 +12099,34 @@ return mapboxgl$1;
     const snapshot = getAssistantSnapshot();
 
     // 3. SHOW TYPING INDICATOR
-    const typingId = showTypingIndicator();
+    showTypingIndicator();
 
     // 4. TRY GROK FIRST WITH THE IMMUTABLE SNAPSHOT; FALLBACK TO LOCAL ENGINE ANALYSIS
-    tryGrokQuery(cleanQuery, snapshot).then(grokResult => {
-      removeTypingIndicator(typingId);
-      if (grokResult) {
-        // Grok succeeded — convert markdown cleanly to HTML
-        const html = formatAssistantMarkdown(grokResult);
-        appendAssistantMessage('ai', html, 'grok');
-      } else {
-        // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+    tryGrokQuery(cleanQuery, snapshot)
+      .then(grokResult => {
+        removeTypingIndicator();
+        if (grokResult) {
+          // Grok succeeded — convert markdown cleanly to HTML
+          const html = formatAssistantMarkdown(grokResult);
+          appendAssistantMessage('ai', html, 'grok');
+        } else {
+          // Fallback to local analysis USING THE EXACT SAME SNAPSHOT
+          const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
+          const html = formatAssistantMarkdown(localResponse);
+          appendAssistantMessage('ai', html, 'local');
+        }
+      })
+      .catch(() => {
+        removeTypingIndicator();
         const localResponse = generateLocalAnalysis(cleanQuery, snapshot);
         const html = formatAssistantMarkdown(localResponse);
         appendAssistantMessage('ai', html, 'local');
-      }
-    });
+      })
+      .finally(() => {
+        removeTypingIndicator();
+        isAssistantResponding = false;
+        if (sendBtn) sendBtn.disabled = false;
+      });
   }
 
   window.handleUserQuery = handleUserQuery;
@@ -12242,25 +12421,31 @@ return mapboxgl$1;
   function showTypingIndicator() {
     const historyBox = document.getElementById('chat-history');
     if (!historyBox) return null;
-    const id = 'typing-' + Date.now();
+    // Always remove any existing indicators first to avoid duplicate visual gaps
+    historyBox.querySelectorAll('.typing-indicator').forEach(el => el.remove());
+
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble ai typing-indicator';
-    bubble.id = id;
     bubble.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
     historyBox.appendChild(bubble);
     historyBox.scrollTop = historyBox.scrollHeight;
-    return id;
+    return bubble;
   }
 
-  function removeTypingIndicator(id) {
-    if (!id) return;
-    const el = document.getElementById(id);
-    if (el) el.remove();
+  function removeTypingIndicator() {
+    const historyBox = document.getElementById('chat-history');
+    if (!historyBox) return;
+    historyBox.querySelectorAll('.typing-indicator').forEach(el => el.remove());
   }
 
   function appendAssistantMessage(sender, htmlText, source) {
     const historyBox = document.getElementById('chat-history');
     if (!historyBox) return;
+
+    // Guaranteed cleanup of any active typing indicator before inserting real bubble
+    if (sender === 'ai') {
+      removeTypingIndicator();
+    }
 
     const bubble = document.createElement('div');
     bubble.className = `chat-bubble ${sender}`;

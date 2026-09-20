@@ -95,6 +95,13 @@
       this.currentRecommendedBaseId = 'uttarlai';
       this.selectedBaseId = 'uttarlai';
 
+      // Map Style State (Standard vs Satellite)
+      this.currentStyleMode = 'standard';
+      this.styles = {
+        standard: 'mapbox://styles/mapbox/standard',
+        satellite: 'mapbox://styles/mapbox/satellite-streets-v12'
+      };
+
       // Simulated UAV Location along Rajasthan Mission Corridor
       this.uav = {
         lat: 26.6500,
@@ -119,6 +126,9 @@
 
     async init() {
       if (!this.container) return;
+
+      // Bind Map Style Segmented Control Toggle buttons
+      this.bindStyleToggle();
 
       // 1. Resolve Mapbox Token from window or server API (never expose in UI/logs)
       let token = (window.VITE_MAPBOX_TOKEN || '').trim();
@@ -161,6 +171,39 @@
       this.initMapbox(token);
     }
 
+    bindStyleToggle() {
+      const btnStandard = document.getElementById('btn-map-style-standard');
+      const btnSatellite = document.getElementById('btn-map-style-satellite');
+      if (btnStandard) {
+        btnStandard.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchStyle('standard');
+        });
+      }
+      if (btnSatellite) {
+        btnSatellite.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.switchStyle('satellite');
+        });
+      }
+    }
+
+    switchStyle(mode) {
+      if (!this.map || mode === this.currentStyleMode) return;
+      this.currentStyleMode = mode;
+      this.updateStyleToggleUI();
+
+      const styleUrl = this.styles[mode] || this.styles.standard;
+      this.map.setStyle(styleUrl);
+    }
+
+    updateStyleToggleUI() {
+      const btnStandard = document.getElementById('btn-map-style-standard');
+      const btnSatellite = document.getElementById('btn-map-style-satellite');
+      if (btnStandard) btnStandard.classList.toggle('active', this.currentStyleMode === 'standard');
+      if (btnSatellite) btnSatellite.classList.toggle('active', this.currentStyleMode === 'satellite');
+    }
+
     renderErrorState(title, message, hint) {
       this.container.innerHTML = `
         <div class="mapbox-error-state" style="width:100%; height:100%; min-height:480px; background:#090E17; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box;">
@@ -180,10 +223,10 @@
       try {
         window.mapboxgl.accessToken = token;
 
-        // Requirement 3: Use real Mapbox Standard geographic style
+        // Requirement 3: Use real Mapbox Standard geographic style as default
         this.map = new window.mapboxgl.Map({
           container: this.containerId,
-          style: 'mapbox://styles/mapbox/standard',
+          style: this.styles.standard,
           // Requirement 4: Center around simulated UAV mission area in Rajasthan/Western India
           center: [71.8500, 25.5500],
           zoom: 7.2,
@@ -199,20 +242,18 @@
           this.isMapLoaded = true;
 
           // Requirement 9: Set dark/night lighting configuration on Mapbox Standard style
-          try {
-            this.map.setConfigProperty('basemap', 'lightPreset', 'night');
-            this.map.setConfigProperty('basemap', 'showPlaceLabels', true);
-            this.map.setConfigProperty('basemap', 'showRoadLabels', true);
-          } catch (e) {
-            // Style loads with default standard configuration
+          if (this.currentStyleMode === 'standard') {
+            try {
+              this.map.setConfigProperty('basemap', 'lightPreset', 'night');
+              this.map.setConfigProperty('basemap', 'showPlaceLabels', true);
+              this.map.setConfigProperty('basemap', 'showRoadLabels', true);
+            } catch (e) {
+              // Style loads with default standard configuration
+            }
           }
 
           // Requirement 6: Keep Aero Twin overlays ON TOP of real geographic map
-          this.addRouteOverlays();
-          this.addWaypointMarkers();
-          this.addContingencyBaseMarkers();
-          this.addUavMarker();
-
+          this.rebuildLayersAndOverlays();
           this.updateUI();
         });
 
@@ -237,51 +278,103 @@
       }
     }
 
+    rebuildLayersAndOverlays() {
+      if (!this.map) return;
+
+      // 1. Re-register GeoJSON route source and layers
+      this.addRouteOverlays();
+
+      // 2. Waypoint markers
+      if (!this.waypointMarkers || this.waypointMarkers.length === 0) {
+        this.addWaypointMarkers();
+      }
+
+      // 3. Contingency base markers
+      if (!this.baseMarkers || this.baseMarkers.length === 0) {
+        this.addContingencyBaseMarkers();
+      }
+
+      // 4. UAV marker
+      if (!this.uavMarker) {
+        this.addUavMarker();
+      } else {
+        this.uavMarker.setLngLat([this.uav.lng, this.uav.lat]);
+        const icon = this.uavMarker.getElement().querySelector('#uav-aircraft-icon');
+        if (icon) {
+          icon.style.transform = `rotate(${this.uav.heading}deg)`;
+        }
+      }
+
+      // 5. Incident marker (if active)
+      if (this.incident.active && this.incident.lat && this.incident.lng) {
+        if (!this.incidentMarker) {
+          const el = document.createElement('div');
+          el.className = 'mapbox-incident-marker pulse-red';
+          el.innerHTML = `<span>⚠️ INCIDENT LOCATION</span>`;
+          this.incidentMarker = new window.mapboxgl.Marker({ element: el })
+            .setLngLat([this.incident.lng, this.incident.lat])
+            .addTo(this.map);
+        } else {
+          this.incidentMarker.setLngLat([this.incident.lng, this.incident.lat]);
+        }
+      }
+    }
+
     addRouteOverlays() {
       if (!this.map) return;
 
       const coordinates = MISSION_ROUTE.map(wp => [wp.lng, wp.lat]);
-      if (this.map.getSource('planned-route')) return;
-
-      this.map.addSource('planned-route', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: coordinates
+      if (!this.map.getSource('planned-route')) {
+        this.map.addSource('planned-route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: coordinates
+            }
           }
-        }
-      });
+        });
+      }
 
       // Route Glow Layer on top of real geographic map
-      this.map.addLayer({
-        id: 'route-glow',
-        type: 'line',
-        source: 'planned-route',
-        slot: 'top',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#00F0FF',
-          'line-width': 7,
-          'line-opacity': 0.3
+      if (!this.map.getLayer('route-glow')) {
+        const glowDef = {
+          id: 'route-glow',
+          type: 'line',
+          source: 'planned-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#00F0FF',
+            'line-width': 7,
+            'line-opacity': 0.35
+          }
+        };
+        if (this.currentStyleMode === 'standard') {
+          glowDef.slot = 'top';
         }
-      });
+        this.map.addLayer(glowDef);
+      }
 
       // Main Route Dashed Line
-      this.map.addLayer({
-        id: 'route-line',
-        type: 'line',
-        source: 'planned-route',
-        slot: 'top',
-        layout: { 'line-join': 'round', 'line-cap': 'round' },
-        paint: {
-          'line-color': '#00F0FF',
-          'line-width': 2.5,
-          'line-dasharray': [2, 1.5]
+      if (!this.map.getLayer('route-line')) {
+        const lineDef = {
+          id: 'route-line',
+          type: 'line',
+          source: 'planned-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#00F0FF',
+            'line-width': 2.5,
+            'line-dasharray': [2, 1.5]
+          }
+        };
+        if (this.currentStyleMode === 'standard') {
+          lineDef.slot = 'top';
         }
-      });
+        this.map.addLayer(lineDef);
+      }
     }
 
     addWaypointMarkers() {

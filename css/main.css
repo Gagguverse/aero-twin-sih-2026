@@ -1936,9 +1936,11 @@ body {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 320px;
+  height: 520px;
+  max-height: 520px;
+  min-height: 520px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .assistant-header {
@@ -1953,9 +1955,10 @@ body {
 
 .chat-history-box {
   flex: 1 1 0%;
-  min-height: 140px;
-  max-height: none;
+  min-height: 0;
+  max-height: 350px;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--surface-0);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -1996,21 +1999,23 @@ body {
 }
 
 .chat-bubble {
-  max-width: 92%;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  padding: 7px 10px;
+  max-width: 88%;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  padding: 7px 11px;
   border-radius: var(--radius-sm);
-  margin: 0;
+  margin: 0 !important;
   flex-shrink: 0;
   word-break: break-word;
   overflow-wrap: break-word;
   height: auto;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .chat-bubble.user {
   align-self: flex-end;
+  text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border-card);
   color: var(--text-primary);
@@ -2519,6 +2524,62 @@ body {
   overflow: hidden;
   background: #090E17;
   min-height: 440px;
+}
+
+/* Map Style Segmented Control Toggle (Standard vs Satellite) */
+.map-style-toggle {
+  position: absolute;
+  top: 10px;
+  right: 52px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.map-style-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.map-style-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.map-style-btn.active {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 600px) {
+  .map-style-toggle {
+    top: 8px;
+    right: 48px;
+  }
+  .map-style-btn {
+    font-size: 0.58rem;
+    padding: 2px 6px;
+  }
 }
 
 .mission-map-box {

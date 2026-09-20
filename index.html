@@ -11,6 +11,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+  <!-- Mapbox GL JS Stylesheet (v3.31.0) -->
+  <link rel="stylesheet" href="css/mapbox-gl.css">
+
   <!-- Application Stylesheet -->
   <link rel="stylesheet" href="css/main.css">
 </head>
@@ -494,6 +497,87 @@
     </section>
 
     <!-- ======================================================================
+         SECTION 3C — TACTICAL MISSION MAP & CONTINGENCY DECISION SUPPORT
+         ====================================================================== -->
+    <section class="mission-map-panel" aria-label="Mission Map and Contingency Decision Support">
+      <div class="trust-matrix-header">
+        <div class="trust-title-group">
+          <h2 class="trust-main-title">MISSION MAP &amp; CONTINGENCY LANDING RECOMMENDATIONS</h2>
+          <span class="trust-diff-badge">MISSION DECISION SUPPORT &bull; SENSOR TRUST &bull; SAFE RECOVERY CORRIDOR</span>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-muted);">
+          Simulated Flight Route (START &rarr; LANDING) &bull; Dynamic Incident Marker &bull; Contingency Suitability
+        </div>
+      </div>
+
+      <!-- Map HUD Ribbon -->
+      <div class="map-hud-ribbon">
+        <div class="hud-metric">
+          <span class="hud-lbl">CURRENT PHASE</span>
+          <span class="hud-val phase-chip" id="map-hud-phase">CRUISE</span>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-lbl">UAV POSITION</span>
+          <span class="hud-val font-mono" id="map-hud-pos">26.6500°N, 72.4200°E</span>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-lbl">ALTITUDE &bull; SPEED</span>
+          <span class="hud-val font-mono" id="map-hud-alt-spd">18,000 FT &bull; 118 KTS</span>
+        </div>
+        <div class="hud-metric">
+          <span class="hud-lbl">ENGINE HEALTH (EHI)</span>
+          <span class="hud-val font-mono" id="map-hud-ehi" style="color: var(--status-nominal);">96/100</span>
+        </div>
+      </div>
+
+      <!-- Main Map Layout -->
+      <div class="mission-map-layout">
+        <!-- Map Viewport -->
+        <div class="map-container-frame">
+          <div id="mission-map-container" class="mission-map-box"></div>
+        </div>
+
+        <!-- Contingency Decision Support Card -->
+        <div class="contingency-sidebar">
+          <div class="contingency-recommendation-card" id="contingency-recommendation-box">
+            <div class="advisory-header">
+              <span class="advisory-tag" id="contingency-rec-tag">MISSION GO</span>
+              <span class="advisory-title" id="contingency-rec-title">NOMINAL MISSION FLIGHTPATH</span>
+            </div>
+
+            <p class="advisory-reason" id="contingency-rec-reason">
+              All propulsion parameters and sensors track within baseline ISA cruise envelope. Full mission continuation authorized.
+            </p>
+
+            <div class="advisory-evidence" id="contingency-rec-evidence">
+              <div>&bull; Engine Health Index: 96/100 (NOMINAL)</div>
+              <div>&bull; All 9 primary sensors trusted (&gt; 0.94)</div>
+              <div>&bull; Planned recovery: AFS Uttarlai</div>
+            </div>
+
+            <div class="advisory-metrics-row" id="contingency-rec-metrics">
+              <div>TARGET: <strong>AFS UTTARLAI</strong></div>
+              <div>DIST: <strong>-- KM</strong></div>
+              <div>ETA: <strong>-- MIN</strong></div>
+              <div>RWY: <strong>09/27 (9,000 FT)</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulated Contingency Landing Bases Tray -->
+      <div class="contingency-bases-tray">
+        <div class="tray-header">
+          <span class="tray-title">SIMULATED CONTINGENCY LANDING AREAS (DRDO TAPAS MALE UAV THEATER)</span>
+          <span style="font-size:0.68rem; color:var(--text-muted);">Dynamic Haversine distance &bull; Estimated glide/powered ETA &bull; Suitability score</span>
+        </div>
+        <div class="contingency-bases-grid" id="contingency-bases-grid">
+          <!-- Populated dynamically via mission-map.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
          SECTION 4 — SENSOR TRUST MATRIX (Full-Width Core Differentiator)
          ====================================================================== -->
     <section class="trust-matrix-panel" aria-label="Sensor Trust Matrix">
@@ -854,6 +938,10 @@
   <script src="js/ai-diagnostic-net.js"></script>
   <script src="js/fault-simulator.js"></script>
   <script src="js/engine-3d.js"></script>
+  <!-- Mapbox GL JS (v3.31.0 Dependency) & Mission Map Module -->
+  <script src="js/mapbox-gl.js"></script>
+  <script src="js/mission-map.js"></script>
+
   <script src="js/app.js"></script>
 </body>
 </html>

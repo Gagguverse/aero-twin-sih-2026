@@ -703,6 +703,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API Endpoint: GET /api/config (Public frontend configuration, e.g. VITE_MAPBOX_TOKEN)
+  if (req.method === 'GET' && parsedUrl === '/api/config') {
+    require('dotenv').config();
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache'
+    });
+    res.end(JSON.stringify({
+      mapboxToken: process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || ''
+    }));
+    return;
+  }
+
   // CORS pre-flight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -727,6 +741,28 @@ const server = http.createServer((req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+    // Inject VITE_MAPBOX_TOKEN directly into HTML heads for immediate zero-latency initialization
+    if (ext === '.html') {
+      fs.readFile(filePath, 'utf8', (readErr, htmlContent) => {
+        if (readErr) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('500 Internal Error');
+          return;
+        }
+        const token = process.env.VITE_MAPBOX_TOKEN || process.env.MAPBOX_TOKEN || '';
+        const injectedScript = `<script>window.VITE_MAPBOX_TOKEN = ${JSON.stringify(token)};</script>\n</head>`;
+        const finalHtml = htmlContent.replace('</head>', injectedScript);
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+        res.end(finalHtml);
+      });
+      return;
+    }
 
     res.writeHead(200, {
       'Content-Type': contentType,

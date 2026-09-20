@@ -21,6 +21,7 @@
   let digitalTwin = null;
   let physicsModel = null;
   let telemetryAdapter = null;
+  let missionMap = null;
 
   let chartCanvas = null;
   let chartCtx = null;
@@ -105,6 +106,11 @@
     if (window.FaultSimulator && telemetryEngine) {
       faultSimulator = new window.FaultSimulator(telemetryEngine);
       window.faultSimulator = faultSimulator;
+    }
+
+    if (window.MissionMapController) {
+      missionMap = new window.MissionMapController('mission-map-container');
+      window.missionMap = missionMap;
     }
 
     if (telemetryEngine && sensorTrustEngine && aiDiagnosticNet) {
@@ -387,6 +393,11 @@
 
     // 3B. Section 3B: Physics Expected vs Actual & Operating Residuals (P0 Technical Depth)
     renderPhysicsResiduals(s.physics);
+
+    // 3C. Section 3C: Mission Map & Contingency Decision Support
+    if (missionMap) {
+      missionMap.update(s);
+    }
 
     // 4. Section 4: Sensor Trust Matrix (Full-Width Core Differentiator)
     renderSensorTrustMatrix(s.rawTelemetry, s.trustResult);

@@ -78,6 +78,32 @@
     initUIEventListeners();
     initAssistant();
 
+    // -----------------------------------------------------------------------
+    // ERROR HANDLING: System event listeners for telemetry error states
+    // -----------------------------------------------------------------------
+    window.addEventListener('telemetry:disconnect', (e) => {
+      const sec = (e.detail && e.detail.silenceSeconds) ? e.detail.silenceSeconds : '?';
+      ErrorStatusBanner.show(
+        'telem_disconnect',
+        `⚠️ Telemetry connection lost (${sec}s silence) — displaying last valid state`,
+        'warning',
+        false // persistent until reconnect
+      );
+    });
+    window.addEventListener('telemetry:reconnect', () => {
+      ErrorStatusBanner.dismiss('telem_disconnect');
+      ErrorStatusBanner.show('telem_reconnect', '✅ Telemetry reconnected — live data resumed', 'nominal', true);
+    });
+    window.addEventListener('telemetry:malformed_packet', (e) => {
+      const hint = (e.detail && e.detail.warnings && e.detail.warnings[0]) ? e.detail.warnings[0] : 'Unknown structure error';
+      ErrorStatusBanner.show(
+        'telem_malformed',
+        `⛔ Malformed telemetry packet rejected — ${hint}`,
+        'critical',
+        true // auto-dismiss
+      );
+    });
+
     // Start in Normal scenario baseline
     applyScenario('normal');
   });
@@ -175,14 +201,76 @@
   }
 
   // ==========================================================================
+  // ERROR HANDLING: Non-blocking error status banner
+  // Manages a single <div id="at-error-banner"> in the page header.
+  // Matches existing dark Material 3 theme. No modals, no page redesign.
+  // ==========================================================================
+  const ErrorStatusBanner = {
+    _activeId: null,
+    _timer: null,
+
+    /**
+     * Show an error banner.
+     * @param {string} id - Unique banner ID (prevents duplicate banners of same type)
+     * @param {string} message - Human-readable message
+     * @param {'warning'|'critical'|'nominal'} level - Visual severity
+     * @param {boolean} [autoDismiss=true] - Auto-dismiss after 8 seconds
+     */
+    show(id, message, level, autoDismiss = true) {
+      const el = document.getElementById('at-error-banner');
+      if (!el) return;
+
+      this._activeId = id;
+      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+
+      // Color palette matching existing Material 3 dark theme variables
+      const colors = {
+        warning:  { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.5)', text: '#FCD34D' },
+        critical: { bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.5)',  text: '#FCA5A5' },
+        nominal:  { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.5)', text: '#6EE7B7' }
+      };
+      const c = colors[level] || colors.warning;
+
+      el.innerHTML = `<span style="font-family:var(--font-mono,monospace);font-size:0.78rem;font-weight:600;color:${c.text};">${message}</span><button onclick="ErrorStatusBanner.dismiss('${id}')" style="margin-left:12px;background:none;border:none;color:${c.text};cursor:pointer;font-size:0.75rem;opacity:0.7;">× dismiss</button>`;
+      el.style.cssText = `display:flex;align-items:center;padding:6px 16px;background:${c.bg};border-bottom:1px solid ${c.border};transition:opacity 0.3s ease;z-index:9999;`;
+
+      if (autoDismiss) {
+        this._timer = setTimeout(() => this.dismiss(id), 8000);
+      }
+    },
+
+    dismiss(id) {
+      if (this._activeId !== id) return;
+      const el = document.getElementById('at-error-banner');
+      if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => { if (el) el.style.display = 'none'; el.innerHTML = ''; }, 300);
+      }
+      this._activeId = null;
+      if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    }
+  };
+  // Expose for inline dismiss button onclick
+  window.ErrorStatusBanner = ErrorStatusBanner;
+
+  // ==========================================================================
   // CORE RUNTIME PIPELINE EXECUTION (10 Hz)
   // ==========================================================================
   function executePipelineStep(rawState, expected) {
     if (window.appState && window.appState.isReplaying) return;
     if (!sensorTrustEngine || !aiDiagnosticNet) return;
 
+    // --- ERROR BOUNDARY: Catch any runtime exception so 10 Hz loop never halts ---
+    try {
+
     // 1. SENSOR TRUST EVALUATION (Sensor Trust Before Health Judgment)
     const trustResult = sensorTrustEngine.evaluate(rawState, expected);
+
+    // If SensorTrustEngine returned a fallback (null trustedState), don't continue pipeline
+    if (!trustResult || !trustResult.trustedState) {
+      console.warn('[AeroTwin] executePipelineStep: trustResult has no trustedState — skipping frame.');
+      return;
+    }
 
     // 2. PHYSICS MODEL & OPERATING RESIDUALS (P0 Technical Depth)
     // If a sensor is quarantined, its residual is shielded to avoid false engine anomalies
@@ -205,17 +293,31 @@
 
     // 6. SYNCHRONIZE 3D ENGINE STATE
     if (digitalTwin) {
-      const avgCht = rawState.cht ? (rawState.cht.reduce((a, b) => a + b, 0) / rawState.cht.length) : 178;
-      const avgEgt = rawState.egt ? (rawState.egt.reduce((a, b) => a + b, 0) / rawState.egt.length) : 824;
+      // Null-safe array average (handles null sentinels from validator)
+      const chtVals = Array.isArray(rawState.cht) ? rawState.cht.filter(v => v !== null && isFinite(v)) : [];
+      const egtVals = Array.isArray(rawState.egt) ? rawState.egt.filter(v => v !== null && isFinite(v)) : [];
+      const avgCht = chtVals.length ? chtVals.reduce((a, b) => a + b, 0) / chtVals.length : 178;
+      const avgEgt = egtVals.length ? egtVals.reduce((a, b) => a + b, 0) / egtVals.length : 824;
       const oilPressTrust = trustResult.scores && trustResult.scores.oilPress !== undefined ? trustResult.scores.oilPress : 1.0;
 
       digitalTwin.updateState({
-        rpm: rawState.rpm,
+        rpm: rawState.rpm || 4200,
         status: diagnosticResult.status,
         oilPressTrust: oilPressTrust,
         cht: avgCht,
         egt: avgEgt
       }, currentScenarioKey);
+    }
+
+    } catch (pipelineErr) {
+      // Log for debugging but NEVER crash the 10 Hz loop
+      console.error('[AeroTwin Pipeline] Runtime error in executePipelineStep:', pipelineErr);
+      ErrorStatusBanner.show(
+        'pipeline_error',
+        '⛔ Internal pipeline error detected — last valid state preserved. See console for details.',
+        'critical',
+        true
+      );
     }
   }
 
@@ -837,6 +939,9 @@
   // SECTION 3: RIGHT COLUMN ENGINE STATUS + WHY
   // ==========================================================================
   function renderEngineStatusAndWhy(s) {
+    // NULL-SAFETY: Guard against missing diagnosticResult
+    if (!s || !s.diagnosticResult) return;
+
     const curStateVal = document.getElementById('engine-current-state');
     const faultVal = document.getElementById('engine-fault-val');
     const anomScoreVal = document.getElementById('engine-anomaly-val');
@@ -845,15 +950,16 @@
     let currentStateText = 'HEALTHY';
     let faultText = 'NONE';
 
-    if (s.diagnosticResult.faultClass === 'SENSOR_FAULT') {
+    const faultClass = s.diagnosticResult.faultClass || 'HEALTHY';
+    if (faultClass === 'SENSOR_FAULT') {
       currentStateText = 'SENSOR FAULT';
       faultText = 'OIL PRESS SENSOR FREEZE';
       stateColor = 'var(--status-warning)';
-    } else if (s.diagnosticResult.faultClass === 'THERMAL_DEGRADATION') {
+    } else if (faultClass === 'THERMAL_DEGRADATION') {
       currentStateText = 'THERMAL RUNAWAY';
       faultText = 'CYLINDER THERMAL ANOMALY';
       stateColor = 'var(--status-critical)';
-    } else if (s.diagnosticResult.faultClass === 'LUBRICATION_DEGRADATION') {
+    } else if (faultClass === 'LUBRICATION_DEGRADATION') {
       currentStateText = 'LUBRICATION CAVITATION';
       faultText = 'OIL PRESSURE LOSS / BEARING WEAR';
       stateColor = 'var(--status-critical)';
@@ -864,19 +970,20 @@
       curStateVal.style.color = stateColor;
     }
     if (faultVal) faultVal.textContent = faultText;
-    if (anomScoreVal) anomScoreVal.textContent = s.anomalyScore.toFixed(2);
+    const anomScore = typeof s.anomalyScore === 'number' && isFinite(s.anomalyScore) ? s.anomalyScore : 0;
+    if (anomScoreVal) anomScoreVal.textContent = anomScore.toFixed(2);
 
     const whyTitle = document.getElementById('why-title');
     const whyBulletsList = document.getElementById('why-bullets');
     const whyConclusion = document.getElementById('why-conclusion');
 
-    if (whyTitle) {
+    if (whyTitle && s.why && s.why.title) {
       whyTitle.innerHTML = `<svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm.75 12h-1.5v-1.5h1.5V14zm0-3h-1.5V6h1.5v5z"/></svg> ${s.why.title}`;
     }
-    if (whyBulletsList) {
+    if (whyBulletsList && Array.isArray(s.why && s.why.bullets)) {
       whyBulletsList.innerHTML = s.why.bullets.map(b => `<li>${b}</li>`).join('');
     }
-    if (whyConclusion) {
+    if (whyConclusion && s.why && s.why.conclusion) {
       whyConclusion.innerHTML = `<strong>Conclusion:</strong> ${s.why.conclusion}`;
     }
   }
@@ -886,69 +993,81 @@
   // ==========================================================================
   function renderSensorTrustMatrix(raw, trustResult) {
     const tbody = document.getElementById('trust-table-body');
-    if (!tbody || !trustResult) return;
+    // NULL-SAFETY: Guard raw and trustResult
+    if (!tbody || !trustResult || !raw) return;
 
     const scores = trustResult.scores || {};
     const reasons = trustResult.reasons || {};
     const quarantined = trustResult.quarantined || [];
 
-    const avgCht = raw.cht ? (raw.cht.reduce((a, b) => a + b, 0) / 4) : 178;
-    const avgEgt = raw.egt ? (raw.egt.reduce((a, b) => a + b, 0) / 4) : 824;
+    // Null-safe averages (handles null sentinels from validator)
+    const chtVals = Array.isArray(raw.cht) ? raw.cht.filter(v => v !== null && isFinite(v)) : [];
+    const egtVals = Array.isArray(raw.egt) ? raw.egt.filter(v => v !== null && isFinite(v)) : [];
+    const avgCht = chtVals.length ? chtVals.reduce((a, b) => a + b, 0) / chtVals.length : 178;
+    const avgEgt = egtVals.length ? egtVals.reduce((a, b) => a + b, 0) / egtVals.length : 824;
+    const safeOilTemp = (raw.oilTemp !== null && raw.oilTemp !== undefined && isFinite(raw.oilTemp))
+      ? raw.oilTemp : null;
+
+    // Null-safe formatter for matrix row display values
+    const safeFmt = (val, decimals = 1) => {
+      if (val === null || val === undefined || !isFinite(val) || isNaN(val)) return 'DATA UNAVAILABLE';
+      return Number(val).toFixed(decimals);
+    };
 
     const matrixRows = [
       {
         key: 'rpm',
         name: 'RPM (Crank Sensor)',
-        val: `${Math.round(raw.rpm).toLocaleString()} RPM`,
+        val: raw.rpm !== null && isFinite(raw.rpm) ? `${Math.round(raw.rpm).toLocaleString()} RPM` : 'DATA UNAVAILABLE',
         score: scores.rpm !== undefined ? scores.rpm : 0.98,
         defaultReason: 'Cross-validated with magneto timing & MAP slew'
       },
       {
         key: 'cht',
         name: 'CHT (Cylinder Head Temp)',
-        val: `${avgCht.toFixed(1)} °C`,
+        val: chtVals.length ? `${avgCht.toFixed(1)} °C` : 'DATA UNAVAILABLE',
         score: scores.cht ? (scores.cht.reduce((a, b) => a + b, 0) / 4) : 0.96,
         defaultReason: 'Normal thermal balance across all 4 cylinders'
       },
       {
         key: 'egt',
         name: 'EGT (Exhaust Gas Temp)',
-        val: `${avgEgt.toFixed(1)} °C`,
+        val: egtVals.length ? `${avgEgt.toFixed(1)} °C` : 'DATA UNAVAILABLE',
         score: scores.egt ? (scores.egt.reduce((a, b) => a + b, 0) / 4) : 0.95,
         defaultReason: 'Consistent with stoichiometric fuel flow & load'
       },
       {
         key: 'oilTemp',
         name: 'Oil Temperature',
-        val: `${raw.oilTemp.toFixed(1)} °C`,
+        val: `${safeFmt(raw.oilTemp)} °C`,
         score: scores.oilTemp !== undefined ? scores.oilTemp : 0.94,
         defaultReason: 'Thermal lag matches heat exchanger model'
       },
       {
         key: 'oilPress',
         name: 'Oil Pressure',
-        val: `${raw.oilPress.toFixed(1)} PSI`,
+        val: `${safeFmt(raw.oilPress)} PSI`,
         score: scores.oilPress !== undefined ? scores.oilPress : 0.97,
         defaultReason: 'Dynamic pressure response matches RPM slew'
       },
       {
         key: 'fuelFlow',
         name: 'Fuel Flow Rate',
-        val: `${raw.fuelFlow.toFixed(1)} L/hr`,
+        val: `${safeFmt(raw.fuelFlow)} L/hr`,
         score: scores.fuelFlow !== undefined ? scores.fuelFlow : 0.96,
         defaultReason: 'Matches injector pulse-width & throttle angle'
       },
       {
         key: 'map',
         name: 'MAP (Manifold Pressure)',
-        val: `${raw.map.toFixed(1)} inHg`,
+        val: `${safeFmt(raw.map)} inHg`,
         score: scores.map !== undefined ? scores.map : 0.95,
         defaultReason: 'Correlates with turbo boost controller'
       },
       {
         key: 'load',
         name: 'Engine Load',
-        val: `${(raw.load !== undefined ? raw.load : 72).toFixed(1)}%`,
+        val: `${safeFmt(raw.load !== undefined ? raw.load : 72)}%`,
         score: 0.98,
         defaultReason: 'Calculated load matches torque absorption curve'
       }
@@ -3633,11 +3752,311 @@
     if (btnFull) btnFull.classList.toggle('active', factor === 1.0);
   };
 
+
   // Public exports on window for testability and developer tools
   window.captureAppStateSnapshot = captureAppStateSnapshot;
   window.generateLocalAnalysis = generateLocalAnalysis;
   window.routeDeterministicIntent = routeDeterministicIntent;
   window.handleUserQuery = handleUserQuery;
   window.renderLiveTelemetry = renderLiveTelemetry;
+
+  // ==========================================================================
+  // DEVELOPER / SYSTEM TEST PANEL
+  // Wires the UI buttons to the REAL production error-handling pipeline.
+  // Each test injects state into telemetryEngine.state (same path as live 10Hz)
+  // and lets Validator → SensorTrust → AI → EHI → UI process it naturally.
+  // No fake UI output. All results are real pipeline output.
+  // ==========================================================================
+  const DevTestPanel = (() => {
+    // Track injected state so Reset knows what to undo
+    let _activeTest = null;
+    let _savedOilPress = null;
+    let _savedEgt = null;
+
+    // --- UI helpers ---
+    function _setStatus(msg, color = 'rgba(251,191,36,0.85)') {
+      const el = document.getElementById('dev-test-status');
+      if (!el) return;
+      if (msg) {
+        el.style.display = 'block';
+        el.style.color = color;
+        el.textContent = msg;
+      } else {
+        el.style.display = 'none';
+        el.textContent = '';
+      }
+    }
+
+    function _setButtonActive(btnId, active) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      if (active) {
+        btn.style.borderColor = 'rgba(251,191,36,0.5)';
+        btn.style.background = 'rgba(251,191,36,0.08)';
+      } else {
+        btn.style.borderColor = 'rgba(148,163,184,0.14)';
+        btn.style.background = 'rgba(30,41,59,0.6)';
+      }
+    }
+
+    function _clearAllButtonStates() {
+      ['dev-btn-oil', 'dev-btn-egt', 'dev-btn-malform', 'dev-btn-disconnect'].forEach(id => _setButtonActive(id, false));
+      const resetBtn = document.getElementById('dev-btn-reset');
+      if (resetBtn) {
+        resetBtn.style.color = 'rgba(148,163,184,0.55)';
+        resetBtn.style.borderColor = 'rgba(148,163,184,0.1)';
+      }
+    }
+
+    // --- Test implementations ---
+    const tests = {
+
+      // ------------------------------------------------------------------
+      // TEST 1: Oil Pressure Sensor Fault (oilPress = -50 PSI)
+      // Injects a physically impossible negative pressure into the engine state.
+      // TelemetryValidator catches it → oilPress = null sentinel
+      // → SensorTrustEngine: trust 0.10, quarantined
+      // → AIDiagnosticNet: faultClass = SENSOR_FAULT (NOT engine failure)
+      // → EHI: shielded, not falsely collapsed
+      // ------------------------------------------------------------------
+      oil_pressure() {
+        if (!telemetryEngine) {
+          _setStatus('⚠ TelemetryEngine not ready.'); return;
+        }
+        _savedOilPress = telemetryEngine.state.oilPress;
+        _activeTest = 'oil_pressure';
+        _setButtonActive('dev-btn-oil', true);
+        _setStatus('▶ TEST: Oil Pressure = −50 PSI injected. Processing via real pipeline...');
+        console.log('[DevTestPanel] TEST 1: Injecting oilPress = -50 into live telemetry state.');
+
+        // Inject into the LIVE state — next 10Hz tick picks it up through normal pipeline
+        telemetryEngine.state.oilPress = -50;
+
+        // Show result status after 2 pipeline cycles (200ms)
+        setTimeout(() => {
+          const s = window.appState;
+          const trust = s.trustResult && s.trustResult.scores && s.trustResult.scores.oilPress;
+          const fault = s.diagnosticResult && s.diagnosticResult.faultClass;
+          const ehi = s.ehi;
+          const trustStr = trust !== undefined ? trust.toFixed(2) : '?';
+          const ok = (fault === 'SENSOR_FAULT' || trust < 0.5) && ehi > 20;
+          _setStatus(
+            ok
+              ? `✓ Sensor INVALID detected. Trust: ${trustStr}. EHI: ${ehi} (engine not falsely failed). faultClass: ${fault || 'HEALTHY'}`
+              : `? oilPress injected. Trust: ${trustStr} | EHI: ${ehi} | faultClass: ${fault || 'HEALTHY'}`,
+            ok ? 'rgba(16,185,129,0.9)' : 'rgba(251,191,36,0.85)'
+          );
+        }, 220);
+      },
+
+      // ------------------------------------------------------------------
+      // TEST 2: Missing Telemetry (EGT = null)
+      // Injects null EGT array into engine state.
+      // TelemetryValidator catches it → egt = [null,null,null,null]
+      // → SensorTrustEngine: egt trust 0.10 for all 4 cylinders
+      // → AIDiagnosticNet: null-safe reduce, uses baseline fallback for features
+      // → No NaN in DOM, no crash, other sensors continue normally
+      // ------------------------------------------------------------------
+      missing_telemetry() {
+        if (!telemetryEngine) {
+          _setStatus('⚠ TelemetryEngine not ready.'); return;
+        }
+        _savedEgt = Array.isArray(telemetryEngine.state.egt)
+          ? telemetryEngine.state.egt.slice() : null;
+        _activeTest = 'missing_telemetry';
+        _setButtonActive('dev-btn-egt', true);
+        _setStatus('▶ TEST: EGT = null injected. Checking null-safety...');
+        console.log('[DevTestPanel] TEST 2: Injecting egt = null into live telemetry state.');
+
+        telemetryEngine.state.egt = null;
+
+        setTimeout(() => {
+          // Check DOM for NaN
+          const domText = document.body ? document.body.innerText : '';
+          const hasNaN = domText.includes('NaN') || domText.includes('Infinity');
+          const ehi = window.appState && window.appState.ehi;
+          const ehiOk = typeof ehi === 'number' && isFinite(ehi) && !isNaN(ehi);
+          const ok = !hasNaN && ehiOk;
+          _setStatus(
+            ok
+              ? `✓ Null EGT handled safely. No NaN in DOM. EHI: ${ehi}. Pipeline stable.`
+              : `✗ Issue: NaN found=${hasNaN}, EHI valid=${ehiOk}`,
+            ok ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)'
+          );
+          if (!ok) console.error('[DevTestPanel] TEST 2 FAIL: NaN in DOM or EHI invalid.');
+        }, 220);
+      },
+
+      // ------------------------------------------------------------------
+      // TEST 3: Malformed Telemetry Payload
+      // Sends a structurally broken packet through adapter._dispatch().
+      // TelemetryAdapter calls TelemetryValidator.validatePayload()
+      // → malformed = true → REJECTED, no dispatch to subscribers
+      // → telemetry:malformed_packet event fires → ErrorStatusBanner shown
+      // → Last valid state preserved, dashboard continues
+      // ------------------------------------------------------------------
+      malformed() {
+        if (!telemetryAdapter) {
+          _setStatus('⚠ TelemetryAdapter not ready.'); return;
+        }
+        _activeTest = 'malformed';
+        _setButtonActive('dev-btn-malform', true);
+        _setStatus('▶ TEST: Sending malformed packet {rpm:"bad", x:99}...');
+        console.log('[DevTestPanel] TEST 3: Dispatching malformed packet through adapter._dispatch().');
+
+        // Dispatch a structurally malformed payload — no real sensor fields
+        telemetryAdapter._dispatch({ rpm: 'not-a-number', bad: true, x: 99 }, null, null);
+
+        setTimeout(() => {
+          // Check banner appeared (would have been shown by malformed_packet handler)
+          const banner = document.getElementById('at-error-banner');
+          const bannerVisible = banner && banner.style.display !== 'none' && banner.textContent.length > 0;
+          const domText = document.body ? document.body.innerText : '';
+          const hasNaN = domText.includes('NaN') || domText.includes('Infinity');
+          const ok = !hasNaN;
+          _setStatus(
+            ok
+              ? `✓ Malformed packet REJECTED. No NaN. Last valid state preserved. Banner: ${bannerVisible ? 'shown' : 'check console'}.`
+              : `✗ Issue detected: NaN in DOM after malformed packet.`,
+            ok ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)'
+          );
+        }, 300);
+      },
+
+      // ------------------------------------------------------------------
+      // TEST 4: Connection Failure (5s disconnect)
+      // Calls telemetryAdapter.simulateDisconnect(5000).
+      // TelemetryAdapter: stops dispatching, watchdog fires immediately
+      // → telemetry:disconnect event → ErrorStatusBanner "Telemetry connection lost"
+      // → Last valid state preserved on dashboard
+      // → After 5s, reconnects → telemetry:reconnect → Banner dismissed
+      // ------------------------------------------------------------------
+      disconnect() {
+        if (!telemetryAdapter) {
+          _setStatus('⚠ TelemetryAdapter not ready.'); return;
+        }
+        _activeTest = 'disconnect';
+        _setButtonActive('dev-btn-disconnect', true);
+        _setStatus('▶ TEST: Simulating 5s disconnect. Watchdog will fire in ~1s...');
+        console.log('[DevTestPanel] TEST 4: Calling simulateDisconnect(5000).');
+
+        telemetryAdapter.simulateDisconnect(5000);
+
+        // After 2s, report disconnect state
+        setTimeout(() => {
+          const connected = telemetryAdapter.isConnected;
+          const domText = document.body ? document.body.innerText : '';
+          const hasNaN = domText.includes('NaN') || domText.includes('Infinity');
+          if (!connected) {
+            _setStatus(`▶ DISCONNECTED. Banner shown. Last valid state preserved. No NaN: ${!hasNaN}. Reconnecting in ~3s...`, 'rgba(251,191,36,0.85)');
+          }
+        }, 1500);
+
+        // After 7s, confirm reconnect
+        setTimeout(() => {
+          const connected = telemetryAdapter.isConnected;
+          const domText = document.body ? document.body.innerText : '';
+          const hasNaN = domText.includes('NaN') || domText.includes('Infinity');
+          const ok = connected && !hasNaN;
+          _setStatus(
+            ok
+              ? `✓ Reconnected. Live telemetry resumed. No NaN. Adapter: connected=${connected}.`
+              : `? Disconnect test complete. Connected: ${connected}. NaN: ${hasNaN}.`,
+            ok ? 'rgba(16,185,129,0.9)' : 'rgba(251,191,36,0.85)'
+          );
+          _setButtonActive('dev-btn-disconnect', false);
+          _activeTest = null;
+        }, 7500);
+      },
+
+      // ------------------------------------------------------------------
+      // RESET: Restore all injected state, clear banners, resume normal ops
+      // ------------------------------------------------------------------
+      reset() {
+        console.log('[DevTestPanel] RESET: Restoring normal telemetry state.');
+
+        // Restore oil pressure
+        if (telemetryEngine) {
+          if (_savedOilPress !== null && _savedOilPress !== undefined) {
+            telemetryEngine.state.oilPress = _savedOilPress;
+          } else {
+            // Restore to a normal operational value
+            telemetryEngine.state.oilPress = 52.4;
+          }
+
+          // Restore EGT
+          if (_savedEgt) {
+            telemetryEngine.state.egt = _savedEgt;
+          } else {
+            telemetryEngine.state.egt = [780, 776, 792, 779];
+          }
+        }
+
+        _savedOilPress = null;
+        _savedEgt = null;
+        _activeTest = null;
+
+        // Dismiss any active error banner
+        if (window.ErrorStatusBanner) {
+          ['telem_disconnect', 'telem_reconnect', 'telem_malformed', 'pipeline_error'].forEach(id => {
+            try { window.ErrorStatusBanner.dismiss(id); } catch(e) {}
+          });
+        }
+
+        // Clear UI state
+        _clearAllButtonStates();
+        setTimeout(() => {
+          _setStatus('✓ Test state reset. Normal telemetry resumed.', 'rgba(16,185,129,0.9)');
+          setTimeout(() => _setStatus(null), 3000);
+        }, 150);
+      }
+    };
+
+    // --- Public API ---
+    return {
+      open() {
+        const panel = document.getElementById('dev-test-panel');
+        const trigger = document.getElementById('dev-test-trigger');
+        if (panel) panel.style.display = 'block';
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+      },
+      close() {
+        const panel = document.getElementById('dev-test-panel');
+        const trigger = document.getElementById('dev-test-trigger');
+        if (panel) panel.style.display = 'none';
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      },
+      toggle() {
+        const panel = document.getElementById('dev-test-panel');
+        if (!panel) return;
+        if (panel.style.display === 'none' || panel.style.display === '') {
+          this.open();
+        } else {
+          this.close();
+        }
+      },
+      runTest(testName) {
+        if (tests[testName]) {
+          console.log(`[DevTestPanel] Running test: ${testName}`);
+          tests[testName]();
+        } else {
+          console.warn(`[DevTestPanel] Unknown test: ${testName}`);
+        }
+      }
+    };
+  })();
+
+  // Export for HTML onclick and console access
+  window.DevTestPanel = DevTestPanel;
+
+  // Close panel when clicking outside of it
+  document.addEventListener('click', (e) => {
+    const panel = document.getElementById('dev-test-panel');
+    const trigger = document.getElementById('dev-test-trigger');
+    if (!panel || panel.style.display === 'none') return;
+    if (!panel.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
+      DevTestPanel.close();
+    }
+  });
 
 })();

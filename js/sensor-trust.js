@@ -94,34 +94,69 @@ class SensorTrustEngine {
    * @returns {Object} Trust evaluation result with scores, quarantined flags, and sanitized state
    */
   evaluate(rawState, expectedPhysics = {}) {
-    // 1. Push raw readings into rolling history
-    this._recordHistory('rpm', rawState.rpm);
-    this._recordHistory('cht1', rawState.cht[0]);
-    this._recordHistory('cht2', rawState.cht[1]);
-    this._recordHistory('cht3', rawState.cht[2]);
-    this._recordHistory('cht4', rawState.cht[3]);
-    this._recordHistory('egt1', rawState.egt[0]);
-    this._recordHistory('egt2', rawState.egt[1]);
-    this._recordHistory('egt3', rawState.egt[2]);
-    this._recordHistory('egt4', rawState.egt[3]);
-    this._recordHistory('oilPress', rawState.oilPress);
-    this._recordHistory('oilTemp', rawState.oilTemp);
-    this._recordHistory('fuelFlow', rawState.fuelFlow);
-    this._recordHistory('map', rawState.map);
-    const engLoad = typeof rawState.load === 'number' ? rawState.load : (rawState.throttle ? rawState.throttle * 100 : 70);
+    // --- NULL-SAFETY: Ensure rawState is a valid object before any field access ---
+    if (!rawState || typeof rawState !== 'object') {
+      console.warn('[SensorTrustEngine] evaluate() received null/non-object rawState — returning safe defaults.');
+      return this._safeFallbackResult();
+    }
+
+    // Helpers: safe array element accessor (returns null if array or element is missing)
+    const safeArr = (arr, idx) => {
+      if (!Array.isArray(arr)) return null;
+      const v = arr[idx];
+      return (v === undefined) ? null : v;
+    };
+    // Safe numeric accessor — returns null if value is null/undefined/NaN/non-finite
+    const safeNum = (v) => {
+      if (v === null || v === undefined) return null;
+      if (typeof v !== 'number' || !isFinite(v) || isNaN(v)) return null;
+      return v;
+    };
+
+    // 1. Push raw readings into rolling history (skip nulls — invalid sentinels from validator)
+    if (safeNum(rawState.rpm) !== null) this._recordHistory('rpm', rawState.rpm);
+    const chtArr = Array.isArray(rawState.cht) ? rawState.cht : [null, null, null, null];
+    const egtArr = Array.isArray(rawState.egt) ? rawState.egt : [null, null, null, null];
+    if (safeNum(safeArr(chtArr, 0)) !== null) this._recordHistory('cht1', chtArr[0]);
+    if (safeNum(safeArr(chtArr, 1)) !== null) this._recordHistory('cht2', chtArr[1]);
+    if (safeNum(safeArr(chtArr, 2)) !== null) this._recordHistory('cht3', chtArr[2]);
+    if (safeNum(safeArr(chtArr, 3)) !== null) this._recordHistory('cht4', chtArr[3]);
+    if (safeNum(safeArr(egtArr, 0)) !== null) this._recordHistory('egt1', egtArr[0]);
+    if (safeNum(safeArr(egtArr, 1)) !== null) this._recordHistory('egt2', egtArr[1]);
+    if (safeNum(safeArr(egtArr, 2)) !== null) this._recordHistory('egt3', egtArr[2]);
+    if (safeNum(safeArr(egtArr, 3)) !== null) this._recordHistory('egt4', egtArr[3]);
+    if (safeNum(rawState.oilPress) !== null) this._recordHistory('oilPress', rawState.oilPress);
+    if (safeNum(rawState.oilTemp) !== null)  this._recordHistory('oilTemp', rawState.oilTemp);
+    if (safeNum(rawState.fuelFlow) !== null) this._recordHistory('fuelFlow', rawState.fuelFlow);
+    if (safeNum(rawState.map) !== null)      this._recordHistory('map', rawState.map);
+    const rawLoad = rawState.load;
+    const engLoad = typeof rawLoad === 'number' && isFinite(rawLoad)
+      ? rawLoad
+      : (typeof rawState.throttle === 'number' && isFinite(rawState.throttle) ? rawState.throttle * 100 : 70);
     this._recordHistory('load', engLoad);
+
+    // Attach safe accessors to state for use in sub-evaluators (avoids re-computing)
+    rawState._safeNum = safeNum;
+    rawState._chtArr = chtArr;
+    rawState._egtArr = egtArr;
 
     const reasons = {};
 
     // 2. Check RPM Sensor
-    this.trustScores.rpm = this._evaluateSignalTrust(
-      'rpm',
-      rawState.rpm,
-      this.maxSlew.rpm,
-      expectedPhysics.rpm || 4200,
-      reasons,
-      'RPM'
-    );
+    // If rpm is null (invalid sentinel from validator) → trust = 0.10 immediately
+    if (rawState.rpm === null) {
+      this.trustScores.rpm = 0.10;
+      reasons.rpm = 'RPM sensor reading rejected by pre-validator: null/invalid/out-of-range value.';
+    } else {
+      this.trustScores.rpm = this._evaluateSignalTrust(
+        'rpm',
+        rawState.rpm,
+        this.maxSlew.rpm,
+        expectedPhysics.rpm || 4200,
+        reasons,
+        'RPM'
+      );
+    }
 
     // Dynamic engine variance indicator (is engine operating dynamically?)
     const rpmVar = this._computeVariance(this.history.rpm);
@@ -129,68 +164,101 @@ class SensorTrustEngine {
     const isEngineDynamic = rpmVar > 4.0 || loadVar > 1.5;
 
     // 3. Check Oil Pressure Sensor (CRITICAL DEMO MOMENT: SENSOR FREEZE VS MECHANICAL FAILURE)
-    this.trustScores.oilPress = this._evaluateOilPressureTrust(
-      rawState,
-      expectedPhysics,
-      isEngineDynamic,
-      reasons
-    );
+    if (rawState.oilPress === null) {
+      this.trustScores.oilPress = 0.10;
+      reasons.oilPress = 'Oil pressure sensor reading rejected by pre-validator: null/invalid/out-of-range value (e.g. negative PSI).';
+    } else {
+      this.trustScores.oilPress = this._evaluateOilPressureTrust(
+        rawState,
+        expectedPhysics,
+        isEngineDynamic,
+        reasons
+      );
+    }
 
     // 4. Check Oil Temperature Sensor
-    this.trustScores.oilTemp = this._evaluateSignalTrust(
-      'oilTemp',
-      rawState.oilTemp,
-      this.maxSlew.oilTemp,
-      expectedPhysics.oilTemp || 88,
-      reasons,
-      'Oil Temp'
-    );
+    if (rawState.oilTemp === null) {
+      this.trustScores.oilTemp = 0.10;
+      reasons.oilTemp = 'Oil temperature sensor reading rejected by pre-validator: null/invalid/out-of-range value.';
+    } else {
+      this.trustScores.oilTemp = this._evaluateSignalTrust(
+        'oilTemp',
+        rawState.oilTemp,
+        this.maxSlew.oilTemp,
+        expectedPhysics.oilTemp || 88,
+        reasons,
+        'Oil Temp'
+      );
+    }
 
     // 5. Check Cylinder Head Temperatures (CHT 1-4) & Cross-Correlation with EGT
     for (let i = 0; i < 4; i++) {
       const chtKey = `cht${i + 1}`;
       const egtKey = `egt${i + 1}`;
-      this.trustScores.cht[i] = this._evaluateChtTrust(
-        i,
-        rawState.cht[i],
-        rawState.egt[i],
-        chtKey,
-        egtKey,
-        expectedPhysics,
-        reasons
-      );
+      const chtVal = chtArr[i] !== undefined ? chtArr[i] : null;
+      const egtVal = egtArr[i] !== undefined ? egtArr[i] : null;
+      if (chtVal === null) {
+        this.trustScores.cht[i] = 0.10;
+        reasons[chtKey] = `CHT #${i + 1} sensor reading rejected by pre-validator: null/invalid/out-of-range value.`;
+      } else {
+        this.trustScores.cht[i] = this._evaluateChtTrust(
+          i,
+          chtVal,
+          egtVal,
+          chtKey,
+          egtKey,
+          expectedPhysics,
+          reasons
+        );
+      }
     }
 
     // 6. Check Exhaust Gas Temperatures (EGT 1-4)
     for (let i = 0; i < 4; i++) {
       const egtKey = `egt${i + 1}`;
-      this.trustScores.egt[i] = this._evaluateSignalTrust(
-        egtKey,
-        rawState.egt[i],
-        this.maxSlew.egt,
-        expectedPhysics.egt ? expectedPhysics.egt[i] : 780,
-        reasons,
-        `EGT #${i + 1}`
-      );
+      const egtVal = egtArr[i] !== undefined ? egtArr[i] : null;
+      if (egtVal === null) {
+        this.trustScores.egt[i] = 0.10;
+        reasons[egtKey] = `EGT #${i + 1} sensor reading rejected by pre-validator: null/invalid/out-of-range value.`;
+      } else {
+        this.trustScores.egt[i] = this._evaluateSignalTrust(
+          egtKey,
+          egtVal,
+          this.maxSlew.egt,
+          expectedPhysics.egt ? expectedPhysics.egt[i] : 780,
+          reasons,
+          `EGT #${i + 1}`
+        );
+      }
     }
 
     // 7. Check Fuel Flow & MAP
-    this.trustScores.fuelFlow = this._evaluateSignalTrust(
-      'fuelFlow',
-      rawState.fuelFlow,
-      this.maxSlew.fuelFlow,
-      expectedPhysics.fuelFlow || 24,
-      reasons,
-      'Fuel Flow'
-    );
-    this.trustScores.map = this._evaluateSignalTrust(
-      'map',
-      rawState.map,
-      this.maxSlew.map,
-      expectedPhysics.map || 34,
-      reasons,
-      'MAP'
-    );
+    if (rawState.fuelFlow === null) {
+      this.trustScores.fuelFlow = 0.10;
+      reasons.fuelFlow = 'Fuel flow meter reading rejected by pre-validator: null/invalid/out-of-range value.';
+    } else {
+      this.trustScores.fuelFlow = this._evaluateSignalTrust(
+        'fuelFlow',
+        rawState.fuelFlow,
+        this.maxSlew.fuelFlow,
+        expectedPhysics.fuelFlow || 24,
+        reasons,
+        'Fuel Flow'
+      );
+    }
+    if (rawState.map === null) {
+      this.trustScores.map = 0.10;
+      reasons.map = 'MAP sensor reading rejected by pre-validator: null/invalid/out-of-range value.';
+    } else {
+      this.trustScores.map = this._evaluateSignalTrust(
+        'map',
+        rawState.map,
+        this.maxSlew.map,
+        expectedPhysics.map || 34,
+        reasons,
+        'MAP'
+      );
+    }
     this.trustScores.load = 1.0;
 
     this.reasons = reasons;
@@ -222,7 +290,13 @@ class SensorTrustEngine {
     // Build Sanitized/Trusted State for the Digital Twin
     // Distrusted sensor readings are replaced with expected physics values so that
     // the health calculation does NOT falsely collapse!
-    const trustedState = { ...rawState };
+    // NOTE: If rawState has _invalidFields[] from TelemetryValidator, those are already
+    // null sentinels — we replace them here with physics baselines for the health calc.
+    const trustedState = Object.assign({}, rawState);
+    // Clone arrays so we don't mutate the validated state
+    trustedState.cht = Array.isArray(rawState.cht) ? rawState.cht.slice() : [null, null, null, null];
+    trustedState.egt = Array.isArray(rawState.egt) ? rawState.egt.slice() : [null, null, null, null];
+
     if (this.trustScores.oilPress < this.distrustThreshold) {
       trustedState.oilPress = expectedPhysics.oilPress || 52.4;
       trustedState._oilPressQuarantined = true;
@@ -230,11 +304,11 @@ class SensorTrustEngine {
     }
     for (let i = 0; i < 4; i++) {
       if (this.trustScores.cht[i] < this.distrustThreshold) {
-        trustedState.cht[i] = expectedPhysics.cht ? expectedPhysics.cht[i] : 168.0;
+        trustedState.cht[i] = expectedPhysics.cht ? (expectedPhysics.cht[i] || 168.0) : 168.0;
         trustedState._chtQuarantined = true;
       }
       if (this.trustScores.egt[i] < this.distrustThreshold) {
-        trustedState.egt[i] = expectedPhysics.egt ? expectedPhysics.egt[i] : 780.0;
+        trustedState.egt[i] = expectedPhysics.egt ? (expectedPhysics.egt[i] || 780.0) : 780.0;
         trustedState._egtQuarantined = true;
       }
     }
@@ -419,10 +493,36 @@ class SensorTrustEngine {
 
   _recordHistory(key, val) {
     if (!this.history[key]) this.history[key] = [];
-    this.history[key].push(Number(val));
+    // Guard: only record finite numbers — skip null/NaN/undefined sentinels
+    const n = Number(val);
+    if (val === null || val === undefined || !isFinite(n) || isNaN(n)) return;
+    this.history[key].push(n);
     if (this.history[key].length > this.windowSize) {
       this.history[key].shift();
     }
+  }
+
+  /**
+   * Safe fallback result returned when evaluate() receives a non-object state.
+   * Preserves last known trust scores rather than resetting to zero.
+   */
+  _safeFallbackResult() {
+    const quarantined = [];
+    const allScores = [
+      this.trustScores.rpm, this.trustScores.oilPress, this.trustScores.oilTemp,
+      this.trustScores.fuelFlow, this.trustScores.map,
+      ...this.trustScores.cht, ...this.trustScores.egt
+    ];
+    const overallTrust = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+    return {
+      scores: { ...this.trustScores },
+      overallTrust: Number(overallTrust.toFixed(2)),
+      quarantined,
+      hasSensorFault: false,
+      reasons: { _system: 'Null/malformed telemetry packet — trust scores preserved from last frame.' },
+      sensorDetails: {},
+      trustedState: null
+    };
   }
 
   _computeVariance(arr) {

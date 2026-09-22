@@ -532,6 +532,15 @@
     </header>
 
     <!-- ======================================================================
+         SYSTEM ERROR STATUS BANNER
+         Non-blocking telemetry error notification (managed by ErrorStatusBanner in app.js)
+         Visible only when telemetry disconnect, malformed packet, or pipeline error occurs.
+         Hidden by default. Styled to match existing Material 3 dark theme.
+         ====================================================================== -->
+    <div id="at-error-banner" style="display:none;"
+         role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- ======================================================================
          SECTION 1 — ENGINE HEALTH OVERVIEW (5 Technical Defense Cards)
          ====================================================================== -->
     <section class="overview-grid" aria-label="Engine Health Overview">
@@ -1440,11 +1449,167 @@
     </div>
   </div>
 
-  <!-- Scripts: ML Models, Physics Engine, Telemetry Adapter, Sensor Trust, Diagnostics & 3D Twin -->
+  <!-- ======================================================================
+       DEVELOPER / SYSTEM TEST PANEL
+       Controlled error injection for judging demonstrations.
+       Triggers the REAL validation → SensorTrust → AI → UI pipeline.
+       Hidden behind a subtle footer button. Not visible to end users by default.
+       ====================================================================== -->
+
+  <!-- Trigger Button: fixed bottom-right, visually secondary -->
+  <button
+    id="dev-test-trigger"
+    onclick="window.DevTestPanel && window.DevTestPanel.toggle()"
+    title="Developer / System Test — Controlled error injection for demonstration"
+    aria-haspopup="true"
+    aria-expanded="false"
+    aria-controls="dev-test-panel"
+    style="
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      z-index: 8000;
+      background: rgba(15,23,42,0.85);
+      border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 8px;
+      padding: 6px 14px;
+      color: rgba(148,163,184,0.65);
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      backdrop-filter: blur(8px);
+      transition: border-color 0.2s, color 0.2s;
+    "
+    onmouseenter="this.style.borderColor='rgba(148,163,184,0.4)';this.style.color='rgba(148,163,184,0.9)'"
+    onmouseleave="this.style.borderColor='rgba(148,163,184,0.18)';this.style.color='rgba(148,163,184,0.65)'"
+  >
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M9.5 1.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1zm-7 0a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1zM1 6h14v1.5a3.5 3.5 0 01-3.5 3.5h-1v2h1.5a.5.5 0 010 1h-7a.5.5 0 010-1H6.5v-2h-1A3.5 3.5 0 012 7.5V6z"/>
+    </svg>
+    DEV / SYSTEM TEST
+  </button>
+
+  <!-- Popover Panel: compact, professional, dark-themed -->
+  <div
+    id="dev-test-panel"
+    role="dialog"
+    aria-label="Developer System Test Panel"
+    aria-modal="false"
+    style="
+      display: none;
+      position: fixed;
+      bottom: 50px;
+      right: 20px;
+      z-index: 8001;
+      width: 296px;
+      background: rgba(11,17,32,0.97);
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(148,163,184,0.05);
+      backdrop-filter: blur(20px);
+      padding: 16px;
+      font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    "
+  >
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <div style="font-size:0.72rem;font-weight:700;color:rgba(226,232,240,0.9);letter-spacing:0.08em;text-transform:uppercase;">
+          System Test
+        </div>
+        <div style="font-size:0.6rem;color:rgba(148,163,184,0.5);margin-top:1px;letter-spacing:0.04em;">
+          Injects into real validation pipeline
+        </div>
+      </div>
+      <button
+        onclick="window.DevTestPanel && window.DevTestPanel.close()"
+        style="background:none;border:none;color:rgba(148,163,184,0.45);cursor:pointer;font-size:1rem;line-height:1;padding:2px 4px;border-radius:4px;"
+        title="Close"
+        aria-label="Close developer test panel"
+      >×</button>
+    </div>
+
+    <!-- Divider -->
+    <div style="height:1px;background:rgba(148,163,184,0.1);margin-bottom:12px;"></div>
+
+    <!-- Status indicator for active test -->
+    <div id="dev-test-status" style="
+      display:none;
+      font-size:0.62rem;
+      color:rgba(251,191,36,0.85);
+      background:rgba(251,191,36,0.08);
+      border:1px solid rgba(251,191,36,0.2);
+      border-radius:6px;
+      padding:5px 10px;
+      margin-bottom:10px;
+      font-family:var(--font-mono,'JetBrains Mono',monospace);
+    "></div>
+
+    <!-- Test buttons -->
+    <div style="display:flex;flex-direction:column;gap:7px;">
+
+      <button id="dev-btn-oil" class="dev-test-btn" onclick="window.DevTestPanel && window.DevTestPanel.runTest('oil_pressure')"
+        style="display:flex;align-items:center;gap:9px;width:100%;background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:9px 12px;color:rgba(203,213,225,0.85);font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:0.68rem;cursor:pointer;text-align:left;transition:border-color 0.15s,background 0.15s;"
+        onmouseenter="this.style.background='rgba(30,41,59,0.9)';this.style.borderColor='rgba(148,163,184,0.28)'"
+        onmouseleave="this.style.background='rgba(30,41,59,0.6)';this.style.borderColor='rgba(148,163,184,0.14)'">
+        <span style="width:7px;height:7px;border-radius:50%;background:rgba(251,191,36,0.7);flex-shrink:0;"></span>
+        <span>Oil Pressure Sensor Fault</span>
+      </button>
+
+      <button id="dev-btn-egt" class="dev-test-btn" onclick="window.DevTestPanel && window.DevTestPanel.runTest('missing_telemetry')"
+        style="display:flex;align-items:center;gap:9px;width:100%;background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:9px 12px;color:rgba(203,213,225,0.85);font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:0.68rem;cursor:pointer;text-align:left;transition:border-color 0.15s,background 0.15s;"
+        onmouseenter="this.style.background='rgba(30,41,59,0.9)';this.style.borderColor='rgba(148,163,184,0.28)'"
+        onmouseleave="this.style.background='rgba(30,41,59,0.6)';this.style.borderColor='rgba(148,163,184,0.14)'">
+        <span style="width:7px;height:7px;border-radius:50%;background:rgba(251,191,36,0.7);flex-shrink:0;"></span>
+        <span>Missing Telemetry (Null EGT)</span>
+      </button>
+
+      <button id="dev-btn-malform" class="dev-test-btn" onclick="window.DevTestPanel && window.DevTestPanel.runTest('malformed')"
+        style="display:flex;align-items:center;gap:9px;width:100%;background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:9px 12px;color:rgba(203,213,225,0.85);font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:0.68rem;cursor:pointer;text-align:left;transition:border-color 0.15s,background 0.15s;"
+        onmouseenter="this.style.background='rgba(30,41,59,0.9)';this.style.borderColor='rgba(148,163,184,0.28)'"
+        onmouseleave="this.style.background='rgba(30,41,59,0.6)';this.style.borderColor='rgba(148,163,184,0.14)'">
+        <span style="width:7px;height:7px;border-radius:50%;background:rgba(239,68,68,0.7);flex-shrink:0;"></span>
+        <span>Malformed Telemetry Payload</span>
+      </button>
+
+      <button id="dev-btn-disconnect" class="dev-test-btn" onclick="window.DevTestPanel && window.DevTestPanel.runTest('disconnect')"
+        style="display:flex;align-items:center;gap:9px;width:100%;background:rgba(30,41,59,0.6);border:1px solid rgba(148,163,184,0.14);border-radius:8px;padding:9px 12px;color:rgba(203,213,225,0.85);font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:0.68rem;cursor:pointer;text-align:left;transition:border-color 0.15s,background 0.15s;"
+        onmouseenter="this.style.background='rgba(30,41,59,0.9)';this.style.borderColor='rgba(148,163,184,0.28)'"
+        onmouseleave="this.style.background='rgba(30,41,59,0.6)';this.style.borderColor='rgba(148,163,184,0.14)'">
+        <span style="width:7px;height:7px;border-radius:50%;background:rgba(239,68,68,0.7);flex-shrink:0;"></span>
+        <span>Connection Failure (5 s)</span>
+      </button>
+
+      <!-- Divider -->
+      <div style="height:1px;background:rgba(148,163,184,0.08);margin:2px 0;"></div>
+
+      <button id="dev-btn-reset" onclick="window.DevTestPanel && window.DevTestPanel.runTest('reset')"
+        style="display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:1px solid rgba(148,163,184,0.1);border-radius:8px;padding:8px 12px;color:rgba(148,163,184,0.55);font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:0.65rem;cursor:pointer;text-align:left;transition:border-color 0.15s,color 0.15s;"
+        onmouseenter="this.style.color='rgba(148,163,184,0.85)';this.style.borderColor='rgba(148,163,184,0.22)'"
+        onmouseleave="this.style.color='rgba(148,163,184,0.55)';this.style.borderColor='rgba(148,163,184,0.1)'">
+        <span style="width:7px;height:7px;border-radius:50%;background:rgba(16,185,129,0.6);flex-shrink:0;"></span>
+        <span>Reset Test State</span>
+      </button>
+    </div>
+
+    <!-- Footer label -->
+    <div style="margin-top:12px;font-size:0.58rem;color:rgba(148,163,184,0.3);letter-spacing:0.03em;text-align:center;">
+      AERO TWIN · SIH26054 · Controlled Fault Injection
+    </div>
+  </div>
+
+
   <script src="js/three.min.js"></script>
   <script src="js/OrbitControls.js"></script>
   <script src="js/models-data.js"></script>
   <script src="js/physics-engine.js"></script>
+  <!-- Telemetry Validation Gate: must load BEFORE telemetry-adapter.js -->
+  <script src="js/telemetry-validator.js"></script>
   <script src="js/telemetry-adapter.js"></script>
   <script src="js/telemetry-engine.js"></script>
   <script src="js/sensor-trust.js"></script>

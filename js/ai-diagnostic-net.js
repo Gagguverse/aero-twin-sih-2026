@@ -283,29 +283,59 @@ class AIDiagnosticNet {
    * @returns {Object} Diagnostic evaluation result
    */
   evaluate(rawState, trustResult, expected = {}, physicsResult = null) {
+    // --- NULL-SAFETY: Guard against null trustedState (can occur if validator rejected packet) ---
+    if (!trustResult || typeof trustResult !== 'object') {
+      console.warn('[AIDiagnosticNet] evaluate() called with null/invalid trustResult — skipping.');
+      return this._lastResult || this._buildSafeDefaultResult();
+    }
+
     const trusted = trustResult.trustedState || rawState;
+    if (!trusted || typeof trusted !== 'object') {
+      console.warn('[AIDiagnosticNet] evaluate() — trusted state is null, using last result.');
+      return this._lastResult || this._buildSafeDefaultResult();
+    }
+
     const scores = trustResult.scores || {};
     const quarantined = trustResult.quarantined || [];
 
     // 1. Calculate Trusted Thermodynamic Averages & Residuals
-    const avgCht = trusted.cht.reduce((a, b) => a + b, 0) / 4;
-    const avgEgt = trusted.egt.reduce((a, b) => a + b, 0) / 4;
+    // Null-safe reduce: filter out null/NaN before averaging
+    const chtArr = Array.isArray(trusted.cht) ? trusted.cht : [];
+    const egtArr = Array.isArray(trusted.egt) ? trusted.egt : [];
+    const validCht = chtArr.filter(v => v !== null && v !== undefined && isFinite(v) && !isNaN(v));
+    const validEgt = egtArr.filter(v => v !== null && v !== undefined && isFinite(v) && !isNaN(v));
+    const avgCht = validCht.length > 0
+      ? validCht.reduce((a, b) => a + b, 0) / validCht.length
+      : (expected.cht ? expected.cht.reduce((a, b) => a + b, 0) / 4 : 166);
+    const avgEgt = validEgt.length > 0
+      ? validEgt.reduce((a, b) => a + b, 0) / validEgt.length
+      : (expected.egt ? expected.egt.reduce((a, b) => a + b, 0) / 4 : 780);
+
     const expectedChtAvg = expected.cht ? (expected.cht.reduce((a, b) => a + b, 0) / 4) : 166;
     const expectedEgtAvg = expected.egt ? (expected.egt.reduce((a, b) => a + b, 0) / 4) : 780;
     const chtDeviation = Math.max(0, avgCht - expectedChtAvg);
     const egtDeviation = Math.max(0, avgEgt - expectedEgtAvg);
 
+    // Helper: safe finite number with fallback to physics baseline (NEVER NaN into ML)
+    const safeFeature = (val, fallback) => {
+      if (val === null || val === undefined || typeof val !== 'number' || !isFinite(val) || isNaN(val)) {
+        return typeof fallback === 'number' && isFinite(fallback) ? fallback : 0;
+      }
+      return val;
+    };
+
     // 2. Build 9-dimensional trusted feature vector for ML inference
+    // Each entry uses physics-expected baseline as fallback if sensor value is null/NaN
     const features = [
-      trusted.rpm,
-      avgCht,
-      avgEgt,
-      trusted.oilPress,
-      trusted.oilTemp,
-      trusted.fuelFlow,
-      trusted.map,
-      trusted.load,
-      trusted.vibrationRms || 1.75
+      safeFeature(trusted.rpm,          expected.rpm      || 4200),
+      safeFeature(avgCht,               expectedChtAvg),
+      safeFeature(avgEgt,               expectedEgtAvg),
+      safeFeature(trusted.oilPress,     expected.oilPress || 52.0),
+      safeFeature(trusted.oilTemp,      expected.oilTemp  || 88.0),
+      safeFeature(trusted.fuelFlow,     expected.fuelFlow || 24.0),
+      safeFeature(trusted.map,          expected.map      || 33.0),
+      safeFeature(trusted.load,         expected.load     || 72.0),
+      safeFeature(trusted.vibrationRms, 1.75)
     ];
 
     // 3. Execute Real ML Ensemble Inference
@@ -523,6 +553,9 @@ class AIDiagnosticNet {
       contributingParameters: contributingParams,
       quarantinedSensors: quarantined
     };
+    // Cache for fallback use when future packets are invalid/null
+    this._lastResult = result;
+    return result;
   }
 
   /**
@@ -889,6 +922,58 @@ class AIDiagnosticNet {
         historicalDegradationRate: '0.012% / HR (Nominal)',
         priorMaintenanceActions: 4
       }
+    };
+  }
+
+  /**
+   * Safe default diagnostic result returned when evaluate() cannot proceed
+   * (e.g., null trustedState from a rejected telemetry packet).
+   * Returns the last known valid result if available, or a conservative NOMINAL baseline.
+   */
+  _buildSafeDefaultResult() {
+    return {
+      status: this.status || 'NOMINAL',
+      faultClass: this.faultClass || 'HEALTHY',
+      anomalyScore: this.anomalyScore || 0.04,
+      confidence: this.confidence || 0.98,
+      healthIndex: this.healthIndex || 96,
+      ehiStatus: this.status === 'CRITICAL' ? 'CRITICAL' : (this.status === 'WARNING' ? 'WARNING' : 'NOMINAL'),
+      ehiBreakdown: {
+        baseline: 100,
+        thermalContribution: 0,
+        lubricationContribution: 0,
+        vibrationContribution: 0,
+        sensorShieldContribution: 0,
+        finalEhi: this.healthIndex || 96,
+        status: 'NOMINAL'
+      },
+      rulHours: this.rulMinHours || 180,
+      rulRangeStr: `${this.rulMinHours || 180}–${this.rulMaxHours || 220} h`,
+      rulConfidencePct: 85,
+      degradationPct: Number((this.degradationScore || 4.2).toFixed(0)),
+      degradationTrend: 'STABLE',
+      missionReliability: {
+        score: 92,
+        status: 'CAUTION — Telemetry Interrupted',
+        reasons: ['Telemetry packet rejected — displaying last valid state'],
+        currentPhase: 'UNKNOWN',
+        remainingMissionDuration: '—'
+      },
+      maintenanceAdvisory: {
+        subsystem: 'Telemetry System',
+        priority: 'MEDIUM',
+        action: 'Telemetry packet rejected by pre-validator. Check sensor connections and data bus.',
+        code: 'MAINT-SYS-ERR',
+        urgency: 'Next inspection'
+      },
+      explainability: {
+        title: 'TELEMETRY DATA UNAVAILABLE',
+        summary: 'Last valid diagnostic state displayed. Incoming telemetry packet was rejected.',
+        bullets: ['Telemetry packet was null, malformed, or structurally invalid.', 'Displaying last valid diagnostic state to preserve situational awareness.'],
+        conclusion: 'Investigate telemetry source. System is preserving last known state.',
+        verdict: 'DATA UNAVAILABLE'
+      },
+      evidence: [{ param: 'Telemetry', val: 'Packet Rejected', weight: 'HIGH' }]
     };
   }
 }

@@ -1552,6 +1552,8 @@
     window.appState.isReplaying = false;
     window.appState.replayIndex = null;
     liveSavedSnapshot = null;
+    // Resume watchdog in case we were in replay mode
+    if (telemetryAdapter) telemetryAdapter.resumeWatchdog();
 
     // Reset Sensor Trust history for clean scenario evaluation
     sensorTrustEngine.reset();
@@ -1595,6 +1597,11 @@
     window.appState.replayIndex = null;
     telemetryEngine.isReplaying = false;
 
+    // Resume watchdog now that live telemetry packets will flow again.
+    // This prevents the absence-of-packets during replay from triggering
+    // a false "Connection Lost" banner.
+    if (telemetryAdapter) telemetryAdapter.resumeWatchdog();
+
     const slider = document.getElementById('timeline-slider');
     if (slider) slider.value = 100;
 
@@ -1621,6 +1628,10 @@
     // Save live state on initial transition from live to replay
     if (!window.appState.isReplaying) {
       liveSavedSnapshot = captureAppStateSnapshot();
+      // Pause the watchdog so that frozen-tick replay mode does NOT trigger
+      // a false "Connection Lost" banner (engine stops dispatching live packets
+      // during replay and the watchdog would otherwise fire after 3 s).
+      if (telemetryAdapter) telemetryAdapter.pauseWatchdog();
     }
 
     window.appState.isReplaying = true;

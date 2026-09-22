@@ -18,7 +18,9 @@ class TelemetryAdapter {
     this.mode = 'SIMULATOR'; // 'SIMULATOR' | 'REST' | 'CAN_BRIDGE' | 'WEBSOCKET'
     this.subscribers = [];
     this.restPollInterval = null;
-    this.lastPacketTimestamp = 0;
+    // Initialize to Date.now() so the watchdog (once armed) does not immediately
+    // fire on startup before the first real packet arrives.
+    this.lastPacketTimestamp = Date.now();
 
     // -----------------------------------------------------------------------
     // ERROR HANDLING: Last valid state buffer
@@ -30,18 +32,27 @@ class TelemetryAdapter {
 
     // -----------------------------------------------------------------------
     // ERROR HANDLING: Connection watchdog
-    // Fires telemetry:disconnect after 3 s of silence; fires telemetry:reconnect
-    // when a valid packet arrives after a disconnect.
+    // Fires telemetry:disconnect after watchdogTimeoutMs of silence.
+    // Fires telemetry:reconnect when a valid packet arrives after a disconnect.
+    //
+    // KEY FIX: The watchdog is NOT started in the constructor. It is armed only
+    // after the very first valid telemetry packet is received (_doDispatch).
+    // This prevents a false-disconnect during the boot/initialisation window
+    // before the engine tick has had a chance to dispatch its first packet.
     // -----------------------------------------------------------------------
     this.isConnected = true;
     this.watchdogTimeoutMs = 3000; // 3 seconds
     this._watchdogTimer = null;
-    this._startWatchdog();
+    this._watchdogArmed = false;   // Guard: watchdog only fires after first real packet
+    this._watchdogPaused = false;  // Guard: pause watchdog during replay mode
 
     // Connect to local simulator by default
     if (this.engine) {
       this.engine.onUpdate((state, fft, exp) => {
-        if (this.mode === 'SIMULATOR') {
+        // Do NOT dispatch if we are in replay mode — replay delivers frozen snapshots
+        // directly to the pipeline; the absence of live packets must NOT trigger a
+        // watchdog disconnect.
+        if (this.mode === 'SIMULATOR' && !this._watchdogPaused) {
           this._dispatch(state, fft, exp);
         }
       });
@@ -127,8 +138,10 @@ class TelemetryAdapter {
       this._emitSystemEvent('telemetry:reconnect', {});
     }
 
-    // Reset watchdog on every valid packet
-    this._resetWatchdog();
+    // Arm + reset watchdog on every valid packet.
+    // If this is the very first packet, _armAndResetWatchdog() arms it for the
+    // first time; subsequent calls simply reset the running timer.
+    this._armAndResetWatchdog();
 
     for (let i = 0; i < this.subscribers.length; i++) {
       try {
@@ -175,16 +188,30 @@ class TelemetryAdapter {
   }
 
   // -------------------------------------------------------------------------
-  // WATCHDOG: Detects telemetry silence and emits disconnect/reconnect events
+  // WATCHDOG: Detects genuine telemetry silence and emits disconnect/reconnect
+  //
+  // Design:
+  //  • _armAndResetWatchdog() — called on every valid packet; arms the watchdog
+  //    on the first call and resets the timer on every subsequent call. This is
+  //    the ONLY place a new watchdog timer is created during live operation.
+  //  • _clearWatchdog()       — cancels any running timer (no side-effects).
+  //  • _pauseWatchdog()       — suspends watchdog (used during replay mode).
+  //  • _resumeWatchdog()      — resumes watchdog (used when exiting replay).
+  //  • _onWatchdogFired()     — emits telemetry:disconnect only once per gap.
   // -------------------------------------------------------------------------
 
-  _startWatchdog() {
-    this._clearWatchdog();
-    this._watchdogTimer = setTimeout(() => this._onWatchdogFired(), this.watchdogTimeoutMs);
-  }
+  /**
+   * Arm (if first call) and reset the watchdog timer.
+   * Must be called from _doDispatch() on every successfully dispatched packet.
+   */
+  _armAndResetWatchdog() {
+    // Do nothing if watchdog is paused (e.g. during replay mode)
+    if (this._watchdogPaused) return;
 
-  _resetWatchdog() {
+    // Cancel any already-running timer first (prevents duplicate timers)
     this._clearWatchdog();
+
+    this._watchdogArmed = true;
     this._watchdogTimer = setTimeout(() => this._onWatchdogFired(), this.watchdogTimeoutMs);
   }
 
@@ -195,7 +222,31 @@ class TelemetryAdapter {
     }
   }
 
+  /**
+   * Pause the watchdog during replay mode so that the absence of live packets
+   * does NOT trigger a false "connection lost" banner.
+   */
+  pauseWatchdog() {
+    this._watchdogPaused = true;
+    this._clearWatchdog();
+    console.log('[TelemetryAdapter] Watchdog PAUSED (replay mode active).');
+  }
+
+  /**
+   * Resume the watchdog after exiting replay mode.
+   * Resets lastPacketTimestamp so the timer starts fresh from now.
+   */
+  resumeWatchdog() {
+    this._watchdogPaused = false;
+    this.lastPacketTimestamp = Date.now(); // reset baseline so watchdog doesn't fire immediately
+    console.log('[TelemetryAdapter] Watchdog RESUMED (live mode).');
+    // The next real packet from _doDispatch will re-arm the timer.
+  }
+
   _onWatchdogFired() {
+    // Guard: don't fire if paused (shouldn't happen but belt-and-braces)
+    if (this._watchdogPaused) return;
+
     if (this.isConnected) {
       this.isConnected = false;
       const silenceSec = ((Date.now() - this.lastPacketTimestamp) / 1000).toFixed(1);
@@ -227,19 +278,24 @@ class TelemetryAdapter {
   simulateDisconnect(durationMs = 5000) {
     console.log(`[TelemetryAdapter] TEST: Simulating ${durationMs}ms telemetry disconnect...`);
 
-    // Pause the engine tick from dispatching
+    // 1. Stop live packet dispatch by switching to a test-only mode
     const originalMode = this.mode;
     this.mode = '_DISCONNECTED_TEST';
 
-    // Force immediate watchdog trigger by clearing watchdog and firing manually
+    // 2. Cancel any running watchdog timer so we control the timing precisely
     this._clearWatchdog();
+
+    // 3. Emit the disconnect event immediately (don't wait for watchdog timeout)
     this._onWatchdogFired();
 
-    // Resume after duration
+    // 4. Resume live mode after durationMs; the next real packet from _doDispatch
+    //    will update isConnected → true and emit telemetry:reconnect.
     setTimeout(() => {
       this.mode = originalMode;
+      this.lastPacketTimestamp = Date.now(); // reset so watchdog doesn't fire immediately on resume
       console.log('[TelemetryAdapter] TEST: Reconnecting telemetry...');
-      // The next real packet will trigger _doDispatch which fires telemetry:reconnect
+      // The next real packet will call _armAndResetWatchdog() and _doDispatch()
+      // which checks isConnected and emits telemetry:reconnect automatically.
     }, durationMs);
   }
 }
